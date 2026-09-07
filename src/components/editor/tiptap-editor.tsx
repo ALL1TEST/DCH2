@@ -2006,8 +2006,15 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
 
   return (
     <div className={cn(
-      'flex flex-col h-full border border-border/50 rounded-xl overflow-hidden bg-background',
-      isFullscreen && 'fixed inset-4 z-50 rounded-xl shadow-2xl',
+      'flex flex-col border border-border/50 rounded-xl overflow-hidden bg-background',
+      // h-full only in fullscreen mode (where the parent is fixed
+      // inset-4 and the editor should fill the viewport). In normal
+      // mode the editor sizes to its content — the content area
+      // (flex-1) grows naturally, and the AI bar sits right below the
+      // content with no empty gap. Previously h-full made the editor
+      // fill the wrapper's min-height even with short content, leaving
+      // a large blank area between the content and the AI bar.
+      isFullscreen ? 'h-full fixed inset-4 z-50 rounded-xl shadow-2xl' : 'min-h-[12rem]',
       className,
     )}>
       {/* ========== TOOLBAR ROW 1 ========== */}

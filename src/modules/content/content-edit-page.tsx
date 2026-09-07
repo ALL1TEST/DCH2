@@ -885,18 +885,17 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
       <div className={cn('grid grid-cols-1 lg:grid-cols-12 gap-4 transition-all', previewOpen ? 'hidden' : '')}>
         {/* LEFT: Editor Area — uses viewport height minus header + topbar + padding. */}
         <div className="lg:col-span-9 lg:self-start">
-          {/* Editor + AI input share ONE positioned wrapper. Explicit
-              viewport-based height (calc(100vh - 10.5rem)) so the
-              editor fills the available space below the page header +
-              topbar WITHOUT stretching to match the sidebar's height
-              (which created a giant empty gap). NO border/rounded/
-              overflow here — the TiptapEditor carries its own border +
-              rounded-xl + overflow, so the editor card is ONE coherent
-              bordered container. The AI bar anchors to this wrapper's
-              bottom (absolute bottom-0) so it sits naturally at the
-              bottom of the editor card. The "Focus Mode" FAB was
+          {/* Editor + AI input share ONE positioned wrapper. NO fixed
+              viewport height — the editor sizes naturally based on its
+              content so the page ends right after the AI input (no
+              large blank area below). A min-height keeps the editor
+              usable for short content. The TiptapEditor carries its own
+              border + rounded-xl + overflow, so the editor card is ONE
+              coherent bordered container. The AI bar anchors to this
+              wrapper's bottom (absolute bottom-0) so it sits naturally
+              at the bottom of the editor card. The "Focus Mode" FAB was
               removed per design request — no replacement. */}
-          <div className="relative h-[calc(100vh-10.5rem)] min-h-[28rem]">
+          <div className="relative">
             {/* Tiptap Rich Text Editor */}
             <TiptapEditor
               ref={editorRef}

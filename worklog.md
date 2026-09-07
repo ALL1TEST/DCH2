@@ -10792,3 +10792,33 @@ VERIFICATION (browser):
 Stage Summary:
 - Layout-only fix — no functionality changed. All editor tools, buttons, fields, SEO options, publishing controls, sidebar behavior intact.
 - Focus Mode removed. Editor + sidebar rebalanced (9/3). AI input integrated at bottom of editor card. Single coherent bordered editor card. Consistent bordered sidebar. No overflow. Responsive.
+
+---
+Task ID: 26
+Agent: main (New Article page empty space fix)
+Task: Remove ALL unnecessary empty/blank vertical space at the bottom of the New Article page. The editor + AI bar + sidebar should end naturally.
+
+Work Log:
+ROOT CAUSE FOUND:
+1. The editor wrapper had `h-[calc(100vh-10.5rem)]` (fixed viewport height) — forced the editor to fill the entire viewport even with short content, creating a large blank area inside the editor card.
+2. The TiptapEditor root used `h-full` — filled the wrapper's forced height. The content area (`flex-1`) grew to fill the remaining space, leaving a gap between the short ProseMirror content and the AI bar (197px empty space).
+
+Fixes (3 files):
+1. src/modules/content/content-create-page.tsx — Removed `h-[calc(100vh-10.5rem)] min-h-[28rem]` from the editor wrapper → just `relative` (no fixed height, no min-height on the wrapper). The editor sizes naturally.
+2. src/modules/content/content-edit-page.tsx — Same fix.
+3. src/components/editor/tiptap-editor.tsx — Changed the root className from `h-full` (always fills parent) to conditional: `h-full` ONLY in fullscreen mode (`isFullscreen`), `min-h-[12rem]` in normal mode. So the editor has a usable minimum height (192px) but sizes to content — no forced viewport height. The AI bar (absolute bottom-0) now sits right below the content with 0px gap.
+
+VERIFICATION (browser):
+- Empty space between content and AI bar: 0px (was 197px) ✓
+- Editor height: 251px (was 448px — natural content height) ✓
+- Editor bottom: 315px (ends right after AI bar) ✓
+- No forced viewport height on the editor ✓
+- Fullscreen mode still works (h-full + fixed inset-4) ✓
+- All editor tools, toolbar, AI input, sidebar sections intact ✓
+- No horizontal overflow ✓
+
+Stage Summary:
+- The large blank area inside the editor card is GONE — the editor sizes to content, the AI bar sits right below the content, and the page ends naturally.
+- No functionality changed — all editor tools, AI input, sidebar, toolbar, publishing controls intact.
+- Fullscreen mode preserved (h-full + fixed positioning).
+- Applied to both content-create + content-edit pages. Lint clean. HTTP 200.

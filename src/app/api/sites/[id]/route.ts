@@ -159,9 +159,19 @@ export async function DELETE(
       );
     }
 
+    // Soft-delete: set status='ARCHIVED' AND append a unique suffix
+    // to the slug so the original slug is freed for reuse. The composite
+    // @@unique([ownerId, slug]) DB constraint would otherwise block
+    // recreating a site with the same slug after a soft-delete (the
+    // ARCHIVED row still occupies the (ownerId, slug) slot). By
+    // renaming the slug to `${original}-archived-${timestamp}` we keep
+    // the historical record (for audit) while freeing the original
+    // slug for the account to reuse. The app-level slug check already
+    // filters out ARCHIVED sites, so this is belt-and-suspenders.
+    const archivedSlug = `${existing.slug}-archived-${Date.now()}`;
     const site = await db.site.update({
       where: { id },
-      data: { status: 'ARCHIVED' },
+      data: { status: 'ARCHIVED', slug: archivedSlug },
     });
 
     return NextResponse.json({

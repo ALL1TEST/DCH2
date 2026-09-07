@@ -345,6 +345,7 @@ const PLAN_DEMO_ACCOUNTS: Array<{ email: string; password: string; name: string;
   { email: 'free@example.com', password: 'free123', name: 'Free User', planId: 'free' },
   { email: 'plus@example.com', password: 'plus123', name: 'Plus User', planId: 'plus' },
   { email: 'pro@example.com', password: 'pro123', name: 'Pro User', planId: 'pro' },
+  { email: 'max@example.com', password: 'max123', name: 'Max User', planId: 'max' },
 ];
 
 async function ensurePlanDemoAccounts() {
@@ -427,6 +428,7 @@ async function main() {
   console.log('   Free demo:          free@example.com / free123');
   console.log('   Plus demo:          plus@example.com / plus123');
   console.log('   Pro demo:           pro@example.com / pro123');
+  console.log('   Max demo:           max@example.com / max123');
 }
 
 main()

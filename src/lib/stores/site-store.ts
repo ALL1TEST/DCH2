@@ -122,8 +122,13 @@ function resolveSiteRef(ref: string | null, sites: Site[]): { dbId: string | nul
   const byId = sites.find((s) => s.id === ref);
   if (byId) return { dbId: byId.id, slug: byId.slug };
 
-  // Unknown reference — store as-is, will be resolved after fetch
-  return { dbId: ref, slug: ref };
+  // Unknown reference — the stored/URL site no longer exists in the
+  // user's visible list (deleted, or filtered out by a plan change).
+  // Fall back to "All Sites" (null) so the selector never points at a
+  // nonexistent site. Previously this returned the stale ref as-is,
+  // leaving the selector pinned to a site the user can no longer
+  // access. "All Sites" is always a valid global selection.
+  return { dbId: null, slug: null };
 }
 
 // -------------------- Store --------------------
@@ -172,7 +177,29 @@ export const useSiteStore = create<SiteState>((set, get) => ({
   fetchSites: async () => {
     try {
       const data = await getApi<Site[]>('/api/sites', { pageSize: 100 });
-      set({ sites: Array.isArray(data) ? data : [] });
+      const sites = Array.isArray(data) ? data : [];
+      set({ sites });
+      // After a re-fetch (e.g. when queries are invalidated after a
+      // plan change or site create/delete), the currently-selected
+      // site may no longer be in the visible list. If so, fall back to
+      // "All Sites" so the selector never points at a site the user
+      // can no longer access. "All Sites" (null activeSiteDbId) is
+      // always valid — even when the user has 0 sites.
+      const { activeSiteDbId, activeSiteSlug } = get();
+      if (activeSiteDbId) {
+        const stillExists = sites.some((s) => s.id === activeSiteDbId);
+        if (!stillExists) {
+          set({ activeSiteDbId: null, activeSiteSlug: null });
+          writeToStorage(null, null);
+        }
+      } else if (activeSiteSlug) {
+        // Slug-only stale state (no dbId resolved yet) — clear it too.
+        const slugExists = sites.some((s) => s.slug === activeSiteSlug);
+        if (!slugExists) {
+          set({ activeSiteSlug: null });
+          writeToStorage(null, null);
+        }
+      }
     } catch (err) {
       console.error('Failed to fetch sites:', err);
     }

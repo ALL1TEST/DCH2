@@ -1101,7 +1101,44 @@ export function AppSidebar() {
                 : isModuleAllowedByPlan(pageKeyOf(child.href), planEntitlements))
           : undefined,
       }))
-      .filter((item) => isModuleAllowedByPlan(pageKeyOf(item.href), planEntitlements));
+      .filter((item) => isModuleAllowedByPlan(pageKeyOf(item.href), planEntitlements))
+      // SETTINGS DROPDOWN ADAPTIVE BEHAVIOR: after plan-entitlement
+      // filtering, a parent with children may have 0, 1, or many
+      // visible children. Adapt the rendering:
+      //   • 2+ visible children → keep as an expandable/collapsible
+      //     dropdown (the existing behavior — e.g. Settings with
+      //     Email Templates + SMTP + Backups + Notifications).
+      //   • 1 visible child → collapse into a DIRECT nav item (no
+      //     dropdown, no chevron, no submenu). The single child's
+      //     href/icon/label replace the parent's so clicking it
+      //     navigates directly to that page (e.g. Settings with only
+      //     Notifications → "Notifications" appears as a top-level
+      //     item with its own icon, NOT under a Settings dropdown).
+      //   • 0 visible children → hide the parent entirely (no empty
+      //     dropdown, no orphan heading).
+      .map((item) => {
+        if (!item.children) return item;
+        const visibleChildren = item.children;
+        if (visibleChildren.length === 0) {
+          // 0 children → hide the parent entirely (filter it out).
+          return { ...item, _hide: true } as NavItem & { _hide?: boolean };
+        }
+        if (visibleChildren.length === 1) {
+          // 1 child → collapse into a direct nav item. Use the child's
+          // href/icon/label but keep the parent's requiredRole etc.
+          const child = visibleChildren[0];
+          return {
+            ...item,
+            label: child.label,
+            href: child.href,
+            icon: child.icon,
+            children: undefined, // no dropdown
+          };
+        }
+        // 2+ children → keep as an expandable dropdown.
+        return item;
+      })
+      .filter((item) => !(item as NavItem & { _hide?: boolean })._hide);
   }, [userRole, pagePermissions, isPlatformAdmin, isInternalAccount, planEntitlements]);
 
   /*

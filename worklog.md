@@ -10532,3 +10532,39 @@ Stage Summary:
 - Pro site "bob" visible on Pro, hidden on Free — generic logic works for every site.
 - Plan switching updates site visibility immediately (no stale/reused data — the filter runs on every GET /api/sites request).
 - No regressions: site creation, ownership, plan limits, subscription logic, Internal Account, Platform Admin, site selector, dashboard all intact. Lint clean. HTTP 200.
+
+---
+Task ID: 18
+Agent: main (Settings dropdown adaptive + site-selector fallback)
+Task: Fix Admin User sidebar Settings dropdown behavior (collapse to direct item when 1 child, hide when 0) + site-selector fallback to All Sites when 0 sites or selected site becomes invalid.
+
+Work Log:
+TRACED:
+- Settings nav item has 4 children (Email Templates, SMTP Settings, Notifications, Backups). visibleItems memo filters children by plan entitlement (isModuleAllowedByPlan) but never collapsed/hid the parent based on remaining children count.
+- 'notifications' is NOT in MODULE_FEATURE_MAP → always visible (not plan-gated). email-templates/backups/SMTP are gated.
+- On Free (all features false): only Notifications remains visible → Settings was still a dropdown with 1 child.
+- resolveSiteRef returned stale refs as-is when the site no longer existed → selector stayed pinned to invalid site.
+
+Fixes (2 files):
+1. src/components/layout/sidebar.tsx — visibleItems memo: after plan-entitlement filtering of children, added adaptive behavior:
+   • 2+ visible children → keep as expandable/collapsible dropdown (existing behavior)
+   • 1 visible child → collapse into a DIRECT nav item (no dropdown, no chevron, no submenu). The child's href/icon/label replace the parent's. So Settings with only Notifications → "Notifications" appears as a top-level item.
+   • 0 visible children → hide the parent entirely (filtered out, no empty dropdown)
+2. src/lib/stores/site-store.ts — Two fixes:
+   (a) resolveSiteRef: when the ref doesn't match any site, return {dbId:null, slug:null} (All Sites) instead of keeping the stale ref. So an invalid stored/URL site falls back to All Sites.
+   (b) fetchSites: after re-fetch, if the active site is no longer in the list, clear activeSiteDbId/slug + localStorage → All Sites. Handles plan-change invalidation + site deletion. "All Sites" (null) is always valid even with 0 sites.
+
+VERIFICATION (browser):
+- Free (only Notifications visible): Settings collapsed into direct "Notifications" item, no chevron, no dropdown ✓
+- Pro (all 4 children visible): Settings dropdown with chevron, expanded shows Email Templates + SMTP + Notifications + Backups ✓
+- Free → switch back → Settings hidden (0 children) ✓
+- Site selector on Free (0 sites): stays on "All Sites" ✓
+- Invalid-site fallback: select bob on Pro → switch to Free (bob filtered out) → reload → selector falls back to "All Sites" (activeDbId = null) ✓
+- No fake site created ✓
+- No hardcoded bob special-case ✓
+- Plan/site entitlement logic intact ✓
+
+Stage Summary:
+- Settings dropdown adapts to available children: 2+ = dropdown, 1 = direct item, 0 = hidden.
+- Site selector defaults to All Sites when 0 sites; falls back to All Sites when selected site becomes invalid (plan change/deletion).
+- No regressions: existing site selection, permissions, plan entitlements, navigation all intact. Lint clean. HTTP 200.

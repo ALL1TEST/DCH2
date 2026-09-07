@@ -10699,3 +10699,32 @@ Stage Summary:
 - Cross-account isolation: Account A never sees Account B's sites/articles/media/etc.
 - Internal Account + Platform Admin unaffected (billing bypass / staff bypass).
 - No regressions: site creation, deletion, plan limits, entitlements, navigation all intact. Lint clean. HTTP 200.
+
+---
+Task ID: 23
+Agent: main (account-scoped slug uniqueness)
+Task: Fix "site already exists" validation bug — Plus account couldn't create "plus" site because the slug check was global, not account-scoped.
+
+Work Log:
+ROOT CAUSE FOUND:
+- POST /api/sites used db.site.findUnique({ where: { slug } }) which checked ALL sites globally (the slug field had a global @unique DB constraint). So if Account A had a site with slug "plus", Account B couldn't create a site with slug "plus" even though they're different accounts.
+- The Prisma schema had `slug String @unique` (global uniqueness) instead of a composite `@@unique([ownerId, slug])` (account-scoped uniqueness).
+
+Fix (2 files):
+1. prisma/schema.prisma — Changed `slug String @unique` to `slug String` + added `@@unique([ownerId, slug])`. Slug is now unique PER OWNER (account-scoped), not globally. Two different accounts can each have a site with slug "plus" without conflict. db:push migrated the constraint.
+2. src/app/api/sites/route.ts — POST slug check changed from `db.site.findUnique({ where: { slug } })` (global) to `db.site.findFirst({ where: { ownerId: user.id, slug, status: { not: 'ARCHIVED' } } })` (account-scoped + active-only). So the check only looks at the CURRENT account's ACTIVE sites — deleted sites don't block creation, and other accounts' sites don't cause false "already exists" errors.
+
+VERIFICATION (API):
+- Free account creates "plus" slug (Plus account already has "plus") → SUCCEEDS (201) ✓ (cross-account, different namespace)
+- Pro account creates "pro" slug (Pro account already owns "pro") → BLOCKED "already exists" ✓ (same account, same slug — correct)
+- Pro account creates "pro-different" (new slug) → SUCCEEDS ✓
+- Plus account creating "plus" → hits PLAN_LIMIT first (Plus maxSites=1, already has 1) ✓ (limit check runs before slug check)
+- No hardcoded site names ✓ (generic ownerId + slug findFirst)
+- Cross-account isolation intact: each account sees only its own sites ✓
+
+Stage Summary:
+- Slug uniqueness is now account-scoped: (ownerId, slug) composite unique constraint in DB + account-scoped findFirst check in POST.
+- Different accounts can each have the same slug without false "already exists" errors.
+- Same account creating a duplicate slug is correctly blocked.
+- Deleted (ARCHIVED) sites don't block slug reuse (status: { not: 'ARCHIVED' } filter).
+- No regressions: site creation, ownership, plan limits, cross-account isolation, Internal Account, Platform Admin all intact. Lint clean. HTTP 200.

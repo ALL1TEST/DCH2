@@ -547,7 +547,14 @@ enum SiteStatus {
 model Site {
   id          String      @id @default(cuid())
   name        String
-  slug        String      @unique
+  // Slug is unique PER OWNER (account-scoped), not globally. Two
+  // different accounts can each have a site with slug "plus" — the
+  // composite @@unique([ownerId, slug]) below enforces this. The old
+  // global @unique on slug prevented Account B from creating "plus"
+  // just because Account A already had it, even though they are
+  // separate tenants. NULL ownerId (legacy/platform sites) is treated
+  // as its own namespace by the composite constraint.
+  slug        String
   domain      String?
   description String?
   logo        String?
@@ -574,6 +581,13 @@ model Site {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
+  // Account-scoped slug uniqueness: a slug only needs to be unique
+  // within the same owner/account, NOT globally. This allows two
+  // different accounts to each have a site with slug "plus" without
+  // conflict. The old global @unique on slug caused false "already
+  // exists" errors when Account B tried to create a slug Account A
+  // already had.
+  @@unique([ownerId, slug])
   @@index([ownerId])
   @@index([ownerId, planScope])
 

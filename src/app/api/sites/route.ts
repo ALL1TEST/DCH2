@@ -177,8 +177,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check slug uniqueness
-    const existing = await db.site.findUnique({ where: { slug } });
+    // ACCOUNT-SCOPED SLUG UNIQUENESS: a slug only needs to be unique
+    // within the SAME owner/account, NOT globally. Two different
+    // accounts can each have a site with slug "plus" — the composite
+    // @@unique([ownerId, slug]) DB constraint enforces this. The check
+    // here only looks at the CURRENT account's ACTIVE (non-ARCHIVED)
+    // sites, so a deleted site with the same slug does NOT block
+    // creation (soft-deleted sites are excluded). Previously this used
+    // db.site.findUnique({ where: { slug } }) which checked ALL sites
+    // globally — causing false "already exists" errors when Account B
+    // tried to create a slug Account A already had.
+    const existing = await db.site.findFirst({
+      where: {
+        ownerId: user.id,
+        slug,
+        status: { not: 'ARCHIVED' },
+      },
+    });
     if (existing) {
       return NextResponse.json(
         {

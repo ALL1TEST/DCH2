@@ -10568,3 +10568,27 @@ Stage Summary:
 - Settings dropdown adapts to available children: 2+ = dropdown, 1 = direct item, 0 = hidden.
 - Site selector defaults to All Sites when 0 sites; falls back to All Sites when selected site becomes invalid (plan change/deletion).
 - No regressions: existing site selection, permissions, plan entitlements, navigation all intact. Lint clean. HTTP 200.
+
+---
+Task ID: 19
+Agent: main (Internal Account dashboard UI-only changes)
+Task: Remove "Internal Account" badge next to "Overview" title, replace description, remove badge from profile dropdown, add green ring to avatar. UI-only — no logic/permission/subscription changes.
+
+Work Log:
+Fixes (2 files, UI-only):
+1. src/modules/internal/internal-dashboard.tsx — Removed the `<Badge>` element next to the "Overview" title (the INTERNAL badge). Title now displays "Overview" alone. Replaced the description from `t('internal.subtitle')` ("Full-access internal platform workspace...") to `t('dashboard.descriptionAll')` ("Monitor all sites, manage operations, and track performance across your network.") — the same text the Admin User Executive Dashboard uses. Removed the now-unused Badge import.
+2. src/components/layout/user-profile-menu.tsx — (a) Removed the `{isInternalAccount && <span>INTERNAL ACCOUNT</span>}` badge from the profile dropdown header. The name + email alone now identify the account. (b) Changed the Internal Account avatar ring from neutral `ring-border` to `ring-emerald-500` (green) — the same status-green ring color the design system uses for the Free plan's active avatar (getPlanBadgeStyle(free).ring). Platform staff keep the neutral ring; client users keep their plan-colored ring.
+
+VERIFICATION (browser as internal@example.com):
+1. Dashboard h1 = "Overview" only (no badge next to it) ✓
+2. Description = "Monitor all sites, manage operations, and track performance across your network." ✓
+3. Profile dropdown: no "Internal Account" badge ✓
+4. Avatar: green ring (ring-emerald-500) ✓
+5. Profile / Language / Theme / Log out all present ✓
+6. Runtime errors: 0 ✓
+
+Stage Summary:
+- Internal Account dashboard header: "Overview" + the requested description, no badge.
+- Profile dropdown: name + email only, no redundant badge.
+- Avatar: green circular border (ring-emerald-500, existing design-system color).
+- No logic changes: permissions, subscription, navigation, billing, Internal Account full-access all intact. Admin User + Platform Admin untouched. Lint clean. HTTP 200.

@@ -239,9 +239,18 @@ export function UserProfileMenu({
                 header of the open menu, matching the reference layout. */}
             <Avatar className={cn(
               'h-11 w-11 shrink-0 rounded-full ring-2 ring-offset-2 ring-offset-background',
-              // Platform staff + Internal Account: neutral ring (no
-              // plan-colored ring — neither has a personal subscription).
-              isPlatformStaff || isInternalAccount ? 'ring-border' : serverSynced ? getPlanBadgeStyle(currentPlan).ring : 'ring-border',
+              // Platform staff: neutral ring (no personal subscription).
+              // Internal Account: green ring (ring-emerald-500) — the
+              // same status-green ring color the design system uses for
+              // the Free plan's active avatar (getPlanBadgeStyle(free).ring
+              // → ring-emerald-500). This gives the Internal Account a
+              // green circular border matching the Admin User's active
+              // account avatar, using the existing design-system color
+              // rather than inventing a new one. Client users keep the
+              // plan-colored ring resolved from their active subscription.
+              isPlatformStaff ? 'ring-border'
+                : isInternalAccount ? 'ring-emerald-500'
+                : serverSynced ? getPlanBadgeStyle(currentPlan).ring : 'ring-border',
             )}>
               <AvatarImage
                 src={user?.avatarUrl ?? undefined}
@@ -265,20 +274,13 @@ export function UserProfileMenu({
                 </p>
                 {/* Plan badge is hidden for platform staff (they have no
                     personal subscription — INTERNAL billing bypass). The
-                    Internal Account shows its own account-type badge
-                    instead — identifying the signed-in account as the
-                    internal SaaS account (never "Admin User", never
-                    "Platform Admin"). The badge uses the uppercase
-                    sidebar-style label ("INTERNAL ACCOUNT") rather than
-                    the account name, so it never reads as a duplicate of
-                    the user's name ("Internal Account") shown on the same
-                    line — the name appears exactly once, the badge once. */}
+                    Internal Account ALSO shows no badge here — the
+                    account identity is already surfaced in the sidebar
+                    footer (name + INTERNAL ACCOUNT badge) and the
+                    dashboard header, so duplicating it in the profile
+                    dropdown header would be redundant. The name + email
+                    alone identify the account cleanly. */}
                 {!isPlatformStaff && !isInternalAccount && <PlanBadge className="shrink-0" />}
-                {isInternalAccount && (
-                  <span className="shrink-0 rounded-md bg-emerald-600 dark:bg-emerald-500 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
-                    {t('internal.badgeSidebar')}
-                  </span>
-                )}
               </div>
               <p className="truncate text-xs leading-4 text-muted-foreground">
                 {user?.email ?? ''}

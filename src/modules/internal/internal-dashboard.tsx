@@ -13,10 +13,13 @@
 // Content Pipeline — the exact same DashboardWidgets component the
 // Admin User Executive Dashboard renders).
 //
-// The dashboard header reads "Overview" (the account identity is
-// already surfaced in the sidebar footer + profile dropdown, so it
-// is not duplicated here). The INTERNAL badge is kept next to the
-// title to preserve the account-type distinction.
+// The dashboard header reads "Overview" with NO badge next to it —
+// the account identity is already surfaced in the sidebar footer
+// (name + INTERNAL ACCOUNT badge) and the profile dropdown, so it
+// is not duplicated in the header. The subtitle is the same
+// "Monitor all sites, manage operations, and track performance
+// across your network." text the Admin User Executive Dashboard
+// uses, so the two dashboards share the same header language.
 //
 // The header's action button is "Refresh" — it invalidates the
 // dashboard's React Query cache and refetches every dashboard query,
@@ -29,7 +32,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useT } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DashboardWidgets } from '@/modules/dashboard';
 import { RefreshCw } from 'lucide-react';
@@ -81,21 +83,19 @@ export function InternalDashboardModule() {
 
   return (
     <div className="space-y-6">
-      {/* Page header — "Overview" title + professional internal-platform
-          subtitle. The INTERNAL badge is kept to preserve the account-type
-          identity at a glance. The "Refresh" action re-fetches the
-          dashboard data on demand. */}
+      {/* Page header — "Overview" title only (no badge next to it:
+          the account identity is already shown in the sidebar footer
+          + profile dropdown, so it is not duplicated here). The
+          subtitle is the same "Monitor all sites, manage operations,
+          and track performance across your network." text the Admin
+          User Executive Dashboard uses. The "Refresh" action
+          re-fetches the dashboard data on demand. */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-1">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold tracking-tight text-foreground">
-              {t('internal.title')}
-            </h1>
-            <Badge className="h-5 shrink-0 px-1.5 text-[10px] bg-emerald-600 dark:bg-emerald-500 text-white border-transparent">
-              {t('internal.badge')}
-            </Badge>
-          </div>
-          <p className="text-sm text-muted-foreground mt-1">{t('internal.subtitle')}</p>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">
+            {t('internal.title')}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">{t('dashboard.descriptionAll')}</p>
         </div>
         <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing}>
           <RefreshCw className={cn('h-4 w-4 mr-1.5', isRefreshing && 'animate-spin')} />

@@ -331,6 +331,73 @@ async function migrateLegacyPlanReferences() {
   }
 }
 
+// -------------------- Plan demo accounts --------------------
+// Separate demo accounts for each plan tier (Free / Plus / Pro) so
+// that site ownership maps to the correct account/plan. Previously
+// the single admin@example.com account owned every demo site, so
+// when that account (on Pro) logged in it saw all 3 sites (free +
+// plus + pro) — because the ownerId was the same for all of them.
+// These per-plan demo accounts give each site a DISTINCT owner, so
+// the site switcher (which filters by ownerId) shows ONLY the
+// current account's sites. Each account gets a Subscription on its
+// matching plan so the plan limit + entitlements resolve correctly.
+const PLAN_DEMO_ACCOUNTS: Array<{ email: string; password: string; name: string; planId: string }> = [
+  { email: 'free@example.com', password: 'free123', name: 'Free User', planId: 'free' },
+  { email: 'plus@example.com', password: 'plus123', name: 'Plus User', planId: 'plus' },
+  { email: 'pro@example.com', password: 'pro123', name: 'Pro User', planId: 'pro' },
+];
+
+async function ensurePlanDemoAccounts() {
+  for (const { email, password, name, planId } of PLAN_DEMO_ACCOUNTS) {
+    const existing = await db.user.findUnique({ where: { email } });
+    let userId: string;
+    if (existing) {
+      if (
+        existing.role !== 'ADMIN' ||
+        existing.billingMode !== 'EXTERNAL' ||
+        existing.password !== password ||
+        existing.status !== 'ACTIVE'
+      ) {
+        await db.user.update({
+          where: { email },
+          data: { role: 'ADMIN', billingMode: 'EXTERNAL', status: 'ACTIVE', password, name },
+        });
+        console.log(`  ✓ upgraded existing ${email} → ADMIN / EXTERNAL (plan: ${planId})`);
+      } else {
+        console.log(`  ✓ ${email} already ADMIN / EXTERNAL (plan: ${planId})`);
+      }
+      userId = existing.id;
+    } else {
+      const created = await db.user.create({
+        data: {
+          email,
+          name,
+          role: 'ADMIN',
+          status: 'ACTIVE',
+          billingMode: 'EXTERNAL',
+          password,
+          emailVerified: true,
+        },
+      });
+      userId = created.id;
+      console.log(`  ✓ created ${email} (ADMIN / EXTERNAL, plan: ${planId}, password: ${password})`);
+    }
+    // Ensure the account has a Subscription on its matching plan so
+    // getEffectivePlanIdAsync resolves to the correct planId — this
+    // drives both the plan limit (maxSites) and the site-visibility
+    // entitlement filter (planScope tier <= user plan tier).
+    const sub = await db.subscription.findUnique({ where: { userId } });
+    if (!sub || sub.planId !== planId || sub.status !== 'active') {
+      await db.subscription.upsert({
+        where: { userId },
+        create: { userId, planId, billingInterval: 'monthly', status: 'active', startDate: new Date() },
+        update: { planId, status: 'active' },
+      });
+      console.log(`    → subscription set to ${planId} (active)`);
+    }
+  }
+}
+
 async function main() {
   console.log('\n🚀 Bootstrapping platform config...\n');
   await ensureOwner();
@@ -338,6 +405,7 @@ async function main() {
   await ensureInternalAccount();
   await ensureCmsAdmin();
   await ensurePlans();
+  await ensurePlanDemoAccounts();
   console.log(`  ✓ plan configs seeded (${(await db.planConfig.count())} rows)`);
   await listFeatureFlags();
   console.log(`  ✓ feature flags seeded (${(await db.featureFlag.count())} rows)`);
@@ -355,6 +423,10 @@ async function main() {
   console.log('   Platform Admin:     platform@example.com / platform123');
   console.log('   Internal Account:   internal@example.com / internal123');
   console.log('   CMS Admin (client): admin@example.com / admin123');
+  await ensurePlanDemoAccounts();
+  console.log('   Free demo:          free@example.com / free123');
+  console.log('   Plus demo:          plus@example.com / plus123');
+  console.log('   Pro demo:           pro@example.com / pro123');
 }
 
 main()

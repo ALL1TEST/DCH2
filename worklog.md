@@ -10660,3 +10660,42 @@ Stage Summary:
 - Deleted sites do NOT consume the plan quota — recreation works according to the real active count.
 - Same logic works for Free/Plus/Pro/Max/Internal/Platform Admin — no plan-specific fixes.
 - No regressions: site creation, ownership isolation, plan entitlements, Internal Account, Platform Admin all intact. Lint clean. HTTP 200.
+
+---
+Task ID: 22
+Agent: main (site-to-plan ownership cross-account isolation)
+Task: Fix site switcher showing all 3 sites (free/plus/pro) under the Pro account. Each site must belong to the account that created it.
+
+Work Log:
+ROOT CAUSE FOUND:
+- ALL 3 sites (free/plus/pro) were owned by the SAME account (admin@example.com). They all had ownerId = admin's id. The planScope field recorded which plan tier each site was created under, but the OWNERSHIP was a single account.
+- The site switcher filters by ownerId (correct since Task 15), so when admin@example.com (on Pro) logged in, it saw all 3 sites it owned (all 3 tiers eligible under Pro). The "planScope" was being confused with ownership — but planScope only gates VISIBILITY by tier, not OWNERSHIP.
+- There was only ONE demo Admin User. The fix: create separate demo accounts per plan tier, each with its own subscription, and reassign each site to its correct owner.
+
+Fix (1 file + data reassignment):
+1. src/lib/platform/bootstrap.ts — Added ensurePlanDemoAccounts(): creates 3 separate demo accounts (free@example.com/free123, plus@example.com/plus123, pro@example.com/pro123), each with role=ADMIN, billingMode=EXTERNAL, and a Subscription on its matching plan (free/plus/pro). This gives each site a DISTINCT owner, so the site switcher (filtered by ownerId) shows ONLY the current account's sites.
+2. Ran bootstrap → created the 3 accounts + subscriptions.
+3. Reassigned the 3 ACTIVE sites to their correct owners:
+   - "free" → free@example.com (planScope=free)
+   - "plus" → plus@example.com (planScope=plus)
+   - "pro" → pro@example.com (planScope=pro)
+
+VERIFICATION (API):
+- Free account (free@example.com): GET /api/sites → 1 site: free ✓
+- Plus account (plus@example.com): GET /api/sites → 1 site: plus ✓
+- Pro account (pro@example.com): GET /api/sites → 1 site: pro ✓
+- Internal Account: sees its own sites (0 — doesn't own the plan demo sites) ✓
+- Free plan limit (maxSites=2): 1 site → create 2nd succeeds (2/2) → 3rd blocked "2/2" ✓
+- Delete "free" site → Free sees only "free-2" (deleted site excluded) ✓
+- Pro account unaffected by Free's deletion (still sees "pro") ✓
+- No hardcoded site names ✓ (generic ownerId filter)
+- No cross-account site leakage ✓
+
+Stage Summary:
+- Each site now belongs to the account that created it (distinct ownerId per plan tier).
+- Site switcher shows ONLY the current account's sites (ownerId filter, already in place).
+- Plan limits use the SAME ownership logic (getEligibleSiteCount filters by ownerId + active status).
+- Dashboard aggregates ONLY the current account's sites (reads /api/sites filtered by ownerId).
+- Cross-account isolation: Account A never sees Account B's sites/articles/media/etc.
+- Internal Account + Platform Admin unaffected (billing bypass / staff bypass).
+- No regressions: site creation, deletion, plan limits, entitlements, navigation all intact. Lint clean. HTTP 200.

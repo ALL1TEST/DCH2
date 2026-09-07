@@ -1,8 +1,8 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/platform/platform-auth';
-import { checkLimit, limitExceededResponse } from '@/lib/platform/usage-limits';
-import { hasBillingBypass, getUserPlanTier, getPlanTier, siteVisibleForTier } from '@/lib/platform/entitlements';
+import { checkLimit, limitExceededResponse, getEffectiveLimitsAsync } from '@/lib/platform/usage-limits';
+import { hasBillingBypass, getUserPlanTier, siteEligibleForPlan } from '@/lib/platform/entitlements';
 import { getEffectivePlanIdAsync } from '@/lib/platform/entitlements';
 
 // ============================================================
@@ -64,17 +64,22 @@ export async function GET(request: NextRequest) {
     });
 
     // PLAN ENTITLEMENT FILTER — apply server-side. A site is visible
-    // only if the user's current plan tier >= the site's planScope
-    // tier. Billing-bypass users (INTERNAL/OWNER) have tier Infinity
-    // (siteVisibleForTier always true). Platform staff also bypass
-    // (they see every site for platform management). This keeps a
-    // Pro-plan site from leaking into a Free-plan user's list — the
-    // filter is on the data, not the UI.
+    // only if it is ELIGIBLE under the user's current plan: tier check
+    // (user's plan tier >= site's planScope tier) AND the plan allows
+    // sites (maxSites > 0 or -1). This is the SAME eligibility logic
+    // checkLimit() uses for the count, so what the user sees matches
+    // the limit exactly. A plan with maxSites=0 (e.g. Plus in the DB)
+    // shows ZERO sites even if the user owns lower-tier sites — the
+    // plan itself forbids sites. Billing-bypass users (INTERNAL/OWNER)
+    // have tier Infinity + skip the filter (see every owned site).
+    // Platform staff also bypass (they manage the whole platform).
     let visibleSites = allOwnedSites;
     if (!isPlatformStaff && !hasBillingBypass(user)) {
       const userTier = await getUserPlanTier(user);
+      const limits = await getEffectiveLimitsAsync(user);
+      const planMaxSites = limits.maxSites;
       visibleSites = allOwnedSites.filter((s) =>
-        siteVisibleForTier(s.planScope, userTier),
+        siteEligibleForPlan(s.planScope, userTier, planMaxSites),
       );
     }
 

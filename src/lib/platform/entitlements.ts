@@ -106,6 +106,79 @@ export async function getUserPlanTier(user: EntitlementUser): Promise<number> {
   return getPlanTier(planId);
 }
 
+// -------------------- SINGLE SOURCE OF TRUTH: site eligibility --------------------
+// A site is ELIGIBLE under the user's current plan when BOTH are true:
+//   1. the user's plan tier >= the site's planScope tier
+//      (e.g. a Pro-tier user can see free + plus + pro sites, but a
+//       Free user cannot see a Pro site)
+//   2. the user's plan actually ALLOWS sites (maxSites > 0 or -1)
+//      (a plan with maxSites=0 means NO sites are eligible, regardless
+//       of tier — this is what the Plus plan is configured with in the
+//       DB, so Plus must show zero sites even if the user owns lower-
+//       tier sites)
+//
+// This helper is the ONE authoritative eligibility check used by:
+//   • GET /api/sites — visibility filter (which sites the user sees)
+//   • checkLimit() — the current-usage count (how many eligible sites
+//     the user already has, for the limit comparison)
+//   • the create-site modal — the "X/Y sites" message reads the same
+//     count + limit
+// Reusing one logic everywhere eliminates the inconsistency where the
+// count said "2/2" after 1 eligible site (it counted a Pro-tier site
+// under a Free plan) and where Plus showed "dod" despite maxSites=0.
+// (`db` is already imported at the top of this module — reused.)
+
+/** Whether a site with the given planScope is ELIGIBLE under the
+ *  user's current plan (tier check + plan-allows-sites check).
+ *  `planMaxSites` is the user's plan limit (from getEffectiveLimitsAsync).
+ *  `userPlanTier` is the user's resolved plan tier. */
+export function siteEligibleForPlan(
+  sitePlanScope: string | null | undefined,
+  userPlanTier: number,
+  planMaxSites: number,
+): boolean {
+  // A plan that allows 0 sites (maxSites=0) makes NO site eligible —
+  // regardless of tier. This is the Plus-plan case: even free-tier
+  // sites are not eligible because the plan itself forbids sites.
+  // -1 = unlimited (always eligible if tier passes).
+  if (planMaxSites === 0) return false;
+  // Otherwise: eligible if the user's tier >= the site's required tier.
+  return siteVisibleForTier(sitePlanScope, userPlanTier);
+}
+
+/** The authoritative count of ELIGIBLE sites the user currently owns.
+ *  Counts only sites that pass the plan-eligibility check (tier +
+ *  plan-allows-sites), NOT every owned site. This is the number used
+ *  by checkLimit() for the "current" in the X/Y limit comparison, so
+ *  the count matches what the user actually sees + what the plan
+ *  allows. Billing-bypass users return 0 here (they are unlimited —
+ *  the count is irrelevant). */
+export async function getEligibleSiteCount(
+  user: EntitlementUser,
+  userPlanTier: number,
+  planMaxSites: number,
+): Promise<number> {
+  // Billing-bypass: unlimited — count is irrelevant (checkLimit returns
+  // ok=true before reaching here). Return 0 for consistency.
+  if (hasBillingBypass(user) || userPlanTier === Infinity) return 0;
+  // If the plan allows 0 sites, no sites are eligible → count is 0.
+  if (planMaxSites === 0) return 0;
+  try {
+    // Fetch the user's owned sites' planScope values + apply the
+    // SAME eligibility filter GET /api/sites uses, so the count
+    // matches the visible list exactly.
+    const sites = await db.site.findMany({
+      where: { ownerId: user.id },
+      select: { planScope: true },
+    });
+    return sites.filter((s) => siteEligibleForPlan(s.planScope, userPlanTier, planMaxSites)).length;
+  } catch {
+    // If the query fails, fail open (count 0 → allow creation) —
+    // the worst case is one extra site, which is recoverable.
+    return 0;
+  }
+}
+
 /**
  * Resolve the effective plan id ASYNC, preferring the DB Subscription row
  * over the legacy in-memory customer. Also returns the free-trial-expired

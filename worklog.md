@@ -10592,3 +10592,34 @@ Stage Summary:
 - Profile dropdown: name + email only, no redundant badge.
 - Avatar: green circular border (ring-emerald-500, existing design-system color).
 - No logic changes: permissions, subscription, navigation, billing, Internal Account full-access all intact. Admin User + Platform Admin untouched. Lint clean. HTTP 200.
+
+---
+Task ID: 20
+Agent: main (plan/site entitlement + site-limit root-cause fix)
+Task: Fix inconsistency between displayed plan limits, actual site count, and site-to-plan association. Free said "2 sites" but reported "2/2" after 1 site. Plus said "0 sites" but "dod" appeared. Find root cause + single source of truth.
+
+Work Log:
+ROOT CAUSE FOUND (full codebase trace):
+1. DB PlanConfig is the actual source of truth (overrides code defaults). DB has: Free maxSites=2, Plus maxSites=0, Pro maxSites=10, Max=-1. So "Free says 2 sites" and "Plus says 0 sites" are the REAL configured values (not bugs in display).
+2. checkLimit() counted ALL owned sites (db.site.count by ownerId) — it did NOT filter by plan eligibility. So on Free (maxSites=2), admin owning bob(pro) + dod(free) = count 2 → "2/2" even though only dod was Free-eligible. This was the "2/2 after 1 site" bug.
+3. GET /api/sites visibility filter used siteVisibleForTier (tier-only: userTier >= siteTier). On Plus (maxSites=0), dod(free, tier 0) was visible because Plus tier 1 >= free tier 0 — but Plus maxSites=0 means NO sites should be allowed. This was the "Plus shows dod despite 0 sites" bug.
+
+Fix (3 files) — created ONE authoritative eligibility logic reused everywhere:
+1. src/lib/platform/entitlements.ts — Added:
+   - siteEligibleForPlan(sitePlanScope, userPlanTier, planMaxSites): the SINGLE eligibility check. A site is eligible when BOTH (a) user's plan tier >= site's planScope tier AND (b) the plan allows sites (maxSites > 0 or -1). A plan with maxSites=0 makes NO site eligible regardless of tier.
+   - getEligibleSiteCount(user, userPlanTier, planMaxSites): the authoritative count of ELIGIBLE sites the user owns — fetches the user's sites' planScope values + applies the SAME siteEligibleForPlan filter. Returns 0 for billing-bypass + maxSites=0 plans.
+2. src/lib/platform/usage-limits.ts — checkLimit(): the 'sites' current count now uses getEligibleSiteCount() instead of db.site.count({ownerId}). So the "X/Y" limit message uses the SAME count as the visible site list — no more "2/2 after 1 eligible site".
+3. src/app/api/sites/route.ts — GET visibility filter now uses siteEligibleForPlan() (tier + maxSites check) instead of siteVisibleForTier() (tier-only). Plus (maxSites=0) now shows ZERO sites.
+
+VERIFICATION (API, clean data):
+- Free (maxSites=2), admin owns bob(pro)+dod(free): GET returns 1 site (dod only — bob is pro-tier, not Free-eligible). Create 1 → SUCCEEDS (1 eligible + 1 new = 2/2). Create another → BLOCKED "2/2" (real eligible count). ✓
+- Plus (maxSites=0): GET returns 0 sites (dod+bob both hidden — plan allows 0). Create → BLOCKED "0/0 sites". ✓
+- Pro (maxSites=10): GET returns 2 sites (bob+dod both eligible). Create → SUCCEEDS (2/10). ✓
+- Internal Account (billing bypass): sees its own sites, unaffected. ✓
+- No hardcoded site names. ✓ (generic planScope tier + maxSites logic)
+
+Stage Summary:
+- Single source of truth: siteEligibleForPlan() (tier + maxSites) used by both checkLimit() (count) + GET /api/sites (visibility). The count in the "X/Y" message now matches the visible site list exactly.
+- Free shows 2/2 only when 2 ELIGIBLE sites exist (not when 1 eligible + 1 higher-tier). Plus (maxSites=0) shows zero sites. Pro shows all eligible.
+- Plan changes work: downgrade respects new limit (existing sites stay owned but become invisible if not eligible); upgrade makes previously-ineligible sites visible.
+- Internal Account + Platform Admin unaffected (billing bypass / staff bypass). No regressions. Lint clean. HTTP 200.

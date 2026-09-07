@@ -23,7 +23,7 @@
 import { db } from '@/lib/db';
 import { getPlanConfigSync, aiModeOf, type PlanLimits } from './plan-config';
 import { getCustomerByEmailSync, getCustomerUsageSync } from './platform-data';
-import { hasBillingBypass, getEffectivePlanIdAsync, type EntitlementUser } from './entitlements';
+import { hasBillingBypass, getEffectivePlanIdAsync, getPlanTier, getUserPlanTier, getEligibleSiteCount, type EntitlementUser } from './entitlements';
 import { getUserSubscription } from './subscription-data';
 
 // Only resources with a REAL, server-side enforcement system are listed.
@@ -256,17 +256,22 @@ export async function checkLimit(
   };
   const limit = limits[limitFieldMap[resource]];
 
-  // REAL DB usage for the 'sites' resource — the actual number of
-  // sites owned by this user. This replaces the legacy in-memory demo
-  // store count (getCustomerUsageSync) which was returning a stale
-  // hardcoded demo number and blocking Pro users even when they only
-  // owned 1 site. Falls back to the legacy sync usage for the
-  // 'storageBytes' resource (not migrated here to keep the change
-  // focused on the site-limit bug).
+  // REAL DB usage for the 'sites' resource — the authoritative count
+  // of ELIGIBLE sites the user owns under their current plan. This
+  // uses getEligibleSiteCount() — the SAME eligibility logic GET
+  // /api/sites uses for the visibility filter — so the count in the
+  // "X/Y sites" limit message matches exactly what the user sees.
+  // Previously this counted ALL owned sites (db.site.count by ownerId),
+  // which counted Pro-tier sites under a Free plan (showing "2/2" after
+  // 1 eligible site). Now it counts only sites the current plan
+  // allows: tier-eligible + plan-allows-sites (maxSites>0 or -1).
+  // Falls back to the legacy sync usage for 'storageBytes' (not
+  // migrated here to keep the change focused on the site-limit bug).
   let current: number;
   if (resource === 'sites') {
     try {
-      current = await db.site.count({ where: { ownerId: user.id } });
+      const userTier = await getUserPlanTier(user);
+      current = await getEligibleSiteCount(user, userTier, limit);
     } catch {
       // If the count query fails (e.g. during a migration window),
       // fail open (allow creation) rather than blocking the user —

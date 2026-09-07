@@ -61,6 +61,51 @@ export function getEffectivePlanId(user: EntitlementUser): string {
   return customer?.planId ?? 'free';
 }
 
+// -------------------- Plan-tier site-entitlement logic --------------------
+// Sites carry a `planScope` ('free' | 'plus' | 'pro' | 'max' | null)
+// recording the MINIMUM plan tier required to access them. A site is
+// visible to a user only if the user's CURRENT plan tier >= the site's
+// planScope tier. This is the entitlement boundary that keeps a Pro-
+// plan site (e.g. "bob") from appearing when the owner downgrades to
+// Free — the filter happens server-side in GET /api/sites, not via
+// CSS or stale client state.
+//
+// Plan tiers (from plan-config sortOrder): free=0, plus=1, pro=2, max=3.
+// 'internal' (billing-bypass) → Infinity (sees every site). NULL/unknown
+// planScope → treated as 'free' (tier 0) so legacy sites stay visible.
+
+/** Numeric tier for a plan id. Used to compare plan levels. */
+export function getPlanTier(planId: string | null | undefined): number {
+  if (!planId) return 0; // null/undefined → free tier (legacy default)
+  if (planId === 'internal') return Infinity; // billing bypass → sees everything
+  try {
+    const cfg = getPlanConfigSync(planId);
+    return typeof cfg.sortOrder === 'number' ? cfg.sortOrder : 0;
+  } catch {
+    return 0; // unknown plan id → treat as free (fail-open for visibility)
+  }
+}
+
+/** Whether a site with the given planScope is visible to a user whose
+ *  current plan tier is `userPlanTier`. A site is visible when the
+ *  user's tier >= the site's required tier. */
+export function siteVisibleForTier(
+  sitePlanScope: string | null | undefined,
+  userPlanTier: number,
+): boolean {
+  const siteTier = getPlanTier(sitePlanScope);
+  return userPlanTier >= siteTier;
+}
+
+/** Resolve the user's CURRENT plan tier (async — reads the DB
+ *  Subscription, applies free-trial expiry + cancellation rules).
+ *  Returns Infinity for billing-bypass users (they see every site). */
+export async function getUserPlanTier(user: EntitlementUser): Promise<number> {
+  if (hasBillingBypass(user)) return Infinity;
+  const { planId } = await getEffectivePlanIdAsync(user);
+  return getPlanTier(planId);
+}
+
 /**
  * Resolve the effective plan id ASYNC, preferring the DB Subscription row
  * over the legacy in-memory customer. Also returns the free-trial-expired

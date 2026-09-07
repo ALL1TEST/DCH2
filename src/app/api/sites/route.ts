@@ -2,17 +2,26 @@ import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/platform/platform-auth';
 import { checkLimit, limitExceededResponse } from '@/lib/platform/usage-limits';
-import { hasBillingBypass } from '@/lib/platform/entitlements';
+import { hasBillingBypass, getUserPlanTier, getPlanTier, siteVisibleForTier } from '@/lib/platform/entitlements';
+import { getEffectivePlanIdAsync } from '@/lib/platform/entitlements';
 
 // ============================================================
-// GET /api/sites — List sites owned by the authenticated user.
+// GET /api/sites — List sites owned by the authenticated user,
+// filtered by the user's CURRENT plan entitlement.
 // ------------------------------------------------------------
-// Ownership isolation: a user only sees the sites THEY own
-// (sites they created). The Internal Account's sites never appear
-// in the Admin User's list, and vice versa. OWNER / PLATFORM_ADMIN
-// (platform staff) see ALL sites — they manage the whole platform.
-// Legacy sites with ownerId = null (created before the ownership
-// field existed) are visible only to platform staff.
+// Ownership isolation: a user only sees the sites THEY own.
+// The Internal Account's sites never appear in the Admin User's
+// list, and vice versa. OWNER / PLATFORM_ADMIN (platform staff) see
+// ALL sites — they manage the whole platform.
+//
+// PLAN ENTITLEMENT FILTER: each site carries a `planScope` (the
+// minimum plan tier required to access it). A site is returned ONLY
+// if the user's current plan tier >= the site's planScope tier. So a
+// Pro-plan site (e.g. "bob", planScope='pro', tier 2) is hidden when
+// the owner downgrades to Free (tier 0) — the filter is server-side,
+// not a CSS hide. Billing-bypass users (INTERNAL/OWNER) have tier
+// Infinity → see every site they own. NULL planScope → treated as
+// 'free' (tier 0) so legacy sites stay visible.
 // ============================================================
 
 export async function GET(request: NextRequest) {
@@ -39,7 +48,7 @@ export async function GET(request: NextRequest) {
       where.ownerId = user.id;
     }
 
-    const sites = await db.site.findMany({
+    const allOwnedSites = await db.site.findMany({
       where,
       orderBy: { name: 'asc' },
       include: {
@@ -54,15 +63,30 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    // PLAN ENTITLEMENT FILTER — apply server-side. A site is visible
+    // only if the user's current plan tier >= the site's planScope
+    // tier. Billing-bypass users (INTERNAL/OWNER) have tier Infinity
+    // (siteVisibleForTier always true). Platform staff also bypass
+    // (they see every site for platform management). This keeps a
+    // Pro-plan site from leaking into a Free-plan user's list — the
+    // filter is on the data, not the UI.
+    let visibleSites = allOwnedSites;
+    if (!isPlatformStaff && !hasBillingBypass(user)) {
+      const userTier = await getUserPlanTier(user);
+      visibleSites = allOwnedSites.filter((s) =>
+        siteVisibleForTier(s.planScope, userTier),
+      );
+    }
+
     return NextResponse.json({
-      data: sites,
+      data: visibleSites,
       meta: {
         requestId: crypto.randomUUID(),
         timestamp: new Date().toISOString(),
         pagination: {
           page: 1,
-          pageSize: sites.length,
-          total: sites.length,
+          pageSize: visibleSites.length,
+          total: visibleSites.length,
           totalPages: 1,
         },
       },
@@ -142,11 +166,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Stamp the site with the authenticated user's id as its owner.
-    // This is the ownership boundary that isolates each account's
-    // sites. Platform staff sites are also stamped (so the OWNER who
-    // creates a site owns it), but platform staff can still SEE every
-    // site via the GET handler above.
+    // Stamp the site with the authenticated user's id as its owner +
+    // the user's CURRENT plan id as the site's planScope. This is the
+    // plan-entitlement boundary: a site created while the owner is on
+    // Pro is stamped planScope='pro', so if the owner later downgrades
+    // to Free, GET /api/sites filters it out (the user's Free tier 0 <
+    // the site's Pro tier 2). Billing-bypass users (INTERNAL/OWNER)
+    // get planScope=null (always visible — they are not plan-gated).
+    // Platform staff sites are also stamped with the owner's plan.
+    let planScope: string | null = null;
+    if (!hasBillingBypass(user)) {
+      const { planId } = await getEffectivePlanIdAsync(user);
+      planScope = planId === 'internal' ? null : planId;
+    }
     const site = await db.site.create({
       data: {
         name,
@@ -156,6 +188,7 @@ export async function POST(request: NextRequest) {
         logo: logo || null,
         favicon: favicon || null,
         ownerId: user.id,
+        planScope,
         config: JSON.stringify({
           theme: { primaryColor: '#000000' },
           seo: {

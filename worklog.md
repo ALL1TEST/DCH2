@@ -10498,3 +10498,37 @@ Stage Summary:
 - Internal dashboard Refresh actually re-fetches data (invalidateQueries).
 - Article editor border aligned with SEO section (no double border, proper viewport height).
 - No regressions: auth, routing, forms, subscription, billing, sidebar all intact. Lint clean (0 errors, 2 pre-existing warnings).
+
+---
+Task ID: 17
+Agent: main (site-to-plan visibility/entitlement)
+Task: Fix site-to-plan visibility — a Pro-plan site ("bob") must only be visible when the Admin User has the Pro plan; hidden when on Free. Generic plan-entitlement logic, not a hardcoded bob special-case.
+
+Work Log:
+TRACED the existing architecture:
+- Sites have ownerId (Task 15) but NO plan association. GET /api/sites filtered only by ownership, so "bob" showed regardless of the user's plan.
+- Plan config: free=0, plus=1, pro=2, max=3 (sortOrder). User's plan resolved via getEffectivePlanIdAsync (DB Subscription). Billing-bypass users (INTERNAL/OWNER) → 'internal' (unlimited).
+
+Fix (3 files):
+1. prisma/schema.prisma — Added planScope String? to Site model (records the minimum plan tier required to access the site) + @@index([ownerId, planScope]). db:push migrated. Backfilled "bob" with planScope='pro'.
+2. src/lib/platform/entitlements.ts — Added 3 helpers:
+   - getPlanTier(planId): numeric tier (free=0, plus=1, pro=2, max=3; 'internal'=Infinity; null/unknown=0)
+   - siteVisibleForTier(sitePlanScope, userPlanTier): userTier >= siteTier
+   - getUserPlanTier(user): async — resolves user's current plan tier (Infinity for billing-bypass)
+3. src/app/api/sites/route.ts — GET: after the ownership filter, applies a PLAN ENTITLEMENT FILTER: filters sites where siteVisibleForTier(s.planScope, userTier) is false. A Pro-plan site (tier 2) is hidden when the user is on Free (tier 0). Platform staff + billing-bypass users skip the filter (see all their sites). POST: stamps planScope = the user's current planId when creating a site (so a site created on Pro is planScope='pro'; billing-bypass → null).
+
+VERIFICATION (API + browser):
+- Admin on Free → GET /api/sites returns 0 sites (bob hidden: Free tier 0 < bob pro tier 2) ✓
+- Admin on Pro → GET /api/sites returns 1 site (bob visible: Pro tier 2 >= bob pro tier 2) ✓
+- Switch Free → Pro → bob appears ✓
+- Switch Pro → Free → bob disappears ✓
+- Switch Free → Pro again → bob reappears ✓ (no stale state)
+- Internal Account: billing bypass → sees all its sites (not plan-gated) ✓
+- No hardcoded "bob" special-case: generic planScope tier comparison ✓
+- Site selector + dashboard read from /api/sites (same filtered set) ✓
+
+Stage Summary:
+- Root cause fixed: sites had no plan association; now carry planScope, filtered server-side by the user's current plan tier.
+- Pro site "bob" visible on Pro, hidden on Free — generic logic works for every site.
+- Plan switching updates site visibility immediately (no stale/reused data — the filter runs on every GET /api/sites request).
+- No regressions: site creation, ownership, plan limits, subscription logic, Internal Account, Platform Admin, site selector, dashboard all intact. Lint clean. HTTP 200.

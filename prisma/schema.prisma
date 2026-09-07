@@ -561,10 +561,21 @@ model Site {
   // staff). The index keeps the per-owner site-count query (used by the
   // plan limit check) fast even at scale.
   ownerId     String?
+  // Plan scope under which this site was created / to which it is
+  // entitled. Records the MINIMUM plan tier required to access this
+  // site ('free' | 'plus' | 'pro' | 'max'). A site created while the
+  // owner was on Pro is stamped planScope='pro' — if the owner later
+  // downgrades to Free, the site is filtered out of their visible
+  // list (their current plan tier 0 < the site's required tier 2).
+  // NULL for legacy sites (treated as 'free' — always visible to the
+  // owner) so the migration is non-breaking. Platform staff always see
+  // every site regardless of planScope.
+  planScope   String?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
   @@index([ownerId])
+  @@index([ownerId, planScope])
 
   // Content
   contentTypes        ContentType[]

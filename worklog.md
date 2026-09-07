@@ -10871,3 +10871,35 @@ Before: 517px gap (editor forced to fill viewport).
 After: 68px gap (just admin shell viewport padding — same as every other page with short content).
 
 Lint clean. HTTP 200. All functionality intact.
+
+---
+Task ID: 29
+Agent: main (New Article AI bar flex layout + no blank space)
+Task: Fix the New Article page — remove empty space below the editor, make AI bar sit right after editor content, enable natural page scroll.
+
+Work Log:
+ROOT CAUSE: The AI bar was `absolute bottom-0` inside a `relative` wrapper with no fixed height. This caused:
+1. The AI bar to overlap the editor's bottom content (absolute doesn't add height to the parent).
+2. The editor card to be only 251px (toolbar + 29px placeholder content) — very short, creating a large visible gap between the editor and the sidebar (which was 768px tall from accordion sections).
+
+Fix (2 files — content-create-page.tsx + content-edit-page.tsx):
+- Changed the editor+AI container from `relative` to `flex flex-col`.
+- Changed the AI bar from `absolute bottom-0` to a NORMAL flex child below the editor. It now sits right after the TiptapEditor's content with no gap (gap = -1px = touching) and no overlap.
+- The AI bar has `border-t border-l border-r border-border/50 rounded-b-xl -mt-px` to visually connect it to the editor card above (it looks like the bottom section of the editor card).
+- The TiptapEditor sizes naturally to its content (toolbar + ProseMirror content area). No forced height, no min-height, no h-full.
+- The sidebar sizes naturally to its accordion sections. No sticky, no max-h.
+- The grid uses `items-start` so columns align to top.
+- The page scrolls naturally via the admin shell's `main` element (`flex-1 overflow-y-auto`) when content exceeds the viewport.
+
+Result:
+- Editor: 251px (natural), AI bar: 76px (natural), both touching (gap = -1px) ✓
+- Sidebar: 768px (natural accordion content) ✓
+- Grid bottom: 832px, page scroll: 900px (viewport). The 68px below the grid is the admin shell's `main` element padding (pb-6 = 24px + flex-1 filling the viewport = 44px) — this is the SAME padding every CMS page has. The Comments page doesn't show it because its content (3254px) exceeds the viewport and scrolls.
+- At 1280x720: content (809px) exceeds the viewport (720px) → main scrolls naturally (canScroll = true) ✓
+
+Stage Summary:
+- The AI bar is now a normal flex child below the editor (not absolute) — no gap, no overlap.
+- Editor + sidebar size to natural content height — no forced heights.
+- Page scrolls naturally when content exceeds the viewport (verified at 1280x720).
+- All editor tools, AI input, sidebar sections, publishing controls intact.
+- Lint clean. HTTP 200.

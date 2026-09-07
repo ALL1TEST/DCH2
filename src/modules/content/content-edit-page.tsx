@@ -885,9 +885,12 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
       <div className={cn('grid grid-cols-1 lg:grid-cols-12 gap-4 transition-all items-start', previewOpen ? 'hidden' : '')}>
         {/* LEFT: Editor Area — NO forced height. Natural content height. */}
         <div className="lg:col-span-9">
-          {/* Editor + AI input. `relative` for the AI bar's absolute
-              bottom-0 anchor. NO min-height, NO h-full — natural. */}
-          <div className="relative">
+          {/* Editor + AI input in a flex column. The TiptapEditor (which
+              has its own border + rounded-xl) sits at the top. The AI bar
+              sits BELOW it as a normal flex child (NOT absolute) — so the
+              AI bar is always right after the editor content with no gap
+              and no overlap. Natural content height, page scrolls if tall. */}
+          <div className="flex flex-col">
             {/* Tiptap Rich Text Editor */}
             <TiptapEditor
               ref={editorRef}
@@ -896,15 +899,12 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
               onSelectionChange={handleEditorSelectionChange}
             />
 
-            {/* AI Assistant Bar — anchored at the bottom of the editor
-                card (absolute bottom-0). This is part of the editor
-                container, not a detached floating element — it sits
-                naturally at the bottom of the editor, below the content
-                area, with a top border separating it from the editor.
-                Platform AI tools are only exposed to clients whose plan
-                includes Platform AI. */}
+            {/* AI Assistant Bar — a normal flex child below the editor
+                (not absolute). Sits right after the editor content with
+                no gap. The top border + rounded-b-xl connect it visually
+                to the editor card above. */}
             {aiToolsEnabled && (
-            <div className="absolute bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur-sm rounded-b-xl">
+            <div className="border-t border-l border-r border-border/50 rounded-b-xl bg-background/95 backdrop-blur-sm -mt-px">
               {/* Fix #2/#17: Persistent saved selection indicator (survives focus loss to AI textarea) */}
               {savedSelectedText && (
                 <div className="flex items-center gap-2 px-3 pt-2 pb-0">

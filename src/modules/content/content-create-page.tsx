@@ -19,7 +19,6 @@ import {
   FileText,
   Type,
   Send,
-  MousePointerClick,
   Eye,
   FolderOpen,
   Loader2,
@@ -871,19 +870,19 @@ export function ContentCreatePage() {
         {/* LEFT: Editor Area — uses viewport height minus header + topbar + padding.
             The exact offset accounts for: topbar (3.5rem) + main padding (3rem) +
             header row (3rem) + gap (1rem) = ~10.5rem. */}
-        <div className="lg:col-span-8 lg:self-start">
-          {/* Editor + floating AI bar + focus-mode FAB share ONE
-              positioned wrapper. The wrapper has an explicit viewport-
-              based height so the editor fills the available space below
-              the page header + topbar (calc(100vh - 10.5rem)) WITHOUT
-              stretching to match the SEO sidebar's height (which
-              created a giant empty gap when the sidebar was tall). NO
+        <div className="lg:col-span-9 lg:self-start">
+          {/* Editor + AI input share ONE positioned wrapper. The wrapper
+              has an explicit viewport-based height so the editor fills
+              the available space below the page header + topbar
+              (calc(100vh - 10.5rem)) WITHOUT stretching to match the
+              sidebar's height (which created a giant empty gap). NO
               border/rounded/overflow here — the TiptapEditor carries
-              its own border + rounded-xl + overflow, so an outer border
-              created an awkward double-frame + extra padding gap that
-              misaligned the editor with the SEO sidebar. The wrapper
-              stays `relative` so the absolute-positioned AI bar + FAB
-              anchor correctly. */}
+              its own border + rounded-xl + overflow, so the editor
+              card is ONE coherent bordered container. The AI bar
+              anchors to this wrapper's bottom (absolute bottom-0) so
+              it sits naturally at the bottom of the editor card, not
+              as a detached floating element. The "Focus Mode" FAB was
+              removed per design request — no replacement. */}
           <div className="relative h-[calc(100vh-10.5rem)] min-h-[28rem]">
             {/* Tiptap Rich Text Editor */}
             <TiptapEditor
@@ -893,10 +892,15 @@ export function ContentCreatePage() {
               onSelectionChange={handleEditorSelectionChange}
             />
 
-            {/* AI Assistant Bar — floating at bottom. Platform AI tools are
-                only exposed to clients whose plan includes Platform AI. */}
+            {/* AI Assistant Bar — anchored at the bottom of the editor
+                card (absolute bottom-0). This is part of the editor
+                container, not a detached floating element — it sits
+                naturally at the bottom of the editor, below the content
+                area, with a top border separating it from the editor.
+                Platform AI tools are only exposed to clients whose plan
+                includes Platform AI. */}
             {aiToolsEnabled && (
-            <div className="absolute bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur-sm">
+            <div className="absolute bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur-sm rounded-b-xl">
               {/* Fix #2/#17: Persistent saved selection indicator (survives focus loss to AI textarea) */}
               {savedSelectedText && (
                 <div className="flex items-center gap-2 px-3 pt-2 pb-0">
@@ -984,22 +988,15 @@ export function ContentCreatePage() {
               </div>
             </div>
             )}
-
-            {/* Floating FAB (focus mode) */}
-            <button
-              type="button"
-              className="absolute -top-12 right-2 size-10 rounded-full flex items-center justify-center shrink-0 transition-all shadow-sm bg-neutral-900 text-white hover:bg-neutral-800 hover:shadow-md dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
-              title={t('articles.focusMode')}
-            >
-              <MousePointerClick className="size-4" />
-            </button>
           </div>
         </div>
 
-        {/* RIGHT: Sidebar — sticky with max height matching the editor area.
-            overflow-y-auto allows the sidebar to scroll independently when
-            its content is taller than the available space. */}
-        <div className="hidden lg:block lg:col-span-4">
+        {/* RIGHT: Sidebar — slightly wider for natural label/control fit.
+            Sticky with max height matching the editor area. overflow-y-auto
+            allows the sidebar to scroll independently when its content is
+            taller than the available space. The bordered container matches
+            the left editor card's visual language. */}
+        <div className="hidden lg:block lg:col-span-3">
           <div className="sticky top-4 max-h-[calc(100vh-10.5rem)] overflow-y-auto">
             <div className="rounded-lg border bg-card">
               <Accordion type="multiple" defaultValue={['featured-image', 'title-slug', 'excerpt']} className="px-4">

@@ -10763,3 +10763,32 @@ Stage Summary:
 - No hardcoded site names. No cross-account leakage. No false "already exists". No ghost sites.
 - 4 demo accounts: free@example.com/free123, plus@example.com/plus123, pro@example.com/pro123, max@example.com/max123.
 - Lint clean. HTTP 200. 0 runtime errors.
+
+---
+Task ID: 25
+Agent: main (New Article page UI/UX layout fix)
+Task: Fix layout/spacing of the New Article page — remove Focus Mode, rebalance editor/sidebar widths, fix editor border + AI input integration, ensure responsive.
+
+Work Log:
+Fixes (2 files — content-create-page.tsx + content-edit-page.tsx):
+1. REMOVED Focus Mode FAB — the floating MousePointerClick button (absolute -top-12 right-2) that sat above the editor. Removed the button + the now-unused MousePointerClick import. No replacement.
+2. REBALANCED GRID — editor column lg:col-span-8 → lg:col-span-9 (wider editor), sidebar lg:col-span-4 → lg:col-span-3 (slightly narrower but still fits labels naturally). Editor now occupies the majority of the content area.
+3. AI INPUT INTEGRATION — added `rounded-b-xl` to the AI bar's className so its bottom corners match the editor card's rounded corners. The AI bar (absolute bottom-0) sits naturally at the bottom of the editor card, not as a detached floating element. It's part of the editor container with a top border separating it from the content area.
+4. EDITOR BORDER — the TiptapEditor carries its own `border rounded-xl overflow-hidden` (single coherent card). No double border from an outer wrapper (removed in Task 15). The editor + toolbar + content area + AI bar = one unified bordered card.
+5. SIDEBAR BORDER — the right sidebar already has `rounded-lg border bg-card` (consistent bordered container matching the editor card's visual language).
+6. REMOVED unused MousePointerClick import from both files.
+
+VERIFICATION (browser):
+- Focus Mode removed: ✓
+- Toolbar: Save Draft ✓, Schedule ✓, Preview ✓, Publish ✓
+- Editor width 848px, Sidebar 272px (rebalanced — editor wider) ✓
+- Editor has border (rounded-xl, single card) ✓
+- AI bar at bottom of editor (not detached) ✓
+- AI input + suggestion chips functional ✓
+- Sidebar sections: Featured Image ✓, SEO ✓, Tags ✓
+- No horizontal overflow ✓
+- Same layout applied to both content-create + content-edit pages ✓
+
+Stage Summary:
+- Layout-only fix — no functionality changed. All editor tools, buttons, fields, SEO options, publishing controls, sidebar behavior intact.
+- Focus Mode removed. Editor + sidebar rebalanced (9/3). AI input integrated at bottom of editor card. Single coherent bordered editor card. Consistent bordered sidebar. No overflow. Responsive.

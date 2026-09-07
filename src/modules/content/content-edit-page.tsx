@@ -886,7 +886,17 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
       <div className={cn('grid grid-cols-1 lg:grid-cols-12 gap-4 transition-all', previewOpen ? 'hidden' : '')}>
         {/* LEFT: Editor Area — uses viewport height minus header + topbar + padding. */}
         <div className="lg:col-span-8 lg:self-start">
-          <div className="relative border rounded-lg overflow-hidden">
+          {/* Editor + floating AI bar + focus-mode FAB share ONE
+              positioned wrapper. Explicit viewport-based height
+              (calc(100vh - 10.5rem)) so the editor fills the available
+              space below the page header + topbar WITHOUT stretching to
+              match the SEO sidebar's height (which created a giant
+              empty gap). NO border/rounded/overflow here — the
+              TiptapEditor carries its own border + rounded-xl + overflow,
+              so an outer border created an awkward double-frame that
+              misaligned the editor with the SEO sidebar. `relative`
+              keeps the absolute-positioned AI bar + FAB anchored. */}
+          <div className="relative h-[calc(100vh-10.5rem)] min-h-[28rem]">
             {/* Tiptap Rich Text Editor */}
             <TiptapEditor
               ref={editorRef}

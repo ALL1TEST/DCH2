@@ -552,6 +552,7 @@ export const clientAccountEn: Record<string, string> = {
   'internal.credentialsDesc': 'Change the account\u2019s email or password in your profile.',
   'internal.manageCredentials': 'Manage',
   'internal.openProfile': 'Open Profile',
+  'internal.refresh': 'Refresh',
 
   // ---- Internal Account management (Platform Admin profile section) ----
   'internal.mgmtTitle': 'Internal Account',

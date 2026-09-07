@@ -13,29 +13,28 @@
 // Content Pipeline — the exact same DashboardWidgets component the
 // Admin User Executive Dashboard renders).
 //
-// The dashboard header intentionally reads "Overview" (not
-// "Internal Account"): the account identity is already surfaced in
-// the sidebar footer (name + INTERNAL ACCOUNT badge) and the profile
-// dropdown, so duplicating "Internal Account" here would be
-// redundant. The INTERNAL badge is kept next to the title to preserve
-// the account-type distinction.
+// The dashboard header reads "Overview" (the account identity is
+// already surfaced in the sidebar footer + profile dropdown, so it
+// is not duplicated here). The INTERNAL badge is kept next to the
+// title to preserve the account-type distinction.
 //
-// The previous "Account Identity" and "Security & Credentials"
-// cards were removed entirely (they duplicated information already
-// available on the dedicated Profile page). No empty cards,
-// placeholders or spacing are left behind — the dashboard focuses on
-// the actual CMS dashboard content.
+// The header's action button is "Refresh" — it invalidates the
+// dashboard's React Query cache and refetches every dashboard query,
+// so the Internal Account can pull fresh data (sites, content, KPIs)
+// on demand. This reuses the existing query-cache mechanism (no new
+// fetch logic). The 2FA status query is retained (shared cache key
+// with the Profile page) but not rendered.
 // ============================================================
 
-import { useQuery } from '@tanstack/react-query';
-import { useAuthStore } from '@/lib/stores/auth-store';
-import { useNavigationStore } from '@/lib/stores/navigation-store';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useT } from '@/lib/i18n';
+import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DashboardWidgets } from '@/modules/dashboard';
-import { User as UserIcon } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { getApi } from '@/lib/api-client';
+import { useState } from 'react';
 
 // Kept so the existing /api/auth/2fa/status request the page made is
 // not silently dropped on existing clients / caches. The security
@@ -48,7 +47,8 @@ interface TwoFactorStatus {
 
 export function InternalDashboardModule() {
   const { t } = useT();
-  const navigate = useNavigationStore((s) => s.navigate);
+  const queryClient = useQueryClient();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // 2FA security status — the query is retained (single source of
   // truth shared with the Profile page) but its result is no longer
@@ -59,14 +59,32 @@ export function InternalDashboardModule() {
     retry: false,
   });
 
+  // Refresh — invalidates EVERY React Query cache the dashboard
+  // depends on (DashboardWidgets' own queries: sites, content, media,
+  // KPIs, analytics, etc.) and refetches them. This actually
+  // re-fetches the Internal Account dashboard data, not just a label
+  // change. The button shows a spinning icon while refetching. Uses
+  // the existing query-cache mechanism — no new fetch logic, no new
+  // API calls beyond what DashboardWidgets already makes.
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      // invalidateQueries with refetchType:'active' refetches every
+      // ACTIVE query (the ones DashboardWidgets mounted) — the
+      // dashboard data refreshes in place. Awaiting the promise
+      // keeps the spinner up until the refetch settles.
+      await queryClient.invalidateQueries({ refetchType: 'active' });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Page header — "Overview" title + professional internal-platform
           subtitle. The INTERNAL badge is kept to preserve the account-type
-          identity at a glance, but the title is NOT "Internal Account"
-          (that identity is already visible in the sidebar footer + profile
-          dropdown, so duplicating it here was redundant). The "Open Profile"
-          shortcut stays as the header's single action. */}
+          identity at a glance. The "Refresh" action re-fetches the
+          dashboard data on demand. */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-1">
         <div>
           <div className="flex items-center gap-2">
@@ -79,9 +97,9 @@ export function InternalDashboardModule() {
           </div>
           <p className="text-sm text-muted-foreground mt-1">{t('internal.subtitle')}</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => navigate('profile')}>
-          <UserIcon className="h-4 w-4 mr-1.5" />
-          {t('internal.openProfile')}
+        <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing}>
+          <RefreshCw className={cn('h-4 w-4 mr-1.5', isRefreshing && 'animate-spin')} />
+          {t('internal.refresh')}
         </Button>
       </div>
 
@@ -89,13 +107,7 @@ export function InternalDashboardModule() {
           suite the Admin User Executive Dashboard renders (executive
           KPIs, Site Network, Pending Actions, Traffic Overview, Recent
           Content, Content Pipeline). Full platform access means a
-          populated dashboard, never an empty screen.
-
-          The previous "Account Identity" + "Security & Credentials"
-          cards that used to render below this have been removed
-          entirely — no empty cards, headings or placeholders remain.
-          The account identity lives on the dedicated Profile page
-          (reachable via the "Open Profile" action above). */}
+          populated dashboard, never an empty screen. */}
       <DashboardWidgets />
     </div>
   );

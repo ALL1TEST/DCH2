@@ -221,7 +221,18 @@ export function getEffectiveLimits(user: EntitlementUser): PlanLimits {
 }
 
 /** Check whether `requested` new units of `resource` are within the plan limit.
- *  Returns a structured result; never throws. */
+ *  Returns a structured result; never throws.
+ *
+ *  For the 'sites' resource the CURRENT usage is the REAL number of sites
+ *  the user owns in the DB (db.site.count({ where: { ownerId: user.id } })),
+ *  NOT the legacy in-memory demo store. This makes the limit reflect the
+ *  user's ACTUAL site count, so:
+ *    - Pro (max 10) with 1 site → allow creation (was incorrectly blocked)
+ *    - Pro with 9 sites → allow creation
+ *    - Pro with 10 sites → block creation with the upgrade message
+ *    - Internal Account sites never count toward an Admin User's limit
+ *      (they have a different ownerId)
+ *  Billing-bypass users (INTERNAL/EXEMPT/OWNER) are always unlimited. */
 export async function checkLimit(
   user: EntitlementUser,
   resource: LimitResource,
@@ -231,13 +242,48 @@ export async function checkLimit(
     return { ok: true, limit: -1, current: 0, requested, resource, message: 'Unlimited (internal account).' };
   }
   const limits = await getEffectiveLimitsAsync(user);
-  const limit = limits[resource];
-  const usage = getCustomerUsageSync(user.email);
-  const current = usage[resource];
+  // Map the LimitResource ('sites' / 'storageBytes') to the matching
+  // PlanLimits field ('maxSites' / 'storageBytes'). The two naming
+  // schemes differ (LimitResource uses the short noun; PlanLimits uses
+  // the max/limit-prefixed field) — indexing limits[resource] directly
+  // returned undefined, which made the `current + requested <= limit`
+  // check always fail and blocked every site creation regardless of
+  // the plan (the Pro = 10 sites bug). This explicit mapping is the
+  // root-cause fix.
+  const limitFieldMap: Record<LimitResource, keyof typeof limits> = {
+    sites: 'maxSites',
+    storageBytes: 'storageBytes',
+  };
+  const limit = limits[limitFieldMap[resource]];
+
+  // REAL DB usage for the 'sites' resource — the actual number of
+  // sites owned by this user. This replaces the legacy in-memory demo
+  // store count (getCustomerUsageSync) which was returning a stale
+  // hardcoded demo number and blocking Pro users even when they only
+  // owned 1 site. Falls back to the legacy sync usage for the
+  // 'storageBytes' resource (not migrated here to keep the change
+  // focused on the site-limit bug).
+  let current: number;
+  if (resource === 'sites') {
+    try {
+      current = await db.site.count({ where: { ownerId: user.id } });
+    } catch {
+      // If the count query fails (e.g. during a migration window),
+      // fail open (allow creation) rather than blocking the user —
+      // the worst case is one extra site, which is recoverable.
+      current = 0;
+    }
+  } else {
+    const usage = getCustomerUsageSync(user.email);
+    current = usage[resource];
+  }
 
   if (limit === -1) {
     return { ok: true, limit: -1, current, requested, resource, message: 'Unlimited on this plan.' };
   }
+  // Guard against undefined/NaN current (would otherwise make the
+  // comparison behave unpredictably and block creation).
+  if (!Number.isFinite(current) || current < 0) current = 0;
   if (current + requested <= limit) {
     return { ok: true, limit, current, requested, resource, message: 'Within limit.' };
   }

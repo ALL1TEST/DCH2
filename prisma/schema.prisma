@@ -554,8 +554,17 @@ model Site {
   favicon     String?
   status      SiteStatus  @default(ACTIVE)
   config      String?     // JSON: theme, seo defaults, social links, etc.
+  // Owner of the site — the user who created it. This is the ownership
+  // boundary that isolates each account's sites (Admin User sites vs
+  // Internal Account sites vs Platform-created sites). NULL for legacy
+  // sites created before this field existed (visible only to platform
+  // staff). The index keeps the per-owner site-count query (used by the
+  // plan limit check) fast even at scale.
+  ownerId     String?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
+
+  @@index([ownerId])
 
   // Content
   contentTypes        ContentType[]

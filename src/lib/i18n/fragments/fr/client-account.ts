@@ -542,6 +542,7 @@ export const clientAccountFr: Record<string, string> = {
   'internal.credentialsDesc': 'Modifiez l’e-mail ou le mot de passe du compte dans votre profil.',
   'internal.manageCredentials': 'Gérer',
   'internal.openProfile': 'Ouvrir le profil',
+  'internal.refresh': 'Actualiser',
 
   // ---- Gestion du compte interne (section du profil Administrateur de plateforme) ----
   'internal.mgmtTitle': 'Compte interne',

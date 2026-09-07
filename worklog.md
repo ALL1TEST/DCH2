@@ -10453,3 +10453,48 @@ Stage Summary:
 - Translation pipeline running in background (PID 15512) to deepen per-locale coverage from current 35-67% toward near-complete. Round-robin ensures no locale is left behind.
 - No existing functionality broken across any locale. Lint clean. Dev server HTTP 200.
 - The project's existing locale configuration (40 locales) is the single source of truth — no locales removed, no fake shortened list, English remains default.
+
+---
+Task ID: 15
+Agent: main (site-limit + isolation + refresh + editor border)
+Task: Fix broken site-limit logic (Pro=10 but blocked at 3), isolate Internal Account sites from Admin User, replace Internal dashboard "Open Profile" with "Refresh", fix article editor double-border.
+
+Work Log:
+TRACED the existing architecture before modifying:
+- Plan config: Free=3, Plus=5, Pro=10, Max=-1 (unlimited) sites. Pro config is CORRECT.
+- checkLimit() (usage-limits.ts) used limits[resource] indexing where resource='sites' but PlanLimits field is 'maxSites' → limits['sites'] = undefined → always blocked. ROOT CAUSE #1.
+- checkLimit() counted sites via getCustomerUsageSync() (legacy in-memory demo store), NOT the real DB Site table. ROOT CAUSE #2.
+- GET /api/sites returned ALL sites with no owner filter. ROOT CAUSE #3 (isolation bug).
+- POST /api/sites created sites with no ownerId. ROOT CAUSE #4.
+- Site model had no ownerId field. ROOT CAUSE #5.
+
+Fixes (7 files):
+1. prisma/schema.prisma — Added ownerId String? + @@index([ownerId]) to Site model. db:push migrated.
+2. src/app/api/sites/route.ts — GET filters by ownerId = user.id (client CMS users see only their sites; platform staff see all). POST stamps ownerId = user.id + skips plan-limit for billing-bypass users (Internal Account unlimited).
+3. src/lib/platform/usage-limits.ts — checkLimit(): (a) added limitFieldMap {sites:'maxSites', storageBytes:'storageBytes'} so limit resolves correctly (was undefined); (b) counts REAL DB sites via db.site.count({where:{ownerId:user.id}}); (c) guards against undefined/NaN current.
+4. src/modules/internal/internal-dashboard.tsx — Replaced "Open Profile" with "Refresh" that calls queryClient.invalidateQueries({refetchType:'active'}) → re-fetches all dashboard data. Spinning RefreshCw icon.
+5. src/lib/i18n/fragments/en/client-account.ts + fr — Added 'internal.refresh' key (EN: "Refresh", FR: "Actualiser").
+6. src/modules/content/content-create-page.tsx + content-edit-page.tsx — Removed redundant outer `border rounded-lg overflow-hidden` wrapper (TiptapEditor has its own border). Added explicit viewport-based height `h-[calc(100vh-10.5rem)] min-h-[28rem]` so editor fills available space without stretching to sidebar height (fixes giant empty gap + double-border misalignment).
+7. src/lib/stores/navigation-store.ts — Added 'new' to SUB_PAGE_KEYWORDS so #content/new routes to ContentCreatePage (was treated as itemId → ContentDetail).
+
+VERIFICATION (API + browser):
+- Scenario A: Pro with 0 sites → POST /api/sites → HTTP 201 ✓
+- Scenario B: Pro with 1-9 sites → all HTTP 201 ✓
+- Scenario C: Pro with 10 sites → 11th blocked HTTP 403 "Plan limit reached: 10/10 sites" ✓
+- Scenario D: Internal has 15 sites → Admin count stays 10 (isolated) ✓
+- Scenario E: Admin creates site → not in Internal Account ✓
+- Scenario F: Internal creates 15 sites → never blocked (billing bypass) ✓
+- Scenario G: Internal GET /api/sites → only its 15 sites ✓
+- Scenario H: Admin GET /api/sites → only its 10 sites ✓
+- Internal dashboard "Refresh" present, "Open Profile" gone ✓
+- Article editor #content/new → "New Article", wrapper 732px, single border, toolbar+sidebar+ProseMirror present, no overflow ✓
+- All Sites selector: Admin sees only its sites, no internal leaks ✓
+
+Stage Summary:
+- Root cause fixed: site-limit was always undefined (wrong field indexing) + counted from stale demo data; sites had no owner.
+- Pro now correctly allows up to 10 sites; blocks at 10 with clear upgrade message.
+- Internal Account bypasses plan limits (billingMode INTERNAL); sites isolated by ownerId.
+- Admin User and Internal Account cannot see each other's sites (server-enforced ownerId filter).
+- Internal dashboard Refresh actually re-fetches data (invalidateQueries).
+- Article editor border aligned with SEO section (no double border, proper viewport height).
+- No regressions: auth, routing, forms, subscription, billing, sidebar all intact. Lint clean (0 errors, 2 pre-existing warnings).

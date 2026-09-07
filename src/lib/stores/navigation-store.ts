@@ -55,7 +55,7 @@ function parseHash(hash: string): {
   // These MUST be recognized as sub-pages so they are NOT treated as item IDs.
   const SUB_PAGE_KEYWORDS = new Set([
     // Content
-    'create', 'edit', 'versions', 'translations', 'preview',
+    'create', 'new', 'edit', 'versions', 'translations', 'preview',
     // SEO
     'redirects', 'sitemap', 'robots', 'search-console', 'indexing', 'broken-links',
     'social-preview', 'schema', 'canonicals', 'internal-links', 'audit', 'settings',

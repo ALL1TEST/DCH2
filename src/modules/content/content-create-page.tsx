@@ -872,7 +872,19 @@ export function ContentCreatePage() {
             The exact offset accounts for: topbar (3.5rem) + main padding (3rem) +
             header row (3rem) + gap (1rem) = ~10.5rem. */}
         <div className="lg:col-span-8 lg:self-start">
-          <div className="relative border rounded-lg overflow-hidden">
+          {/* Editor + floating AI bar + focus-mode FAB share ONE
+              positioned wrapper. The wrapper has an explicit viewport-
+              based height so the editor fills the available space below
+              the page header + topbar (calc(100vh - 10.5rem)) WITHOUT
+              stretching to match the SEO sidebar's height (which
+              created a giant empty gap when the sidebar was tall). NO
+              border/rounded/overflow here — the TiptapEditor carries
+              its own border + rounded-xl + overflow, so an outer border
+              created an awkward double-frame + extra padding gap that
+              misaligned the editor with the SEO sidebar. The wrapper
+              stays `relative` so the absolute-positioned AI bar + FAB
+              anchor correctly. */}
+          <div className="relative h-[calc(100vh-10.5rem)] min-h-[28rem]">
             {/* Tiptap Rich Text Editor */}
             <TiptapEditor
               ref={editorRef}

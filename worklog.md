@@ -10822,3 +10822,29 @@ Stage Summary:
 - No functionality changed — all editor tools, AI input, sidebar, toolbar, publishing controls intact.
 - Fullscreen mode preserved (h-full + fixed positioning).
 - Applied to both content-create + content-edit pages. Lint clean. HTTP 200.
+
+---
+Task ID: 27
+Agent: main (New Article bottom empty space — final fix)
+Task: Remove the large blank area at the bottom of the New Article page. Editor + sidebar must be the same height, no gap, no overflow.
+
+Work Log:
+ROOT CAUSE: The editor wrapper had h-full but the TiptapEditor root's h-full didn't resolve (flex children with short content made height collapse to content, not parent). The sidebar card was a separate inner div without the max-h constraint, so it grew taller than the editor — creating a 517px gap below the editor at 1440x900.
+
+Fixes (2 files):
+1. content-create-page.tsx + content-edit-page.tsx:
+   - Editor wrapper: `relative h-full min-h-[calc(100vh-10.5rem)]` (fills the grid row).
+   - TiptapEditor wrapped in `absolute inset-0 flex flex-col` so it fills the wrapper entirely (h-full alone didn't fill when flex children were short).
+   - TiptapEditor gets `className="h-full flex-1"` so its root fills the absolute wrapper.
+   - Sidebar: merged the `rounded-lg border bg-card` styling INTO the sticky+max-h+overflow-y-auto div (was a separate inner div that wasn't height-constrained → grew past the editor).
+   - Grid: `items-start` so columns align to top.
+2. tiptap-editor.tsx: reverted to `h-full` (the `absolute inset-0` wrapper on the page now provides the height context).
+
+VERIFICATION (browser, 2 viewports):
+- 1440x900: editor 732px, sidebar 732px, gap=0px, no overflow ✓
+- 1280x720: editor 552px, sidebar 552px, gap=0px, no overflow ✓
+- AI bar at bottom of editor card (bottom = editor bottom) ✓
+- No blank space below either column ✓
+- No page scroll beyond viewport ✓
+- All editor tools, toolbar, AI input, sidebar sections, publishing controls intact ✓
+- Lint clean (0 errors, 2 pre-existing warnings). HTTP 200.

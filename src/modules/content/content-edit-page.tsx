@@ -882,26 +882,23 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
       )}
 
       {/* Main Grid: Editor (9 cols) + Sidebar (3 cols) — SAME as Create page */}
-      <div className={cn('grid grid-cols-1 lg:grid-cols-12 gap-4 transition-all', previewOpen ? 'hidden' : '')}>
+      <div className={cn('grid grid-cols-1 lg:grid-cols-12 gap-4 transition-all items-start', previewOpen ? 'hidden' : '')}>
         {/* LEFT: Editor Area — uses viewport height minus header + topbar + padding. */}
-        <div className="lg:col-span-9 lg:self-start">
-          {/* Editor + AI input share ONE positioned wrapper. NO fixed
-              viewport height — the editor sizes naturally based on its
-              content so the page ends right after the AI input (no
-              large blank area below). A min-height keeps the editor
-              usable for short content. The TiptapEditor carries its own
-              border + rounded-xl + overflow, so the editor card is ONE
-              coherent bordered container. The AI bar anchors to this
-              wrapper's bottom (absolute bottom-0) so it sits naturally
-              at the bottom of the editor card. The "Focus Mode" FAB was
-              removed per design request — no replacement. */}
-          <div className="relative">
-            {/* Tiptap Rich Text Editor */}
+        <div className="lg:col-span-9">
+          {/* Editor + AI input share ONE positioned wrapper. The wrapper
+              fills the available height (h-full + min-h) so the editor
+              card matches the sidebar's height — no blank gap below the
+              editor. The AI bar anchors to this wrapper's bottom. */}
+          <div className="relative h-full min-h-[calc(100vh-10.5rem)]">
+            {/* Tiptap Rich Text Editor — absolute inset-0 so it fills the
+                wrapper entirely. */}
+            <div className="absolute inset-0 flex flex-col">
             <TiptapEditor
               ref={editorRef}
               content={editorContent}
               onChange={setEditorContent}
               onSelectionChange={handleEditorSelectionChange}
+              className="h-full flex-1"
             />
 
             {/* AI Assistant Bar — anchored at the bottom of the editor
@@ -999,13 +996,13 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
               </div>
             </div>
             )}
+            </div>
           </div>
         </div>
 
         {/* RIGHT: Sidebar — SAME accordion structure as Create page */}
         <div className="hidden lg:block lg:col-span-3">
-          <div className="sticky top-4 max-h-[calc(100vh-10.5rem)] overflow-y-auto">
-            <div className="rounded-lg border bg-card">
+          <div className="sticky top-4 max-h-[calc(100vh-10.5rem)] overflow-y-auto rounded-lg border bg-card">
               <Accordion type="multiple" defaultValue={['featured-image', 'publishing', 'title-slug', 'excerpt']} className="px-4">
                 {/* 1. Featured Image */}
                 <AccordionItem value="featured-image">
@@ -1244,7 +1241,6 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
                   </AccordionContent>
                 </AccordionItem>
               </Accordion>
-            </div>
           </div>
         </div>
       </div>

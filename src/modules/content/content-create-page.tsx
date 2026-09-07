@@ -866,28 +866,28 @@ export function ContentCreatePage() {
       )}
 
       {/* Main Grid: Editor (8 cols) + Sidebar (4 cols) */}
-      <div className={cn('grid grid-cols-1 lg:grid-cols-12 gap-4 transition-all', previewOpen ? 'hidden' : '')}>
+      <div className={cn('grid grid-cols-1 lg:grid-cols-12 gap-4 transition-all items-start', previewOpen ? 'hidden' : '')}>
         {/* LEFT: Editor Area — uses viewport height minus header + topbar + padding.
             The exact offset accounts for: topbar (3.5rem) + main padding (3rem) +
             header row (3rem) + gap (1rem) = ~10.5rem. */}
-        <div className="lg:col-span-9 lg:self-start">
-          {/* Editor + AI input share ONE positioned wrapper. NO fixed
-              viewport height — the editor sizes naturally based on its
-              content so the page ends right after the AI input (no
-              large blank area below). A min-height keeps the editor
-              usable for short content. The TiptapEditor carries its own
-              border + rounded-xl + overflow, so the editor card is ONE
-              coherent bordered container. The AI bar anchors to this
-              wrapper's bottom (absolute bottom-0) so it sits naturally
-              at the bottom of the editor card. The "Focus Mode" FAB was
-              removed per design request — no replacement. */}
-          <div className="relative">
-            {/* Tiptap Rich Text Editor */}
+        <div className="lg:col-span-9">
+          {/* Editor + AI input share ONE positioned wrapper. The wrapper
+              fills the available height (h-full + min-h) so the editor
+              card matches the sidebar's height — no blank gap below the
+              editor. The AI bar anchors to this wrapper's bottom
+              (absolute bottom-0) so it sits naturally at the bottom of
+              the editor card. */}
+          <div className="relative h-full min-h-[calc(100vh-10.5rem)]">
+            {/* Tiptap Rich Text Editor — absolute inset-0 so it fills the
+                wrapper entirely (h-full alone doesn't fill when the flex
+                children's content is shorter). */}
+            <div className="absolute inset-0 flex flex-col">
             <TiptapEditor
               ref={editorRef}
               content={editorContent}
               onChange={setEditorContent}
               onSelectionChange={handleEditorSelectionChange}
+              className="h-full flex-1"
             />
 
             {/* AI Assistant Bar — anchored at the bottom of the editor
@@ -986,6 +986,7 @@ export function ContentCreatePage() {
               </div>
             </div>
             )}
+            </div>
           </div>
         </div>
 
@@ -995,8 +996,7 @@ export function ContentCreatePage() {
             taller than the available space. The bordered container matches
             the left editor card's visual language. */}
         <div className="hidden lg:block lg:col-span-3">
-          <div className="sticky top-4 max-h-[calc(100vh-10.5rem)] overflow-y-auto">
-            <div className="rounded-lg border bg-card">
+          <div className="sticky top-4 max-h-[calc(100vh-10.5rem)] overflow-y-auto rounded-lg border bg-card">
               <Accordion type="multiple" defaultValue={['featured-image', 'title-slug', 'excerpt']} className="px-4">
                 {/* 1. Featured Image */}
                 <AccordionItem value="featured-image">
@@ -1216,7 +1216,6 @@ export function ContentCreatePage() {
                   </AccordionContent>
                 </AccordionItem>
               </Accordion>
-            </div>
           </div>
         </div>
       </div>

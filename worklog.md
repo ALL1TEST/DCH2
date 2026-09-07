@@ -10623,3 +10623,40 @@ Stage Summary:
 - Free shows 2/2 only when 2 ELIGIBLE sites exist (not when 1 eligible + 1 higher-tier). Plus (maxSites=0) shows zero sites. Pro shows all eligible.
 - Plan changes work: downgrade respects new limit (existing sites stay owned but become invisible if not eligible); upgrade makes previously-ineligible sites visible.
 - Internal Account + Platform Admin unaffected (billing bypass / staff bypass). No regressions. Lint clean. HTTP 200.
+
+---
+Task ID: 21
+Agent: main (deleted-site persistence root-cause fix)
+Task: Fix deleted sites still appearing in Executive Dashboard / Site Network / site selector / plan-limit count. "dod" was deleted (ARCHIVED) but still showed everywhere. Generic fix for ANY deleted site under ANY plan.
+
+Work Log:
+ROOT CAUSE FOUND (full audit):
+1. DELETE /api/sites/[id] does a SOFT DELETE: sets status='ARCHIVED' (never hard-deletes the row). So "dod" still exists in the DB with status=ARCHIVED.
+2. GET /api/sites had NO default status filter — it returned ALL sites including ARCHIVED. The `status` query param was only applied if the client explicitly passed ?status=... So ARCHIVED sites leaked into the site selector + dashboard.
+3. getEligibleSiteCount (used by checkLimit for the plan quota count) queried `where: { ownerId: user.id }` with NO status filter — so ARCHIVED sites counted toward the plan quota.
+4. The dashboard (DashboardWidgets) reads `sites` from useSiteStore (which fetches /api/sites), so ARCHIVED sites appeared in the Site Network + all metrics.
+
+Fix (2 files) — centralized the "active site" definition in ONE place:
+1. src/app/api/sites/route.ts — GET now defaults to `where.status = { not: 'ARCHIVED' }` when no explicit status param is passed. This is the SINGLE source of truth for "active sites" reused by the dashboard, site selector, and every page that reads /api/sites. Callers can still pass ?status=ARCHIVED or ?status=all to override (platform audit views).
+2. src/lib/platform/entitlements.ts — getEligibleSiteCount() now queries `where: { ownerId, status: { not: 'ARCHIVED' } }` so ARCHIVED (deleted) sites do NOT consume the plan quota. The count matches the visible site list exactly (same active-site definition).
+
+VERIFICATION (API, Free maxSites=2):
+- 0 active sites → GET returns 0 ✓
+- Create t1 → 1/2 succeeds ✓
+- Create t2 → 2/2 succeeds ✓
+- Create t3 → BLOCKED "2/2" (real count) ✓
+- Delete t1 (soft-delete → ARCHIVED) ✓
+- After delete: GET shows 1 site (t2 only — t1 excluded) ✓
+- Create t3 again → SUCCEEDS (1 active + 1 new = 2/2 — deleted t1 no longer counts) ✓
+- Pro: bob+dod both ARCHIVED → GET returns 0; create succeeds (0/10) ✓
+- No hardcoded site names. ✓ (generic status !== 'ARCHIVED' filter)
+- Internal Account unaffected (billing bypass). ✓
+- Site selector + dashboard use the same /api/sites → same active-site set. ✓
+- Refresh/navigation: deleted sites stay gone (server-side filter, not client-side hide). ✓
+
+Stage Summary:
+- Root cause fixed: ARCHIVED (soft-deleted) sites were not filtered out of the default site listing + the quota count. Now both use `status !== 'ARCHIVED'` as the active-site definition.
+- Deleted sites disappear from: Site Network, site selector, plan-limit count, all pages that read /api/sites.
+- Deleted sites do NOT consume the plan quota — recreation works according to the real active count.
+- Same logic works for Free/Plus/Pro/Max/Internal/Platform Admin — no plan-specific fixes.
+- No regressions: site creation, ownership isolation, plan entitlements, Internal Account, Platform Admin all intact. Lint clean. HTTP 200.

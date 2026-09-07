@@ -37,10 +37,31 @@ export async function GET(request: NextRequest) {
     // manage the whole platform and need the full network view.
     const isPlatformStaff = user.role === 'OWNER' || user.role === 'PLATFORM_ADMIN';
 
+    // ACTIVE-SITE FILTER (centralized definition):
+    // A site is "active" (visible in the dashboard, site selector, and
+    // counted toward the plan quota) when its status is NOT 'ARCHIVED'.
+    // The DELETE /api/sites/[id] handler soft-deletes a site by setting
+    // status='ARCHIVED' (it never hard-deletes the row). So ARCHIVED
+    // sites must be EXCLUDED from every default listing — otherwise a
+    // deleted site like "dod" keeps appearing in the Site Network, the
+    // site selector, and the plan-limit count.
+    //
+    // Callers that explicitly want archived sites (e.g. a platform
+    // admin audit view) can pass ?status=ARCHIVED or ?status=all to
+    // override this default. The default (no status param) returns ONLY
+    // non-archived sites — the single source of truth for "active
+    // sites" reused by the dashboard, site selector, and checkLimit.
     const where: Record<string, unknown> = {};
     if (status && status !== 'all') {
+      // Explicit status filter (e.g. ?status=ACTIVE or ?status=ARCHIVED).
       where.status = status;
+    } else if (!status) {
+      // Default: exclude ARCHIVED (soft-deleted) sites. This is the
+      // active-site definition every page uses.
+      where.status = { not: 'ARCHIVED' };
     }
+    // If status === 'all', no status filter is applied (caller wants
+    // every site regardless of status — used by platform audit views).
     if (!isPlatformStaff) {
       // Client CMS users (ADMIN / EDITOR / INTERNAL) see ONLY their
       // own sites. This is the ownership boundary that keeps the

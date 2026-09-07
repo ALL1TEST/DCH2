@@ -166,9 +166,11 @@ export async function getEligibleSiteCount(
   try {
     // Fetch the user's owned sites' planScope values + apply the
     // SAME eligibility filter GET /api/sites uses, so the count
-    // matches the visible list exactly.
+    // matches the visible list exactly. Exclude ARCHIVED (soft-deleted)
+    // sites — a deleted site must NOT consume the plan quota. This is
+    // the centralized active-site definition: status !== 'ARCHIVED'.
     const sites = await db.site.findMany({
-      where: { ownerId: user.id },
+      where: { ownerId: user.id, status: { not: 'ARCHIVED' } },
       select: { planScope: true },
     });
     return sites.filter((s) => siteEligibleForPlan(s.planScope, userPlanTier, planMaxSites)).length;

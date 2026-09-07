@@ -10848,3 +10848,26 @@ VERIFICATION (browser, 2 viewports):
 - No page scroll beyond viewport ✓
 - All editor tools, toolbar, AI input, sidebar sections, publishing controls intact ✓
 - Lint clean (0 errors, 2 pre-existing warnings). HTTP 200.
+
+---
+Task ID: 28
+Agent: main (New Article remaining whitespace — final fix)
+Task: Remove the remaining vertical whitespace on the New Article page. Content should end naturally, no large blank area below.
+
+Work Log:
+Previous state: editor was forced to 732px (min-h-[calc(100vh-10.5rem)] + h-full + absolute inset-0), sidebar had max-h-[calc(100vh-10.5rem)] sticky overflow-y-auto. This created a 517px gap between the short editor content (251px) and the sidebar's bottom (768px).
+
+Fixes (3 files):
+1. content-create-page.tsx + content-edit-page.tsx:
+   - Editor wrapper: `relative` only — NO h-full, NO min-h-[calc(100vh-10.5rem)], NO absolute inset-0 wrapper. Editor sizes to natural content height.
+   - TiptapEditor: removed className="h-full flex-1" prop. No forced height.
+   - Sidebar: removed sticky + max-h-[calc(100vh-10.5rem)] + overflow-y-auto. Now `rounded-lg border bg-card` only — natural content height.
+   - Grid: `items-start` so columns align to top.
+2. tiptap-editor.tsx: root className changed from `h-full` (always fills parent) to conditional: `h-full` ONLY in fullscreen mode, empty string in normal mode. Editor sizes to content in normal mode.
+
+Result: editor is 251px (natural), sidebar is 768px (natural accordion content). The page ends right after the sidebar's last section. The remaining 68px is the admin shell's `main` element filling the viewport (flex-1 + pb-6 padding) — this is normal for every CMS page when content is shorter than the viewport. The Comments page doesn't show this gap because its content (3254px) is taller than the viewport (900px), so it scrolls.
+
+Before: 517px gap (editor forced to fill viewport).
+After: 68px gap (just admin shell viewport padding — same as every other page with short content).
+
+Lint clean. HTTP 200. All functionality intact.

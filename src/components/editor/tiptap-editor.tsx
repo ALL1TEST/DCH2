@@ -2006,8 +2006,8 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
 
   return (
     <div className={cn(
-      'flex flex-col h-full border border-border/50 rounded-xl overflow-hidden bg-background',
-      isFullscreen && 'fixed inset-4 z-50 rounded-xl shadow-2xl',
+      'flex flex-col border border-border/50 rounded-xl overflow-hidden bg-background',
+      isFullscreen ? 'h-full fixed inset-4 z-50 rounded-xl shadow-2xl' : '',
       className,
     )}>
       {/* ========== TOOLBAR ROW 1 ========== */}

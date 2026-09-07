@@ -865,29 +865,22 @@ export function ContentCreatePage() {
         />
       )}
 
-      {/* Main Grid: Editor (8 cols) + Sidebar (4 cols) */}
+      {/* Main Grid: Editor (9 cols) + Sidebar (3 cols) */}
       <div className={cn('grid grid-cols-1 lg:grid-cols-12 gap-4 transition-all items-start', previewOpen ? 'hidden' : '')}>
-        {/* LEFT: Editor Area — uses viewport height minus header + topbar + padding.
-            The exact offset accounts for: topbar (3.5rem) + main padding (3rem) +
-            header row (3rem) + gap (1rem) = ~10.5rem. */}
+        {/* LEFT: Editor Area — NO forced height. The editor sizes to its
+            natural content so the page ends right after the AI input
+            (exactly like the Comments page: content ends → page ends). */}
         <div className="lg:col-span-9">
-          {/* Editor + AI input share ONE positioned wrapper. The wrapper
-              fills the available height (h-full + min-h) so the editor
-              card matches the sidebar's height — no blank gap below the
-              editor. The AI bar anchors to this wrapper's bottom
-              (absolute bottom-0) so it sits naturally at the bottom of
-              the editor card. */}
-          <div className="relative h-full min-h-[calc(100vh-10.5rem)]">
-            {/* Tiptap Rich Text Editor — absolute inset-0 so it fills the
-                wrapper entirely (h-full alone doesn't fill when the flex
-                children's content is shorter). */}
-            <div className="absolute inset-0 flex flex-col">
+          {/* Editor + AI input share ONE positioned wrapper. `relative`
+              for the AI bar's absolute bottom-0 anchor. NO min-height,
+            NO h-full, NO viewport calc — natural content height only. */}
+          <div className="relative">
+            {/* Tiptap Rich Text Editor */}
             <TiptapEditor
               ref={editorRef}
               content={editorContent}
               onChange={setEditorContent}
               onSelectionChange={handleEditorSelectionChange}
-              className="h-full flex-1"
             />
 
             {/* AI Assistant Bar — anchored at the bottom of the editor
@@ -986,17 +979,15 @@ export function ContentCreatePage() {
               </div>
             </div>
             )}
-            </div>
           </div>
         </div>
 
-        {/* RIGHT: Sidebar — slightly wider for natural label/control fit.
-            Sticky with max height matching the editor area. overflow-y-auto
-            allows the sidebar to scroll independently when its content is
-            taller than the available space. The bordered container matches
-            the left editor card's visual language. */}
+        {/* RIGHT: Sidebar — natural height, no forced max-height. The
+            sidebar sizes to its content (accordion sections). If the
+            sidebar is taller than the viewport, the page scrolls
+            naturally — no internal scroll, no forced height. */}
         <div className="hidden lg:block lg:col-span-3">
-          <div className="sticky top-4 max-h-[calc(100vh-10.5rem)] overflow-y-auto rounded-lg border bg-card">
+          <div className="rounded-lg border bg-card">
               <Accordion type="multiple" defaultValue={['featured-image', 'title-slug', 'excerpt']} className="px-4">
                 {/* 1. Featured Image */}
                 <AccordionItem value="featured-image">

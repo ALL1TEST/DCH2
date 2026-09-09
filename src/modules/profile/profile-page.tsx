@@ -158,7 +158,7 @@ export function ProfilePage() {
   const mfaEnabled = !!statusQuery.data?.mfaEnabled;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="w-full max-w-6xl mx-auto space-y-8">
       {/* Profile Header Card */}
       <Card>
         <CardContent className="pt-6">

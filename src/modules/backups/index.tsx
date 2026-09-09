@@ -26,7 +26,7 @@ export function BackupsModule() {
   return (
     <>
       <BackupsSubNav />
-      {currentSubPage === 'backups' && <BackupsListPage />}
+      {(currentSubPage === 'backups' || currentSubPage === 'create') && <BackupsListPage />}
       {currentSubPage === 'schedules' && <SchedulesPage />}
       {currentSubPage === 'restore' && <RestorePage />}
       {currentSubPage === 'storage' && <StoragePage />}

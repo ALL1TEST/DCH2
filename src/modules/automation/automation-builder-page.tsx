@@ -269,7 +269,7 @@ export function AutomationBuilderPage({ mode }: { mode?: 'generate' }) {
   const placementLabel = { AI_AUTOMATIC: t('automation.builder.previewPlacementAiAuto'), AFTER_INTRO: t('automation.builder.previewPlacementAfterIntro'), BEFORE_FIRST_H2: t('automation.builder.previewPlacementBeforeH2'), AFTER_EACH_H2: t('automation.builder.previewPlacementAfterEachH2'), MANUAL_MAPPING: t('automation.builder.previewPlacementManual') }[imagePlacement];
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="w-full max-w-6xl mx-auto space-y-6">
       {/* Page Header — integrated, no rectangle */}
       <div>
         <button
@@ -300,7 +300,7 @@ export function AutomationBuilderPage({ mode }: { mode?: 'generate' }) {
                   <p className="text-[10px] text-muted-foreground leading-tight">{s.desc}</p>
                 </div>
               </button>
-              {i < steps.length - 1 && <div className={cn('h-px flex-1 mx-2 transition-colors', s.num < step ? 'bg-primary' : 'bg-border')} />}
+              {i < steps.length - 1 && <div className={cn('h-0.5 flex-1 mx-4 transition-colors', s.num < step ? 'bg-primary' : 'bg-border')} />}
             </React.Fragment>
           ))}
         </div>

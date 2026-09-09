@@ -716,30 +716,25 @@ function TDropdown({
 }) {
   return (
     <DropdownMenu>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              className={cn(
-                'inline-flex items-center gap-1 h-8 px-2 rounded-lg transition-all duration-150 shrink-0',
-                'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
-                active
-                  ? 'bg-accent text-accent-foreground shadow-sm'
-                  : 'text-muted-foreground hover:bg-accent/80 hover:text-foreground',
-                triggerClassName,
-              )}
-            >
-              {icon}
-              {label && <span className="hidden lg:inline text-xs max-w-[60px] truncate">{label}</span>}
-              <ChevronDown className="h-3 w-3 opacity-60" />
-            </button>
-          </DropdownMenuTrigger>
-        </TooltipTrigger>
-        <TooltipContent side="bottom" sideOffset={4} className="text-xs">{label}</TooltipContent>
-      </Tooltip>
-      <DropdownMenuContent align="start" className="min-w-[160px]" onMouseDown={(e) => e.preventDefault()}>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            'inline-flex items-center gap-1 h-8 px-2 rounded-lg transition-all duration-150 shrink-0 cursor-pointer',
+            'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+            active
+              ? 'bg-accent text-accent-foreground shadow-sm'
+              : 'text-muted-foreground hover:bg-accent/80 hover:text-foreground',
+            triggerClassName,
+          )}
+          title={label}
+        >
+          {icon}
+          {label && <span className="hidden lg:inline text-xs max-w-[80px] truncate">{label}</span>}
+          <ChevronDown className="h-3 w-3 opacity-60" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className={cn('min-w-[160px] z-50', className)}>
         {children}
       </DropdownMenuContent>
     </DropdownMenu>
@@ -1920,6 +1915,8 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
     : editor?.isActive('heading', { level: 4 }) ? 'H4'
     : editor?.isActive('heading', { level: 5 }) ? 'H5'
     : editor?.isActive('heading', { level: 6 }) ? 'H6'
+    : editor?.isActive('bulletList') ? 'Bulleted list'
+    : editor?.isActive('orderedList') ? 'Numbered list'
     : 'Paragraph';
   const currentAlign = editor?.isActive({ textAlign: 'center' }) ? 'center'
     : editor?.isActive({ textAlign: 'right' }) ? 'right'
@@ -2193,6 +2190,8 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
             : currentHeading === 'H4' ? <Heading4 className="h-4 w-4" />
             : currentHeading === 'H5' ? <Heading5 className="h-4 w-4" />
             : currentHeading === 'H6' ? <Heading6 className="h-4 w-4" />
+            : currentHeading === 'Bulleted list' ? <List className="h-4 w-4" />
+            : currentHeading === 'Numbered list' ? <ListOrdered className="h-4 w-4" />
             : <Pilcrow className="h-4 w-4" />
           }
           active={currentHeading !== 'Paragraph'}
@@ -2225,31 +2224,6 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
           <DropdownMenuItem onClick={() => editor.chain().focus().toggleHeading({ level: 6 }).run()} className={cn('text-[11px] font-medium', currentHeading === 'H6' && 'bg-accent')}>
             Heading 6
             {currentHeading === 'H6' && <Check className="h-3 w-3 ml-auto" />}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => editor.chain().focus().toggleBulletList().run()} className={cn('text-xs', editor.isActive('bulletList') && 'bg-accent')}>
-            <List className="h-4 w-4 mr-1.5" />Bulleted List
-            {editor.isActive('bulletList') && <Check className="h-3 w-3 ml-auto" />}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => editor.chain().focus().toggleOrderedList().run()} className={cn('text-xs', editor.isActive('orderedList') && 'bg-accent')}>
-            <ListOrdered className="h-4 w-4 mr-1.5" />Numbered List
-            {editor.isActive('orderedList') && <Check className="h-3 w-3 ml-auto" />}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => editor.chain().focus().toggleTaskList().run()} className={cn('text-xs', editor.isActive('taskList') && 'bg-accent')}>
-            <ListChecks className="h-4 w-4 mr-1.5" />To-do List
-            {editor.isActive('taskList') && <Check className="h-3 w-3 ml-auto" />}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleInsertToggle} className={cn('text-xs', editor.isActive('toggleBlock') && 'bg-accent')}>
-            <ToggleLeft className="h-4 w-4 mr-1.5" />Toggle List
-            {editor.isActive('toggleBlock') && <Check className="h-3 w-3 ml-auto" />}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => editor.chain().focus().toggleCodeBlock().run()} className={cn('text-xs font-mono', editor.isActive('codeBlock') && 'bg-accent')}>
-            <Code className="h-4 w-4 mr-1.5" />Code Block
-            {editor.isActive('codeBlock') && <Check className="h-3 w-3 ml-auto" />}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => editor.chain().focus().toggleBlockquote().run()} className={cn('text-xs', editor.isActive('blockquote') && 'bg-accent')}>
-            <Quote className="h-4 w-4 mr-1.5" />Block Quote
-            {editor.isActive('blockquote') && <Check className="h-3 w-3 ml-auto" />}
           </DropdownMenuItem>
         </TDropdown>
 
@@ -2291,63 +2265,103 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
 
         <TSep />
 
-        {/* Fix #5: Bullet List grouped dropdown (disc/circle/square) */}
-        <TDropdown
-          label="Bullet List"
-          icon={<List className="h-4 w-4" />}
-          active={editor.isActive('bulletList')}
-        >
-          {BULLET_LIST_STYLES.map((s) => (
-            <DropdownMenuItem
-              key={s.value}
-              className="text-xs gap-2"
-              onClick={() => {
-                const cur = getBulletListStyle();
-                if (cur === s.value && editor.isActive('bulletList')) {
-                  editor.chain().focus().toggleBulletList().run();
-                } else {
-                  editor.chain().focus().toggleBulletList().run();
-                  (editor.chain().focus() as any).setBulletListStyle(s.value).run();
-                }
-              }}
-            >
-              <span className="font-mono text-[11px] text-muted-foreground w-16 shrink-0">{s.preview}</span>
-              <span>{s.label}</span>
-              {getBulletListStyle() === s.value && editor.isActive('bulletList') && (
-                <Check className="h-3 w-3 ml-auto" />
-              )}
-            </DropdownMenuItem>
-          ))}
-        </TDropdown>
+        {/* Bullet List: Direct 1-click toggle + style dropdown */}
+        <div className="inline-flex items-center h-8 rounded-lg border border-border/60 bg-background shrink-0">
+          <button
+            type="button"
+            onClick={() => editor.chain().focus().toggleBulletList().run()}
+            className={cn(
+              'h-8 px-2 flex items-center gap-1 rounded-l-lg text-xs transition-colors cursor-pointer',
+              editor.isActive('bulletList')
+                ? 'bg-accent text-accent-foreground font-medium'
+                : 'text-muted-foreground hover:bg-accent/80 hover:text-foreground'
+            )}
+            title="Bullet List"
+          >
+            <List className="h-4 w-4" />
+            <span className="hidden lg:inline text-xs">Bullet List</span>
+          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="h-8 px-1 flex items-center justify-center rounded-r-lg border-l border-border/50 text-muted-foreground hover:bg-accent/80 hover:text-foreground transition-colors cursor-pointer"
+                title="List style options"
+              >
+                <ChevronDown className="h-3 w-3 opacity-60" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-[150px] z-50">
+              {BULLET_LIST_STYLES.map((s) => (
+                <DropdownMenuItem
+                  key={s.value}
+                  className="text-xs gap-2 cursor-pointer"
+                  onClick={() => {
+                    if (!editor.isActive('bulletList')) {
+                      editor.chain().focus().toggleBulletList().run();
+                    }
+                    (editor.chain().focus() as any).setBulletListStyle(s.value).run();
+                  }}
+                >
+                  <span className="font-mono text-[11px] text-muted-foreground w-14 shrink-0">{s.preview}</span>
+                  <span>{s.label}</span>
+                  {getBulletListStyle() === s.value && editor.isActive('bulletList') && (
+                    <Check className="h-3 w-3 ml-auto" />
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
 
-        {/* Fix #6: Numbered List grouped dropdown (verified working) */}
-        <TDropdown
-          label="Numbered List"
-          icon={<ListOrdered className="h-4 w-4" />}
-          active={editor.isActive('orderedList')}
-        >
-          {ORDERED_LIST_STYLES.map((s) => (
-            <DropdownMenuItem
-              key={s.value}
-              className="text-xs gap-2"
-              onClick={() => {
-                const cur = getOrderedListStyle();
-                if (cur === s.value && editor.isActive('orderedList')) {
-                  editor.chain().focus().toggleOrderedList().run();
-                } else {
-                  editor.chain().focus().toggleOrderedList().run();
-                  (editor.chain().focus() as any).setOrderedListStyle(s.value).run();
-                }
-              }}
-            >
-              <span className="font-mono text-[11px] text-muted-foreground w-16 shrink-0">{s.preview}</span>
-              <span>{s.label}</span>
-              {getOrderedListStyle() === s.value && editor.isActive('orderedList') && (
-                <Check className="h-3 w-3 ml-auto" />
-              )}
-            </DropdownMenuItem>
-          ))}
-        </TDropdown>
+        {/* Numbered List: Direct 1-click toggle + style dropdown */}
+        <div className="inline-flex items-center h-8 rounded-lg border border-border/60 bg-background shrink-0">
+          <button
+            type="button"
+            onClick={() => editor.chain().focus().toggleOrderedList().run()}
+            className={cn(
+              'h-8 px-2 flex items-center gap-1 rounded-l-lg text-xs transition-colors cursor-pointer',
+              editor.isActive('orderedList')
+                ? 'bg-accent text-accent-foreground font-medium'
+                : 'text-muted-foreground hover:bg-accent/80 hover:text-foreground'
+            )}
+            title="Numbered List"
+          >
+            <ListOrdered className="h-4 w-4" />
+            <span className="hidden lg:inline text-xs">Numbered List</span>
+          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="h-8 px-1 flex items-center justify-center rounded-r-lg border-l border-border/50 text-muted-foreground hover:bg-accent/80 hover:text-foreground transition-colors cursor-pointer"
+                title="Numbering style options"
+              >
+                <ChevronDown className="h-3 w-3 opacity-60" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-[160px] z-50">
+              {ORDERED_LIST_STYLES.map((s) => (
+                <DropdownMenuItem
+                  key={s.value}
+                  className="text-xs gap-2 cursor-pointer"
+                  onClick={() => {
+                    if (!editor.isActive('orderedList')) {
+                      editor.chain().focus().toggleOrderedList().run();
+                    }
+                    (editor.chain().focus() as any).setOrderedListStyle(s.value).run();
+                  }}
+                >
+                  <span className="font-mono text-[11px] text-muted-foreground w-14 shrink-0">{s.preview}</span>
+                  <span>{s.label}</span>
+                  {getOrderedListStyle() === s.value && editor.isActive('orderedList') && (
+                    <Check className="h-3 w-3 ml-auto" />
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
         <Tb tooltip="Checklist" active={editor.isActive('taskList')} onClick={() => editor.chain().focus().toggleTaskList().run()}>
           <ListChecks className="h-4 w-4" />
         </Tb>
@@ -2423,24 +2437,22 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
           <MessageSquare className="h-4 w-4" />
         </Tb>
 
-        {/* Fix #4: Table dropdown with grid selector + border controls + move up/down */}
+        {/* Table dropdown */}
         <TDropdown label="Table" icon={<TableIcon className="h-4 w-4" />} active={editor.isActive('table')}>
-          {/* Grid selector — replaces "Insert Table" single item */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                className="w-full flex items-center justify-between px-2 py-1.5 text-xs hover:bg-accent transition-colors"
-              >
-                <span className="flex items-center gap-1.5">
-                  <TableIcon className="h-3.5 w-3.5" />Insert Table
-                </span>
-                <ChevronRight className="h-3 w-3 opacity-50" />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-2" align="start" side="right">
-              <div className="flex flex-col gap-1.5">
+          <DropdownMenuItem
+            onClick={handleInsertTable}
+            className="text-xs"
+          >
+            <TableIcon className="h-3.5 w-3.5 mr-1.5" />
+            Insert Table (3 × 3)
+          </DropdownMenuItem>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger className="text-xs">
+              <TableProperties className="h-3.5 w-3.5 mr-1.5" />
+              Custom Size Grid
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="w-auto p-2">
+              <div className="flex flex-col gap-1.5" onMouseDown={(e) => e.stopPropagation()}>
                 <div className="grid grid-cols-6 gap-0.5">
                   {Array.from({ length: 36 }).map((_, i) => {
                     const r = Math.floor(i / 6) + 1;
@@ -2450,14 +2462,19 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
                       <button
                         key={i}
                         type="button"
-                        onMouseDown={(e) => e.preventDefault()}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }}
                         onMouseEnter={() => setTableGridHover({ rows: r, cols: c })}
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
                           handleInsertTableSize(r, c);
                           setTableGridHover({ rows: 0, cols: 0 });
                         }}
                         className={cn(
-                          'h-5 w-5 rounded-sm border',
+                          'h-5 w-5 rounded-sm border cursor-pointer transition-colors',
                           active ? 'bg-amber-400 border-amber-500' : 'border-border/60 hover:bg-accent/50',
                         )}
                       />
@@ -2468,8 +2485,20 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
                   {tableGridHover.rows > 0 ? `${tableGridHover.rows} × ${tableGridHover.cols}` : 'Hover to select'}
                 </span>
               </div>
-            </PopoverContent>
-          </Popover>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger className="text-xs">
+              <Columns3 className="h-3.5 w-3.5 mr-1.5" />
+              Quick Presets
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuItem onClick={() => handleInsertTableSize(2, 2)} className="text-xs">2 × 2 Table</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleInsertTableSize(3, 3)} className="text-xs">3 × 3 Table</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleInsertTableSize(4, 4)} className="text-xs">4 × 4 Table</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleInsertTableSize(5, 5)} className="text-xs">5 × 5 Table</DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
           <DropdownMenuSeparator />
           <DropdownMenuSub>
             <DropdownMenuSubTrigger className="text-xs"><TableProperties className="h-3.5 w-3.5 mr-1.5" />Cell</DropdownMenuSubTrigger>
@@ -2610,41 +2639,7 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
           <RemoveFormatting className="h-4 w-4" />
         </Tb>
 
-        {/* More Options (...) — formatting shortcuts */}
-        <TDropdown label="" icon={<MoreHorizontal className="h-4 w-4" />}>
-          <DropdownMenuItem className="text-xs" onClick={() => editor.chain().focus().toggleSuperscript().run()}>
-            <span className="font-bold mr-1.5">X²</span>Superscript
-          </DropdownMenuItem>
-          <DropdownMenuItem className="text-xs" onClick={() => editor.chain().focus().toggleSubscript().run()}>
-            <span className="font-bold mr-1.5">X₂</span>Subscript
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem className="text-xs" onClick={() => editor.chain().focus().toggleBold().run()}>
-            <Bold className="h-3.5 w-3.5 mr-1.5" />Bold
-          </DropdownMenuItem>
-          <DropdownMenuItem className="text-xs" onClick={() => editor.chain().focus().toggleItalic().run()}>
-            <Italic className="h-3.5 w-3.5 mr-1.5" />Italic
-          </DropdownMenuItem>
-          <DropdownMenuItem className="text-xs" onClick={() => editor.chain().focus().toggleUnderline().run()}>
-            <UnderlineIcon className="h-3.5 w-3.5 mr-1.5" />Underline
-          </DropdownMenuItem>
-          <DropdownMenuItem className="text-xs" onClick={() => editor.chain().focus().toggleStrike().run()}>
-            <Strikethrough className="h-3.5 w-3.5 mr-1.5" />Strikethrough
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem className="text-xs" onClick={() => editor.chain().focus().setTextAlign('left').run()}>
-            <AlignLeft className="h-3.5 w-3.5 mr-1.5" />Align Left
-          </DropdownMenuItem>
-          <DropdownMenuItem className="text-xs" onClick={() => editor.chain().focus().setTextAlign('center').run()}>
-            <AlignCenter className="h-3.5 w-3.5 mr-1.5" />Align Center
-          </DropdownMenuItem>
-          <DropdownMenuItem className="text-xs" onClick={() => editor.chain().focus().setTextAlign('right').run()}>
-            <AlignRight className="h-3.5 w-3.5 mr-1.5" />Align Right
-          </DropdownMenuItem>
-          <DropdownMenuItem className="text-xs" onClick={() => editor.chain().focus().setTextAlign('justify').run()}>
-            <AlignJustify className="h-3.5 w-3.5 mr-1.5" />Justify
-          </DropdownMenuItem>
-        </TDropdown>
+
           </>
         )}
 
@@ -3136,23 +3131,6 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
         </div>
       </div>
 
-      {/* ========== STATUS BAR ========== */}
-      <div className="border-t border-border/30 px-4 py-1.5 flex items-center gap-4 text-[11px] text-muted-foreground bg-muted/20 shrink-0">
-        <span>{stats.words} words</span>
-        <span>·</span>
-        <span>{stats.readingTime}</span>
-        <span>·</span>
-        <span>{stats.chars} characters</span>
-        <div className="ml-auto hidden sm:flex items-center gap-2">
-          {editorMode !== 'editing' && (
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono">
-              {editorMode}
-            </Badge>
-          )}
-          <span className="font-mono">{currentFontFamily ? currentFontFamily.split(',')[0].replace(/['"]+/g, '') : 'Default'}</span>
-          {currentFontSize && <span>· {currentFontSize}</span>}
-        </div>
-      </div>
     </div>
   );
 });

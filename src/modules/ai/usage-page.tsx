@@ -52,7 +52,7 @@ export function UsagePage() {
   // Shared theme-aware chart palette (see lib/chart-theme.ts).
   const chart = useChartTheme();
   const { t } = useT();
-  const activeSiteId = useSiteStore((s) => s.activeSiteId);
+  const activeSiteId = useSiteStore((s) => s.activeSiteDbId);
   const [period, setPeriod] = useState<'day' | 'week' | 'month'>('month');
 
   const { data, isLoading, isError } = useQuery({

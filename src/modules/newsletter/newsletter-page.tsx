@@ -152,7 +152,9 @@ export function NewsletterPage() {
   const navigate = useNavigationStore((s) => s.navigate);
 
   const activeTab: NewsletterSubPage =
-    (currentSubPage as NewsletterSubPage) || 'subscribers';
+    currentSubPage === 'create' || currentSubPage === 'campaigns'
+      ? 'campaigns'
+      : (currentSubPage as NewsletterSubPage) || 'subscribers';
 
   const handleTabChange = (value: string) => {
     navigate('newsletter', null, value);
@@ -323,6 +325,12 @@ export function NewsletterPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [campaignForm, setCampaignForm] = useState<CampaignForm>(INITIAL_CAMPAIGN_FORM);
   const authUser = useAuthStore((s) => s.user);
+
+  useEffect(() => {
+    if (currentSubPage === 'create') {
+      setCreateOpen(true);
+    }
+  }, [currentSubPage]);
 
   // Compute the live recipient count for the Create Campaign dialog
   // (must be after campaignForm state declaration)
@@ -704,7 +712,15 @@ export function NewsletterPage() {
         {/* Campaigns Tab */}
         <TabsContent value="campaigns" className="mt-4">
           <div className="flex justify-end mb-0">
-            <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <Dialog
+              open={createOpen}
+              onOpenChange={(open) => {
+                setCreateOpen(open);
+                if (!open && currentSubPage === 'create') {
+                  navigate('newsletter', null, 'campaigns');
+                }
+              }}
+            >
               <DialogTrigger asChild>
                 <Button size="sm">
                   <Plus className="h-4 w-4 mr-2" />

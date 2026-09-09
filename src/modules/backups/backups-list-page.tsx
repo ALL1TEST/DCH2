@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigationStore } from '@/lib/stores/navigation-store';
 import {
   Plus,
   Download,
@@ -167,10 +168,18 @@ export function BackupsListPage({ scope = 'client' }: { scope?: 'client' | 'plat
   const currentUserId = useAuthStore((s) => s.user?.id ?? null);
   const isPlatform = scope === 'platform';
   const { t } = useT();
+  const currentSubPage = useNavigationStore((s) => s.currentSubPage);
+  const navigate = useNavigationStore((s) => s.navigate);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<CreateBackupForm>(initialForm);
   const [deleteTarget, setDeleteTarget] = useState<BackupRow | null>(null);
   const [restoreTarget, setRestoreTarget] = useState<BackupRow | null>(null);
+
+  useEffect(() => {
+    if (currentSubPage === 'create') {
+      setDialogOpen(true);
+    }
+  }, [currentSubPage]);
 
   const table = useDataTable({ initialSortField: 'createdAt', initialSortOrder: 'desc' });
 
@@ -532,7 +541,15 @@ export function BackupsListPage({ scope = 'client' }: { scope?: 'client' | 'plat
       )}
 
       {/* Create Backup Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open && currentSubPage === 'create') {
+            navigate(isPlatform ? 'platform-backups' : 'backups', null, 'backups');
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
             <DialogTitle>{t('backups.createBackup')}</DialogTitle>

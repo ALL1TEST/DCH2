@@ -50,12 +50,20 @@ function parseHash(hash: string): {
     return { mod, itemId: null, subPage: SEO_LEGACY_SUBPAGES[second.toLowerCase()] };
   }
 
+  // Canonicalize legacy standalone routes to Articles Categories & Tags dialog
+  if (mod === 'categories') {
+    return { mod: 'content', itemId: null, subPage: 'categories' };
+  }
+  if (mod === 'tags') {
+    return { mod: 'content', itemId: null, subPage: 'tags' };
+  }
+
   // All known sub-page keywords across ALL modules.
   // IMPORTANT: Settings has children named 'seo', 'api', 'media', 'ai', etc.
   // These MUST be recognized as sub-pages so they are NOT treated as item IDs.
   const SUB_PAGE_KEYWORDS = new Set([
     // Content
-    'create', 'new', 'edit', 'versions', 'translations', 'preview',
+    'create', 'new', 'edit', 'versions', 'translations', 'preview', 'categories', 'tags',
     // SEO
     'redirects', 'sitemap', 'robots', 'search-console', 'indexing', 'broken-links',
     'social-preview', 'schema', 'canonicals', 'internal-links', 'audit', 'settings',
@@ -70,7 +78,7 @@ function parseHash(hash: string): {
     // Newsletter
     'subscribers', 'campaigns', 'collections',
     // Media
-    'folders',
+    'folders', 'upload',
     // Settings — ALL children must be here
     'settings', 'general', 'localization', 'reading', 'discussion',
     'seo', 'media', 'search', 'email', 'security', 'api', 'ai', 'cache',
@@ -153,14 +161,26 @@ export const useNavigationStore = create<NavigationState>((set) => ({
   currentSubPage: initialState.subPage,
 
   navigate: (mod, itemId = null, subPage = null) => {
+    let targetMod = mod;
+    let targetItemId = itemId;
+    let targetSubPage = subPage;
+
+    if (targetMod === 'categories') {
+      targetMod = 'content';
+      targetSubPage = 'categories';
+    } else if (targetMod === 'tags') {
+      targetMod = 'content';
+      targetSubPage = 'tags';
+    }
+
     set({
-      currentModule: mod,
-      currentItemId: itemId,
-      currentSubPage: subPage,
+      currentModule: targetMod,
+      currentItemId: targetItemId,
+      currentSubPage: targetSubPage,
     });
 
     // Update browser hash without triggering a page reload
-    const hash = buildHash(mod, itemId, subPage);
+    const hash = buildHash(targetMod, targetItemId, targetSubPage);
     window.history.replaceState(null, '', hash);
   },
 

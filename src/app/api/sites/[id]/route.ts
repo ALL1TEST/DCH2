@@ -44,8 +44,29 @@ export async function GET(
       );
     }
 
+    const planId = (site as any).planId || site.planScope || 'free';
+    let planInfo = null;
+    try {
+      const { getPlanConfigSync } = require('@/lib/platform/plan-config');
+      const cfg = getPlanConfigSync(planId);
+      planInfo = {
+        planId: cfg.planId,
+        name: cfg.name,
+        badgeVariant: cfg.badgeVariant,
+        priceMonthly: cfg.priceMonthly,
+        priceYearly: cfg.priceYearly,
+        currency: cfg.currency,
+      };
+    } catch {
+      planInfo = { planId, name: planId.toUpperCase(), badgeVariant: planId };
+    }
+
     return NextResponse.json({
-      data: site,
+      data: {
+        ...site,
+        planId,
+        plan: planInfo,
+      },
       meta: { requestId: crypto.randomUUID(), timestamp: new Date().toISOString() },
     });
   } catch (error) {
@@ -71,7 +92,7 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { name, slug, domain, description, logo, favicon, status, config } = body;
+    const { name, slug, domain, description, logo, favicon, status, config, planId: rawPlanId } = body;
 
     const existing = await db.site.findUnique({ where: { id } });
     if (!existing) {
@@ -97,6 +118,8 @@ export async function PATCH(
       }
     }
 
+    const updatedPlanId = rawPlanId !== undefined ? String(rawPlanId).trim().toLowerCase() : undefined;
+
     const site = await db.site.update({
       where: { id },
       data: {
@@ -108,6 +131,7 @@ export async function PATCH(
         ...(favicon !== undefined && { favicon: favicon || null }),
         ...(status !== undefined && { status }),
         ...(config !== undefined && { config: typeof config === 'string' ? config : JSON.stringify(config) }),
+        ...(updatedPlanId !== undefined && { planScope: updatedPlanId }),
       },
       include: {
         _count: {
@@ -121,8 +145,37 @@ export async function PATCH(
       },
     });
 
+    if (updatedPlanId !== undefined) {
+      try {
+        await db.$executeRawUnsafe(`UPDATE Site SET planId = ? WHERE id = ?`, updatedPlanId, id);
+      } catch {
+        // ignore if not present
+      }
+    }
+
+    const resolvedPlanId = updatedPlanId || (site as any).planId || site.planScope || 'free';
+    let planInfo = null;
+    try {
+      const { getPlanConfigSync } = require('@/lib/platform/plan-config');
+      const cfg = getPlanConfigSync(resolvedPlanId);
+      planInfo = {
+        planId: cfg.planId,
+        name: cfg.name,
+        badgeVariant: cfg.badgeVariant,
+        priceMonthly: cfg.priceMonthly,
+        priceYearly: cfg.priceYearly,
+        currency: cfg.currency,
+      };
+    } catch {
+      planInfo = { planId: resolvedPlanId, name: resolvedPlanId.toUpperCase(), badgeVariant: resolvedPlanId };
+    }
+
     return NextResponse.json({
-      data: site,
+      data: {
+        ...site,
+        planId: resolvedPlanId,
+        plan: planInfo,
+      },
       meta: { requestId: crypto.randomUUID(), timestamp: new Date().toISOString() },
     });
   } catch (error) {

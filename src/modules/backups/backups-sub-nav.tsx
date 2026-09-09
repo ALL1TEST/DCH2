@@ -33,12 +33,12 @@ export function BackupsSubNav({ module = 'backups' }: { module?: 'backups' | 'pl
   const { t } = useT();
 
   return (
-    <nav aria-label={t('backups.sectionsAria')} className="mb-6 -mx-1 px-1 pb-1 overflow-x-auto">
+    <nav aria-label={t('backups.sectionsAria')} className="shrink-0 mb-6 -mx-1 px-1 pb-1 overflow-x-auto">
       <div className="flex items-center gap-1 min-w-max">
         {BACKUPS_TABS.map((tab) => {
           const isActive = tab.key === null
             ? !currentSubPage
-            : currentSubPage === tab.key;
+            : currentSubPage === tab.key || (tab.key === 'backups' && currentSubPage === 'create');
           const Icon = tab.icon;
           return (
             <button

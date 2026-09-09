@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Plus,
@@ -350,16 +350,24 @@ function IdeaCard({
 function CategoriesTagsDialog({
   open,
   onOpenChange,
+  initialTab = 'categories',
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialTab?: 'categories' | 'tags';
 }) {
   const { t } = useT();
 
   const queryClient = useQueryClient();
   const [newCategory, setNewCategory] = useState('');
   const [newTag, setNewTag] = useState('');
-  const [activeTab, setActiveTab] = useState<'categories' | 'tags'>('categories');
+  const [activeTab, setActiveTab] = useState<'categories' | 'tags'>(initialTab);
+
+  useEffect(() => {
+    if (open && initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [open, initialTab]);
 
   const { data: categoriesData, isLoading: catLoading } = useQuery({
     queryKey: queryKeys.categories.all,
@@ -592,9 +600,25 @@ export function ContentListPage() {
   const [ideas, setIdeas] = useState<ArticleIdea[]>([]);
   const [expandedIdea, setExpandedIdea] = useState<number | null>(null);
   const [ideasEmpty, setIdeasEmpty] = useState(false);
+  const currentSubPage = useNavigationStore((s) => s.currentSubPage);
   const [ideaNiche, setIdeaNiche] = useState('');
   const [ideaKeywords, setIdeaKeywords] = useState('');
   const [catTagOpen, setCatTagOpen] = useState(false);
+  const [catTagTab, setCatTagTab] = useState<'categories' | 'tags'>('categories');
+
+  useEffect(() => {
+    if (currentSubPage === 'categories' || currentSubPage === 'tags') {
+      setCatTagTab(currentSubPage);
+      setCatTagOpen(true);
+    }
+  }, [currentSubPage]);
+
+  const handleCatTagOpenChange = useCallback((open: boolean) => {
+    setCatTagOpen(open);
+    if (!open && (currentSubPage === 'categories' || currentSubPage === 'tags')) {
+      navigate('content');
+    }
+  }, [currentSubPage, navigate]);
 
   // Saved ideas — kept as a Set of titles in state (loaded from localStorage on mount),
   // then derived into a Set of indices for the current `ideas` array.
@@ -830,7 +854,10 @@ export function ContentListPage() {
             <Button
               variant="outline"
               className="h-9 px-4 gap-2"
-              onClick={() => setCatTagOpen(true)}
+              onClick={() => {
+                setCatTagTab('categories');
+                setCatTagOpen(true);
+              }}
               title={t('articles.manageCategoriesTags')}
             >
               <FolderOpen className="h-4 w-4" />
@@ -1261,7 +1288,11 @@ export function ContentListPage() {
       </aside>
 
       {/* Categories & Tags management modal */}
-      <CategoriesTagsDialog open={catTagOpen} onOpenChange={setCatTagOpen} />
+      <CategoriesTagsDialog
+        open={catTagOpen}
+        onOpenChange={handleCatTagOpenChange}
+        initialTab={catTagTab}
+      />
 
       {/* Bulk Actions Bar */}
       {selectedIds.length > 0 && (

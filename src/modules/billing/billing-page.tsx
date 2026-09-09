@@ -22,7 +22,9 @@ import {
   PLANS as STORE_PLANS,
   getPlanCardBorderClasses,
   type Plan as StorePlan,
+  useSubscriptionStore,
 } from '@/lib/stores/subscription-store';
+import { useSiteStore } from '@/lib/stores/site-store';
 import type { ClientBillingState, Payment, PlanId } from '@/lib/platform/platform-data';
 import { ENTITLEMENT_LABELS, UNLIMITED, type EntitlementKey } from '@/lib/platform/feature-config';
 import { formatMoney } from '@/lib/platform/currency-catalog';
@@ -266,6 +268,10 @@ export function BillingPage() {
     onSuccess: (data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['platform-billing-me'] });
       queryClient.invalidateQueries({ queryKey: ['platform-overview'] });
+      queryClient.invalidateQueries({ queryKey: ['sites'] });
+      queryClient.invalidateQueries();
+      useSubscriptionStore.getState().changePlan(vars.planId);
+      useSiteStore.getState().fetchSites();
       toast.success(vars.isUpgrade ? `${t('billing.upgradedTo')} ${vars.planName}` : `${t('billing.changedTo')} ${vars.planName}`);
     },
     onError: (err: unknown) => {
@@ -390,7 +396,7 @@ export function BillingPage() {
   // -------------------- Loading --------------------
   if (billingQuery.isLoading) {
     return (
-      <div className="max-w-6xl mx-auto space-y-8">
+      <div className="w-full max-w-6xl mx-auto space-y-8">
         <div>
           <Skeleton className="h-6 w-48" />
         </div>
@@ -456,11 +462,11 @@ export function BillingPage() {
   // -------------------- Error --------------------
   if (billingQuery.isError || !billingQuery.data) {
     return (
-      <div className="max-w-6xl mx-auto space-y-8">
+      <div className="w-full max-w-6xl mx-auto space-y-8">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground">{t('billing.title')}</h1>
         </div>
-        <Card>
+        <Card className="w-full">
           <CardContent>
             <ErrorState
               message={t('billing.loadFailed')}
@@ -480,7 +486,7 @@ export function BillingPage() {
   // access and are not a paying customer.
   if (billingState.isInternal) {
     return (
-      <div className="max-w-6xl mx-auto space-y-8">
+      <div className="w-full max-w-6xl mx-auto space-y-8">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground">{t('billing.title')}</h1>
         </div>
@@ -591,7 +597,7 @@ export function BillingPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
+    <div className="w-full max-w-6xl mx-auto space-y-8">
       {/* Page Header */}
       <div>
         <h1 className="text-xl font-bold tracking-tight text-foreground">{t('billing.title')}</h1>
@@ -599,7 +605,7 @@ export function BillingPage() {
 
       {/* Free-trial-expired banner — surfaces server-side enforcement */}
       {freeTrialExpired && freeTrialExpiresAt && (
-        <Card className="border-amber-500/40 bg-amber-50 dark:bg-amber-950/40">
+        <Card className="w-full border-amber-500/40 bg-amber-50 dark:bg-amber-950/40">
           <CardContent className="flex items-start gap-3 py-4">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
             <div className="text-sm">
@@ -620,7 +626,7 @@ export function BillingPage() {
           enabled), and the billing actions. Price/currency is NOT
           duplicated here — the plan cards and the Stripe Customer
           Portal carry the amounts. */}
-      <Card>
+      <Card className="w-full">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
           <CardTitle className="text-base">{t('billing.currentPlan')}</CardTitle>
           {/* Subscription status — the SAME green "Active" badge
@@ -709,7 +715,7 @@ export function BillingPage() {
           cards (never repeated inside a card). Card layout: large plan
           name → large price → divider → feature list with check icons →
           action button pinned to the bottom. */}
-      <div>
+      <div className="w-full">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
           <h2 className="text-base font-semibold">{t('billing.otherPlans')}</h2>
           {/* Global billing-period selector — shown only when at least
@@ -748,7 +754,7 @@ export function BillingPage() {
             </div>
           )}
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid w-full grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {otherPlans.map((plan) => {
             const storePlan = getStorePlan(plan.id);
             // Display price/currency = the plan's CONFIGURED base fields —
@@ -852,7 +858,7 @@ export function BillingPage() {
           Date) over the REAL payment/subscription history data.
           Invoice / Amount / Method columns were removed; amounts and
           invoices are managed in the Stripe Customer Portal. */}
-      <Card>
+      <Card className="w-full">
         <CardHeader>
           <CardTitle className="text-base">{t('billing.paymentHistory')}</CardTitle>
         </CardHeader>

@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getApi } from '@/lib/api-client';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useSubscriptionStore } from '@/lib/stores/subscription-store';
+import { useSiteStore } from '@/lib/stores/site-store';
 import type { ClientBillingState } from '@/lib/platform/platform-data';
 
 // ============================================================
@@ -56,5 +57,7 @@ export function useSubscriptionServerSync() {
       status: data.status,
       trialEnd: data.trialEnd,
     });
-  }, [data]);
+    // Immediately re-fetch sites whenever the user's plan changes (no refresh needed)
+    useSiteStore.getState().fetchSites();
+  }, [data?.plan?.id, data?.plan?.name, data?.status, data?.trialEnd]);
 }

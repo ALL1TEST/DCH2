@@ -212,13 +212,15 @@ interface OperationalActionSeed {
   message: string;
   hoursAgo: number;
   action: string;
+  module?: string;
+  subPage?: string;
 }
 const OPERATIONAL_ACTIONS: OperationalActionSeed[] = [
-  { id: 'op1', type: 'CRITICAL', slot: 0, message: 'SSL certificate expiring in 3 days', hoursAgo: 2, action: 'Fix' },
-  { id: 'op2', type: 'CRITICAL', slot: 1, message: 'Domain renewal required', hoursAgo: 5, action: 'Renew' },
-  { id: 'op3', type: 'WARNING', slot: 0, message: 'SEO issues detected on 2 pages', hoursAgo: 4, action: 'Open' },
-  { id: 'op4', type: 'INFO', slot: 2, message: 'Sitemap submitted to Google', hoursAgo: 3, action: '' },
-  { id: 'op5', type: 'INFO', slot: 0, message: 'Backup completed successfully', hoursAgo: 1, action: 'View' },
+  { id: 'op1', type: 'CRITICAL', slot: 0, message: 'SSL certificate expiring in 3 days', hoursAgo: 2, action: 'Fix', module: 'settings', subPage: 'smtp' },
+  { id: 'op2', type: 'CRITICAL', slot: 1, message: 'Domain renewal required', hoursAgo: 5, action: 'Renew', module: 'billing' },
+  { id: 'op3', type: 'WARNING', slot: 0, message: 'SEO issues detected on 2 pages', hoursAgo: 4, action: 'Open', module: 'seo' },
+  { id: 'op4', type: 'INFO', slot: 2, message: 'Sitemap submitted to Google', hoursAgo: 3, action: '', module: 'seo' },
+  { id: 'op5', type: 'INFO', slot: 0, message: 'Backup completed successfully', hoursAgo: 1, action: 'View', module: 'backups' },
 ];
 
 // -------------------- Helpers --------------------
@@ -423,6 +425,8 @@ export function getDashboardData(sites: Site[], scope: DashboardScope): Dashboar
       message: op.message,
       time: relativeHoursLabel(op.hoursAgo),
       action: op.action,
+      module: op.module,
+      subPage: op.subPage,
     });
   }
 
@@ -436,6 +440,7 @@ export function getDashboardData(sites: Site[], scope: DashboardScope): Dashboar
       message: `${pendingComments} new ${pendingComments === 1 ? 'comment' : 'comments'} need moderation`,
       time: relativeHoursLabel(1),
       action: 'Moderate',
+      module: 'comments',
     });
   }
 
@@ -449,6 +454,7 @@ export function getDashboardData(sites: Site[], scope: DashboardScope): Dashboar
       message: `${inReviewContent} ${inReviewContent === 1 ? 'article' : 'articles'} waiting for review`,
       time: relativeHoursLabel(3),
       action: 'Review',
+      module: 'content',
     });
   }
 
@@ -467,6 +473,9 @@ export function getDashboardData(sites: Site[], scope: DashboardScope): Dashboar
       message: `AI draft generated: "${draft.title}"`,
       time: relativeHoursLabel(0.25),
       action: 'Open',
+      module: 'content',
+      itemId: draft.id,
+      subPage: 'edit',
     });
   }
 

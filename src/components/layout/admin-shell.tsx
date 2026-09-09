@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useSiteStore } from '@/lib/stores/site-store';
+import { useNavigationStore } from '@/lib/stores/navigation-store';
 import { LoginScreen } from './login-screen';
 import { AppSidebar } from './sidebar';
 import { Topbar } from './topbar';
@@ -14,6 +15,17 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isCheckingAuth, checkAuth } = useAuthStore();
   const initializeSites = useSiteStore((s) => s.initialize);
   const isSiteInitialized = useSiteStore((s) => s.isInitialized);
+  const mainRef = useRef<HTMLElement>(null);
+
+  const currentModule = useNavigationStore((s) => s.currentModule);
+  const currentSubPage = useNavigationStore((s) => s.currentSubPage);
+  const currentItemId = useNavigationStore((s) => s.currentItemId);
+
+  useEffect(() => {
+    if (mainRef.current) {
+      mainRef.current.scrollTop = 0;
+    }
+  }, [currentModule, currentSubPage, currentItemId]);
 
   // Invalidate all queries when the ACTIVE SITE changes, so site-scoped
   // data (dashboard stats, content, media, etc.) refetches with the new
@@ -73,7 +85,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0 min-h-0">
           <Topbar />
-          <main className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 pt-4">{children}</main>
+          <main ref={mainRef} className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 pt-4 flex flex-col">{children}</main>
         </div>
       </div>
       <CommandPalette />

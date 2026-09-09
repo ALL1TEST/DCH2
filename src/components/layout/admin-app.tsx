@@ -9,7 +9,18 @@ import { usePlanEntitlements, isModuleAllowedByPlan, isSmtpSettingsAllowedByPlan
 import { useSubscriptionServerSync } from '@/hooks/use-subscription-sync';
 import { moduleRegistry } from '@/lib/module-registry';
 import { canAccessPage, isPlatformPage } from '@/lib/permissions';
+import { useSiteStore } from '@/lib/stores/site-store';
 import { useT } from '@/lib/i18n';
+
+const FORBIDDEN_IN_ALL_SITES = new Set([
+  'seo',
+  'ai',
+  'automation',
+  'settings',
+  'notifications',
+  'email-templates',
+  'backups',
+]);
 
 export default function AdminApp() {
   const currentModule = useNavigationStore((s) => s.currentModule);
@@ -25,72 +36,45 @@ export default function AdminApp() {
   // (name / email / change-password / account info) — it is excluded
   // from the redirect so the profile menu's "Profile" action works for
   // platform admins.
-  useEffect(() => {
-    const isPlatformStaff = user?.role === 'PLATFORM_ADMIN' || user?.role === 'OWNER';
-    if (isPlatformStaff && !isPlatformPage(currentModule) && currentModule !== 'profile') {
-      navigate('platform-overview');
-    }
-    // INTERNAL — the SaaS owner's internal account with FULL CMS
-    // access. It lands on its OWN Internal Account dashboard (never the
-    // Platform Admin dashboard, never the plain client '#dashboard' hash)
-    // and can open EVERY client CMS module from there (Articles, Media,
-    // SEO, AI, Automation, Settings, … — no plan gating).
-    // Three things route it back to its own dashboard:
-    //   1. Platform Admin management pages (platform-* — those belong to
-    //      the separate Platform Admin account type)
-    //   2. the client 'dashboard' hash / unknown module ids (its home is
-    //      #internal-dashboard)
-    //   3. ANALYTICS + BILLING — intentionally removed from the Internal
-    //      Account experience (Internal = internal platform workspace,
-    //      not a customer with subscriptions or a consumer of the
-    //      customer-side Analytics module). The sidebar + command palette
-    //      entries for these two modules are gone for INTERNAL; this guard
-    //      closes the direct-URL path so #analytics and #billing can
-    //      never render their modules for the Internal Account. The
-    //      modules themselves stay fully available to every other account
-    //      type that is supposed to reach them (Admin User billing,
-    //      Platform Admin analytics, etc.).
-    const isInternalAccount = user?.role === 'INTERNAL';
-    if (
-      isInternalAccount &&
-      (isPlatformPage(currentModule) ||
-        currentModule === 'dashboard' ||
-        currentModule === 'analytics' ||
-        currentModule === 'billing' ||
-        !(currentModule in moduleRegistry))
-    ) {
-      navigate('internal-dashboard');
-    }
-    // No other account type may land on the Internal Account dashboard —
-    // it belongs exclusively to the INTERNAL-role account.
-    if (user && !isInternalAccount && currentModule === 'internal-dashboard') {
-      navigate(isPlatformStaff ? 'platform-overview' : 'dashboard');
-    }
-    // CLIENT roles that somehow land on a platform page fall back to
-    // their client dashboard. (INTERNAL is handled above — platform
-    // pages route it back to its own internal dashboard.)
-    if (user && !isPlatformStaff && !isInternalAccount && isPlatformPage(currentModule)) {
-      navigate('dashboard');
-    }
-    // ANALYTICS REMOVAL (Admin User dashboard only) — the Analytics
-    // module is no longer part of the client CMS: the sidebar entry and
-    // the command palette entry are gone, and this guard closes the
-    // direct-URL path, so a client role manually entering #analytics is
-    // redirected to their dashboard and can never reach the module.
-    // Platform staff were already redirected to platform pages by the
-    // rule above — the Platform Admin dashboard is unaffected. The
-    // Internal Account (full platform access) is handled by its own
-    // rule above (#analytics → #internal-dashboard).
-    if (user && !isPlatformStaff && !isInternalAccount && currentModule === 'analytics') {
-      navigate('dashboard');
-    }
-  }, [user, currentModule, navigate]);
+  const isPlatformStaff = user?.role === 'PLATFORM_ADMIN' || user?.role === 'OWNER';
+  const isInternalAccount = user?.role === 'INTERNAL';
+  const isAllSites = useSiteStore((s) => s.isAllSites());
 
-  const ModuleComponent = moduleRegistry[currentModule] ?? moduleRegistry.dashboard;
+  // Synchronously compute effectiveModule so there is NEVER an intermediate
+  // render showing the wrong page, layout shift/decalage, or flashing "Access Denied" during role switch
+  let effectiveModule = currentModule;
+  if (isPlatformStaff && !isPlatformPage(currentModule) && currentModule !== 'profile') {
+    effectiveModule = 'platform-overview';
+  } else if (
+    isInternalAccount &&
+    (isPlatformPage(currentModule) ||
+      currentModule === 'dashboard' ||
+      currentModule === 'analytics' ||
+      currentModule === 'billing' ||
+      !(currentModule in moduleRegistry))
+  ) {
+    effectiveModule = 'internal-dashboard';
+  } else if (user && !isInternalAccount && currentModule === 'internal-dashboard') {
+    effectiveModule = isPlatformStaff ? 'platform-overview' : 'dashboard';
+  } else if (user && !isPlatformStaff && !isInternalAccount && isPlatformPage(currentModule)) {
+    effectiveModule = 'dashboard';
+  } else if (user && !isPlatformStaff && !isInternalAccount && currentModule === 'analytics') {
+    effectiveModule = 'dashboard';
+  } else if (user && !isPlatformStaff && isAllSites && FORBIDDEN_IN_ALL_SITES.has(currentModule)) {
+    effectiveModule = isInternalAccount ? 'internal-dashboard' : 'dashboard';
+  }
+
+  useEffect(() => {
+    if (effectiveModule !== currentModule) {
+      navigate(effectiveModule);
+    }
+  }, [effectiveModule, currentModule, navigate]);
+
+  const ModuleComponent = moduleRegistry[effectiveModule] ?? moduleRegistry.dashboard;
 
   // Access control — if the user cannot access the current page,
   // render an "Access Denied" notice instead of the module.
-  const pageKey = currentModule || 'dashboard';
+  const pageKey = effectiveModule || 'dashboard';
 
   // PLAN FEATURE SYNC (route guard) — Platform Admin → Plans & Pricing
   // → Feature Access for the customer's ACTIVE plan is the single

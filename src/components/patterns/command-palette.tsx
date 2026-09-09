@@ -6,18 +6,18 @@ import { useQuery } from '@tanstack/react-query';
 import {
   LayoutDashboard,
   FileText,
+  Calendar,
   Image,
   Users,
   Tag,
+  FolderOpen,
   MessageSquare,
   Mail,
   Search,
   Bell,
   Sparkles,
   Settings,
-  Shield,
   Database,
-  Activity,
   Upload,
   Plus,
   Clock,
@@ -43,6 +43,7 @@ import {
 import { useCommandPaletteStore } from '@/lib/stores/command-palette-store';
 import { useNavigationStore } from '@/lib/stores/navigation-store';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { useSiteStore } from '@/lib/stores/site-store';
 import { useT } from '@/lib/i18n';
 import { usePlanEntitlements, isModuleAllowedByPlan, isSmtpSettingsAllowedByPlan } from '@/hooks/use-entitlements';
 import { getApi } from '@/lib/api-client';
@@ -57,6 +58,8 @@ interface CommandItemDef {
   shortcut?: string;
   module: string;
   subPage?: string;
+  itemId?: string;
+  requiredRole?: string;
 }
 
 interface CommandGroupDef {
@@ -100,57 +103,47 @@ interface SearchResult {
 
 const NAV_ITEMS: CommandItemDef[] = [
   { id: 'nav-dashboard', label: 'Dashboard', icon: LayoutDashboard, shortcut: 'G D', module: 'dashboard' },
-  { id: 'nav-content', label: 'Content', icon: FileText, shortcut: 'G C', module: 'content' },
+  { id: 'nav-content', label: 'Articles', icon: FileText, shortcut: 'G C', module: 'content' },
+  { id: 'nav-calendar', label: 'Calendar', icon: Calendar, shortcut: 'G L', module: 'calendar' },
   { id: 'nav-media', label: 'Media', icon: Image, shortcut: 'G M', module: 'media' },
-  { id: 'nav-users', label: 'Users', icon: Users, shortcut: 'G U', module: 'users' },
-  { id: 'nav-categories', label: 'Categories', icon: Tag, module: 'categories' },
-  { id: 'nav-tags', label: 'Tags', icon: Tag, module: 'tags' },
+  { id: 'nav-users', label: 'Users', icon: Users, shortcut: 'G U', module: 'users', requiredRole: 'ADMIN' },
   { id: 'nav-comments', label: 'Comments', icon: MessageSquare, module: 'comments' },
-  { id: 'nav-newsletters', label: 'Newsletters', icon: Mail, module: 'newsletter' },
+  { id: 'nav-newsletters', label: 'Newsletter', icon: Mail, module: 'newsletter' },
   { id: 'nav-seo', label: 'SEO', icon: Search, module: 'seo' },
-  // NOTE: Analytics was removed from the Admin User (client CMS)
-  // navigation — see sidebar.tsx / admin-app.tsx. Platform Admin's
-  // command list (PLATFORM_NAV_ITEMS below) is unaffected.
-  { id: 'nav-automation', label: 'Automation', icon: Zap, module: 'automation' },
+  { id: 'nav-automation', label: 'Automation', icon: Zap, module: 'automation', requiredRole: 'ADMIN' },
   { id: 'nav-notifications', label: 'Notifications', icon: Bell, module: 'notifications' },
+  { id: 'nav-email-templates', label: 'Email Templates', icon: Mail, module: 'email-templates', requiredRole: 'ADMIN' },
+  { id: 'nav-settings-smtp', label: 'SMTP Settings', icon: Settings, module: 'settings', subPage: 'smtp', requiredRole: 'ADMIN' },
   { id: 'nav-ai', label: 'AI', icon: Sparkles, module: 'ai' },
   { id: 'nav-ai-providers', label: 'AI Providers', icon: Settings, module: 'ai', subPage: 'providers' },
   { id: 'nav-ai-prompts', label: 'Prompt Library', icon: FileText, module: 'ai', subPage: 'prompts' },
   { id: 'nav-ai-playground', label: 'AI Playground', icon: Sparkles, module: 'ai', subPage: 'playground' },
   { id: 'nav-ai-jobs', label: 'AI Jobs', icon: Clock, module: 'ai', subPage: 'jobs' },
-  { id: 'nav-backups', label: 'Backups Dashboard', icon: Database, module: 'backups' },
-  { id: 'nav-backups-list', label: 'Backups List', icon: Database, module: 'backups', subPage: 'backups' },
-  { id: 'nav-backups-schedules', label: 'Backup Schedules', icon: Clock, module: 'backups', subPage: 'schedules' },
-  { id: 'nav-backups-restore', label: 'Restore Backup', icon: RotateCcw, module: 'backups', subPage: 'restore' },
-  { id: 'nav-backups-storage', label: 'Backup Storage', icon: Database, module: 'backups', subPage: 'storage' },
-  { id: 'nav-backups-logs', label: 'Backup Logs', icon: ScrollText, module: 'backups', subPage: 'logs' },
-  { id: 'nav-backups-settings', label: 'Backup Settings', icon: Settings, module: 'backups', subPage: 'settings' },
-  { id: 'nav-settings', label: 'Settings — General', icon: Settings, module: 'settings', subPage: 'general' },
-  { id: 'nav-settings-localization', label: 'Settings — Localization', icon: Settings, module: 'settings', subPage: 'localization' },
-  { id: 'nav-settings-reading', label: 'Settings — Reading', icon: Settings, module: 'settings', subPage: 'reading' },
-  { id: 'nav-settings-seo', label: 'Settings — SEO', icon: Settings, module: 'settings', subPage: 'seo' },
-  { id: 'nav-settings-media', label: 'Settings — Media', icon: Settings, module: 'settings', subPage: 'media' },
-  { id: 'nav-settings-email', label: 'Settings — Email (SMTP)', icon: Settings, module: 'settings', subPage: 'email' },
-  { id: 'nav-settings-security', label: 'Settings — Security', icon: Settings, module: 'settings', subPage: 'security' },
-  { id: 'nav-settings-api', label: 'Settings — API', icon: Settings, module: 'settings', subPage: 'api' },
-  { id: 'nav-settings-ai', label: 'Settings — AI', icon: Settings, module: 'settings', subPage: 'ai' },
-  { id: 'nav-settings-cache', label: 'Settings — Cache', icon: Settings, module: 'settings', subPage: 'cache' },
-  { id: 'nav-settings-performance', label: 'Settings — Performance', icon: Settings, module: 'settings', subPage: 'performance' },
-  { id: 'nav-settings-notifications', label: 'Settings — Notifications', icon: Settings, module: 'settings', subPage: 'notifications' },
-  { id: 'nav-settings-maintenance', label: 'Settings — Maintenance', icon: Settings, module: 'settings', subPage: 'maintenance' },
-  { id: 'nav-settings-advanced', label: 'Settings — Advanced', icon: Settings, module: 'settings', subPage: 'advanced' },
-  { id: 'nav-settings-audit', label: 'Settings — Audit Log', icon: Settings, module: 'settings', subPage: 'audit-log' },
-  { id: 'nav-settings-import', label: 'Settings — Import/Export', icon: Settings, module: 'settings', subPage: 'import-export' },
-  { id: 'nav-security', label: 'Security', icon: Shield, module: 'security' },
-  { id: 'nav-jobs', label: 'Jobs', icon: Activity, module: 'jobs' },
+  { id: 'nav-backups', label: 'Backups', icon: Database, module: 'backups', requiredRole: 'ADMIN' },
+  { id: 'nav-backups-schedules', label: 'Backup Schedules', icon: Clock, module: 'backups', subPage: 'schedules', requiredRole: 'ADMIN' },
+  { id: 'nav-backups-restore', label: 'Restore Backup', icon: RotateCcw, module: 'backups', subPage: 'restore', requiredRole: 'ADMIN' },
+  { id: 'nav-backups-storage', label: 'Backup Storage', icon: Database, module: 'backups', subPage: 'storage', requiredRole: 'ADMIN' },
+  { id: 'nav-backups-logs', label: 'Backup Logs', icon: ScrollText, module: 'backups', subPage: 'logs', requiredRole: 'ADMIN' },
 ];
 
 const ACTION_ITEMS: CommandItemDef[] = [
-  { id: 'act-create-content', label: 'Create Content', icon: Plus, shortcut: 'N', module: 'content', subPage: 'create' },
-  { id: 'act-upload-media', label: 'Upload Media', icon: Upload, module: 'media' },
-  { id: 'act-create-user', label: 'Create User', icon: Plus, module: 'users', subPage: 'create' },
-  { id: 'act-create-category', label: 'Create Category', icon: Plus, module: 'categories', subPage: 'create' },
-  { id: 'act-create-tag', label: 'Create Tag', icon: Plus, module: 'tags', subPage: 'create' },
+  { id: 'act-create-content', label: 'Create Article', icon: Plus, shortcut: 'N', module: 'content', subPage: 'create' },
+  { id: 'act-upload-media', label: 'Upload Media', icon: Upload, module: 'media', subPage: 'upload' },
+  { id: 'act-create-user', label: 'Create User', icon: Plus, module: 'users', subPage: 'create', requiredRole: 'ADMIN' },
+  { id: 'act-create-campaign', label: 'Create Campaign', icon: Mail, module: 'newsletter', subPage: 'create' },
+  { id: 'act-create-template', label: 'Create Email Template', icon: Plus, module: 'email-templates', itemId: 'new', requiredRole: 'ADMIN' },
+  { id: 'act-create-automation', label: 'Create Automation', icon: Zap, module: 'automation', subPage: 'create', requiredRole: 'ADMIN' },
+  { id: 'act-create-backup', label: 'Create Backup', icon: Database, module: 'backups', subPage: 'create', requiredRole: 'ADMIN' },
+  { id: 'act-schedule-backup', label: 'Schedule Backup', icon: Clock, module: 'backups', subPage: 'schedules', requiredRole: 'ADMIN' },
+  { id: 'act-configure-smtp', label: 'Configure SMTP', icon: Settings, module: 'settings', subPage: 'smtp', requiredRole: 'ADMIN' },
+];
+
+const PLATFORM_ACTION_ITEMS: CommandItemDef[] = [
+  { id: 'plat-act-create-plan', label: 'Create Plan', icon: Plus, module: 'platform-plans' },
+  { id: 'plat-act-create-coupon', label: 'Create Coupon', icon: Plus, module: 'platform-coupons' },
+  { id: 'plat-act-create-template', label: 'Create Email Template', icon: Plus, module: 'platform-email-templates', itemId: 'new' },
+  { id: 'plat-act-create-backup', label: 'Create Backup', icon: Database, module: 'platform-backups', subPage: 'create' },
+  { id: 'plat-act-smtp', label: 'Configure SMTP', icon: Settings, module: 'platform-smtp' },
 ];
 
 // -------------------- Platform Admin Navigation Items --------------------
@@ -180,9 +173,7 @@ const PLATFORM_NAV_ITEMS: CommandItemDef[] = [
 // the complete client CMS command list so it mirrors the full module
 // structure (every client module + settings/backups/AI sub-pages +
 // categories/tags/jobs): the client 'dashboard' entry is swapped for
-// the Internal Account's own dashboard, and the 'Security' entry (a
-// client-list legacy whose module id is not in the module registry)
-// is dropped.
+// the Internal Account's own dashboard.
 //
 // ANALYTICS + BILLING are intentionally NOT added for the Internal
 // Account (mirrors the sidebar): the Internal Account has no use for
@@ -190,24 +181,14 @@ const PLATFORM_NAV_ITEMS: CommandItemDef[] = [
 // (no customer Billing & Subscription). This is an Internal-Account-
 // only removal — both modules stay available to every other account
 // type that is supposed to reach them. Plan feature locking NEVER
-// applies (see withoutFeatureLocked — the Internal Account is not a
-// customer subscription).
+// applies (the Internal Account is not a customer subscription).
 
 const INTERNAL_NAV_ITEMS: CommandItemDef[] = [
   { id: 'internal-dashboard', label: 'Dashboard', icon: LayoutDashboard, shortcut: 'G D', module: 'internal-dashboard' },
   ...NAV_ITEMS.filter(
-    (i) => i.id !== 'nav-dashboard' && i.id !== 'nav-security',
+    (i) => i.id !== 'nav-dashboard',
   ).map((i) => ({ ...i, id: i.id.startsWith('nav-') ? `internal-${i.id.slice(4)}` : i.id })),
 ];
-
-// -------------------- Recent Items (in-memory) --------------------
-
-let recentItems: CommandItemDef[] = [];
-const MAX_RECENT = 5;
-
-function addRecent(item: CommandItemDef) {
-  recentItems = [item, ...recentItems.filter((r) => r.id !== item.id)].slice(0, MAX_RECENT);
-}
 
 // -------------------- Component --------------------
 
@@ -298,9 +279,8 @@ export function CommandPalette() {
   const [query, setQuery] = useState('');
 
   const isPlatformStaff = user?.role === 'PLATFORM_ADMIN' || user?.role === 'OWNER';
-  // Dedicated Internal Account (role INTERNAL) — its own command list
-  // (own dashboard + shared account pages), never the client CMS nav.
   const isInternalAccount = user?.role === 'INTERNAL';
+  const isAllSites = useSiteStore((s) => s.isAllSites());
 
   // PLAN FEATURE SYNC — same entitlement rule as the sidebar: the
   // plan's Feature Access configuration (resolved via
@@ -360,8 +340,7 @@ export function CommandPalette() {
 
   const handleSelect = useCallback(
     (item: CommandItemDef) => {
-      navigate(item.module, null, item.subPage);
-      addRecent(item);
+      navigate(item.module, item.itemId ?? null, item.subPage);
       handleClose();
     },
     [navigate, handleClose],
@@ -514,33 +493,49 @@ export function CommandPalette() {
     // only page), which is supporting configuration for Email
     // Templates + Newsletter, so all of those entries are hidden when
     // the plan enables NEITHER dependent.
-    const withoutFeatureLocked = (items: CommandItemDef[]) =>
-      isPlatformStaff || isInternalAccount || !planEntitlements
-        ? items
-        : items.filter((i) =>
-            i.module === 'settings'
-              ? isSmtpSettingsAllowedByPlan(planEntitlements)
-              : isModuleAllowedByPlan(i.module, planEntitlements));
+    const FORBIDDEN_IN_ALL_SITES = new Set([
+      'seo',
+      'ai',
+      'automation',
+      'settings',
+      'notifications',
+      'email-templates',
+      'backups',
+    ]);
 
-    if (recentItems.length > 0) {
-      result.push({ heading: 'Recent', items: withoutFeatureLocked(recentItems) });
-    }
+    const filterAllowed = (items: CommandItemDef[]) =>
+      items.filter((i) => {
+        if (i.requiredRole === 'ADMIN' && user?.role !== 'ADMIN') {
+          return false;
+        }
+        if (!isPlatformStaff && isAllSites && FORBIDDEN_IN_ALL_SITES.has(i.module)) {
+          return false;
+        }
+        if (isPlatformStaff || isInternalAccount || !planEntitlements) {
+          return true;
+        }
+        if (i.module === 'settings') {
+          return isSmtpSettingsAllowedByPlan(planEntitlements);
+        }
+        return isModuleAllowedByPlan(i.module, planEntitlements);
+      });
 
     if (isPlatformStaff) {
       result.push({ heading: 'Platform Admin', items: PLATFORM_NAV_ITEMS });
+      result.push({ heading: 'Actions', items: PLATFORM_ACTION_ITEMS });
     } else if (isInternalAccount) {
       // Internal Account — the FULL CMS module command list (never
       // feature-locked: full platform access, not a customer plan) +
       // the same create Actions as the client experience.
       result.push({ heading: 'Internal Account', items: INTERNAL_NAV_ITEMS });
-      result.push({ heading: 'Actions', items: ACTION_ITEMS });
+      result.push({ heading: 'Actions', items: filterAllowed(ACTION_ITEMS) });
     } else {
-      result.push({ heading: 'Navigation', items: withoutFeatureLocked(NAV_ITEMS) });
-      result.push({ heading: 'Actions', items: ACTION_ITEMS });
+      result.push({ heading: 'Navigation', items: filterAllowed(NAV_ITEMS) });
+      result.push({ heading: 'Actions', items: filterAllowed(ACTION_ITEMS) });
     }
 
     return result;
-  }, [shouldSearch, searchResults, isPlatformStaff, isInternalAccount, planEntitlements]);
+  }, [shouldSearch, searchResults, isPlatformStaff, isInternalAccount, planEntitlements, user?.role, isAllSites]);
 
   // When the user is searching, override Command's default filter
   // (we already have backend results — don't client-side filter them

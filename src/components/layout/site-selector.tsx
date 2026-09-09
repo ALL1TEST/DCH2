@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   Plus,
   Check,
@@ -11,6 +11,8 @@ import {
   Settings,
 } from 'lucide-react';
 import { useSiteStore, type Site } from '@/lib/stores/site-store';
+import { useNavigationStore } from '@/lib/stores/navigation-store';
+import { useAuthStore } from '@/lib/stores/auth-store';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -73,7 +75,13 @@ function validateSiteFields(name: string, slug: string, t: (key: string) => stri
 
 // -------------------- Create Site Dialog --------------------
 
-function CreateSiteDialog({ onClose }: { onClose: (site: Site) => void }) {
+interface CreateSiteDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreated: (site: Site) => void;
+}
+
+function CreateSiteDialog({ open, onOpenChange, onCreated }: CreateSiteDialogProps) {
   const { t } = useT();
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
@@ -82,8 +90,19 @@ function CreateSiteDialog({ onClose }: { onClose: (site: Site) => void }) {
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState('');
   const [submitAttempted, setSubmitAttempted] = useState(false);
-  const [open, setOpen] = useState(true);
   const createSite = useSiteStore((s) => s.createSite);
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      setName('');
+      setSlug('');
+      setDomain('');
+      setDescription('');
+      setError('');
+      setSubmitAttempted(false);
+    }
+    onOpenChange(nextOpen);
+  };
 
   const fieldErrors = validateSiteFields(name, slug, t);
   const nameError = submitAttempted ? fieldErrors.name : undefined;
@@ -118,8 +137,8 @@ function CreateSiteDialog({ onClose }: { onClose: (site: Site) => void }) {
         domain: domain.trim() || undefined,
         description: description.trim() || undefined,
       });
-      setOpen(false);
-      onClose(site);
+      handleOpenChange(false);
+      onCreated(site);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('siteSelector.createFailed'));
     } finally {
@@ -128,15 +147,15 @@ function CreateSiteDialog({ onClose }: { onClose: (site: Site) => void }) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t('siteSelector.createTitle')}</DialogTitle>
           <DialogDescription>
             {t('siteSelector.createDescription')}
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
+        <div className="grid gap-4 py-3">
           <div className="grid gap-2">
             <Label htmlFor="site-name">{t('siteSelector.siteNameLabel')}</Label>
             <Input
@@ -187,7 +206,7 @@ function CreateSiteDialog({ onClose }: { onClose: (site: Site) => void }) {
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>
+          <Button variant="outline" onClick={() => handleOpenChange(false)}>
             {t('common.cancel')}
           </Button>
           <Button onClick={handleSubmit} disabled={isCreating}>
@@ -201,7 +220,13 @@ function CreateSiteDialog({ onClose }: { onClose: (site: Site) => void }) {
 
 // -------------------- Edit Site Dialog --------------------
 
-function EditSiteDialog({ site, onClose }: { site: Site; onClose: () => void }) {
+interface EditSiteDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  site: Site;
+}
+
+function EditSiteDialog({ open, onOpenChange, site }: EditSiteDialogProps) {
   const { t } = useT();
   const [name, setName] = useState(site.name);
   const [slug, setSlug] = useState(site.slug);
@@ -211,9 +236,17 @@ function EditSiteDialog({ site, onClose }: { site: Site; onClose: () => void }) 
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState('');
   const [submitAttempted, setSubmitAttempted] = useState(false);
-  const [open, setOpen] = useState(true);
   const updateSite = useSiteStore((s) => s.updateSite);
   const deleteSite = useSiteStore((s) => s.deleteSite);
+
+  useEffect(() => {
+    setName(site.name);
+    setSlug(site.slug);
+    setDomain(site.domain || '');
+    setDescription(site.description || '');
+    setError('');
+    setSubmitAttempted(false);
+  }, [site]);
 
   const fieldErrors = validateSiteFields(name, slug, t);
   const nameError = submitAttempted ? fieldErrors.name : undefined;
@@ -236,8 +269,7 @@ function EditSiteDialog({ site, onClose }: { site: Site; onClose: () => void }) 
         description: description.trim() || undefined,
       });
       toast.success(t('siteSelector.siteUpdated'));
-      setOpen(false);
-      onClose();
+      onOpenChange(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('siteSelector.updateFailed'));
     } finally {
@@ -251,8 +283,7 @@ function EditSiteDialog({ site, onClose }: { site: Site; onClose: () => void }) 
     try {
       await deleteSite(site.id);
       toast.success(t('siteSelector.siteDeleted'));
-      setOpen(false);
-      onClose();
+      onOpenChange(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('siteSelector.deleteFailed'));
     } finally {
@@ -261,15 +292,15 @@ function EditSiteDialog({ site, onClose }: { site: Site; onClose: () => void }) 
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t('siteSelector.editSiteTitle')}</DialogTitle>
           <DialogDescription>
             {t('siteSelector.editSiteDescriptionPrefix')} {site.name}.
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
+        <div className="grid gap-4 py-3">
           <div className="grid gap-2">
             <Label htmlFor="edit-site-name">{t('siteSelector.siteNameLabel')}</Label>
             <Input
@@ -327,7 +358,7 @@ function EditSiteDialog({ site, onClose }: { site: Site; onClose: () => void }) 
             {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
             {t('siteSelector.deleteSiteButton')}
           </Button>
-          <Button variant="outline" onClick={() => setOpen(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t('common.cancel')}
           </Button>
           <Button onClick={handleSave} disabled={isSaving}>
@@ -341,28 +372,6 @@ function EditSiteDialog({ site, onClose }: { site: Site; onClose: () => void }) 
 }
 
 // -------------------- Sidebar Site Selector --------------------
-//
-// Lives INSIDE the sidebar header, directly below the "CMS Admin" logo row.
-// Uses shadcn's `SidebarMenuButton` as the trigger so it inherits the
-// sidebar's native sizing/spacing/hover/active styling AND auto-collapses
-// to a 32px icon cell on the rail (group-data-[collapsible=icon]:size-8).
-// The built-in `tooltip` prop shows a right-side label ONLY when collapsed
-// (SidebarMenuButton hides its tooltip whenever state !== "collapsed").
-//
-// Dropdown positioning:
-//   • Expanded  → side="bottom" align="start" (opens straight down, left-
-//                 aligned with the trigger, inside the sidebar column).
-//   • Collapsed → side="right"   align="center" (opens to the RIGHT of the
-//                 48px rail, vertically centered on the icon — identical
-//                 pattern to the collapsed-rail NotificationBell /
-//                 UserProfileMenu / CollapsedParentNavItem popovers).
-//   • `collisionPadding={12}` keeps it 12px from every viewport edge so it
-//     is never clipped, and Radix renders the content through a Portal at
-//     z-50 → the sidebar's `overflow: hidden` CANNOT clip it.
-//
-// "Create New Site" keeps the `onSelect` handler (NOT `onClick`) so the
-// action fires synchronously during item activation, before the menu
-// auto-closes/unmounts — reliable in BOTH sidebar states (see task 28).
 
 export function SiteSelector() {
   const { t } = useT();
@@ -371,137 +380,203 @@ export function SiteSelector() {
   const isAllSites = useSiteStore((s) => s.isAllSites());
   const setActiveSite = useSiteStore((s) => s.setActiveSite);
   const setAllSites = useSiteStore((s) => s.setAllSites);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [editSite, setEditSite] = useState<Site | null>(null);
   const { state, isMobile } = useSidebar();
   const isCollapsed = !isMobile && state === 'collapsed';
 
-  const handleCreate = useCallback((site: Site) => {
+  // Safety cleanup: Ensure document.body.style.pointerEvents is restored
+  useEffect(() => {
+    if (!showCreate && !editSite && !menuOpen) {
+      const timer = setTimeout(() => {
+        if (document.body.style.pointerEvents === 'none') {
+          document.body.style.pointerEvents = '';
+        }
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [showCreate, editSite, menuOpen]);
+
+  const handleCreated = useCallback((site: Site) => {
     setActiveSite(site.id);
     setShowCreate(false);
   }, [setActiveSite]);
 
+  const handleDropdownOpenChange = (open: boolean) => {
+    setMenuOpen(open);
+    if (open) {
+      useSiteStore.getState().fetchSites();
+    }
+  };
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <SidebarMenuButton
-          variant="outline"
-          isActive={!!activeSite}
-          tooltip={{
-            side: 'right',
-            align: 'center',
-            sideOffset: 8,
-            collisionPadding: 12,
-            children: t('siteSelector.switchSite'),
-          }}
-          className="h-9 border border-sidebar-border bg-background/60 shadow-sm hover:bg-sidebar-accent hover:border-sidebar-accent-foreground/20 hover:shadow-md data-[state=open]:bg-sidebar-accent data-[state=open]:border-sidebar-accent-foreground/20 data-[active=true]:bg-sidebar-accent/60 transition-all duration-150"
-          aria-label={
-            activeSite
-              ? `${t('siteSelector.switchSiteCurrentPrefix')} ${activeSite.name}`
-              : t('siteSelector.switchSiteAll')
-          }
-        >
-          {isCollapsed ? (
-            <LayoutGrid className="h-4 w-4 shrink-0" aria-hidden="true" />
-          ) : activeSite ? (
-            <span
-              className={`h-2 w-2 rounded-full shrink-0 ring-2 ring-background ${getSiteColor(activeSite.slug)}`}
-              aria-hidden="true"
-            />
-          ) : (
-            <LayoutGrid className="h-4 w-4 shrink-0 text-sidebar-foreground/70" aria-hidden="true" />
-          )}
-          {!isCollapsed && (
-            <>
-              <span className="flex-1 truncate text-sm font-medium">
-                {activeSite ? activeSite.name : t('siteSelector.allSites')}
-              </span>
-              <ChevronDown
-                className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/50 transition-transform duration-200 group-data-[state=open]:rotate-180"
+    <>
+      <DropdownMenu open={menuOpen} onOpenChange={handleDropdownOpenChange}>
+        <DropdownMenuTrigger asChild>
+          <SidebarMenuButton
+            variant="outline"
+            isActive={!!activeSite}
+            tooltip={{
+              side: 'right',
+              align: 'center',
+              sideOffset: 8,
+              collisionPadding: 12,
+              children: t('siteSelector.switchSite'),
+            }}
+            className="h-9 border border-sidebar-border bg-background/60 shadow-sm hover:bg-sidebar-accent hover:border-sidebar-accent-foreground/20 hover:shadow-md data-[state=open]:bg-sidebar-accent data-[state=open]:border-sidebar-accent-foreground/20 data-[active=true]:bg-sidebar-accent/60 transition-all duration-150"
+            aria-label={
+              activeSite
+                ? `${t('siteSelector.switchSiteCurrentPrefix')} ${activeSite.name}`
+                : t('siteSelector.switchSiteAll')
+            }
+          >
+            {isCollapsed ? (
+              <LayoutGrid className="h-4 w-4 shrink-0" aria-hidden="true" />
+            ) : activeSite ? (
+              <span
+                className={`h-2 w-2 rounded-full shrink-0 ring-2 ring-background ${getSiteColor(activeSite.slug)}`}
                 aria-hidden="true"
               />
-            </>
-          )}
-        </SidebarMenuButton>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align={isCollapsed ? 'center' : 'start'}
-        side={isCollapsed ? 'right' : 'bottom'}
-        sideOffset={isCollapsed ? 8 : 4}
-        collisionPadding={12}
-        className="w-64"
-      >
-        <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">
-          {t('siteSelector.switchSite')}
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {/* All Sites option */}
-        <DropdownMenuItem
-          className={isAllSites ? 'bg-accent' : ''}
-          onClick={() => setAllSites()}
-        >
-          <LayoutGrid className="mr-2 h-4 w-4" />
-          <span className="flex-1">{t('siteSelector.allSites')}</span>
-          {isAllSites && <Check className="h-4 w-4 text-primary" />}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        {/* Individual sites with settings icon */}
-        {sites.filter((s) => s.status === 'ACTIVE').map((s) => (
-          <DropdownMenuItem
-            key={s.id}
-            className={activeSite?.id === s.id ? 'bg-accent' : ''}
-            onClick={(e) => {
+            ) : (
+              <LayoutGrid className="h-4 w-4 shrink-0 text-sidebar-foreground/70" aria-hidden="true" />
+            )}
+            {!isCollapsed && (
+              <>
+                <span className="flex-1 truncate text-sm font-medium">
+                  {activeSite ? activeSite.name : t('siteSelector.allSites')}
+                </span>
+                <ChevronDown
+                  className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/50 transition-transform duration-200 group-data-[state=open]:rotate-180"
+                  aria-hidden="true"
+                />
+              </>
+            )}
+          </SidebarMenuButton>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align={isCollapsed ? 'center' : 'start'}
+          side={isCollapsed ? 'right' : 'bottom'}
+          sideOffset={isCollapsed ? 8 : 4}
+          collisionPadding={12}
+          className="w-72"
+          onCloseAutoFocus={(e) => {
+            if (showCreate || editSite) {
               e.preventDefault();
-              setActiveSite(s.id);
+            }
+          }}
+        >
+          <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">
+            {t('siteSelector.switchSite')}
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {/* All Sites option */}
+          <DropdownMenuItem
+            className={isAllSites ? 'bg-accent' : ''}
+            onClick={() => {
+              setAllSites();
+              setMenuOpen(false);
+              const forbiddenInAllSites = new Set([
+                'seo',
+                'ai',
+                'automation',
+                'settings',
+                'notifications',
+                'email-templates',
+                'backups',
+              ]);
+              const curMod = useNavigationStore.getState().currentModule;
+              if (forbiddenInAllSites.has(curMod)) {
+                const isInternal = useAuthStore.getState().user?.role === 'INTERNAL';
+                useNavigationStore.getState().navigate(isInternal ? 'internal-dashboard' : 'dashboard');
+              }
             }}
           >
-            <span
-              className={`mr-2 h-2 w-2 rounded-full shrink-0 ${getSiteColor(s.slug)}`}
-              aria-hidden="true"
-            />
-            <span className="flex-1 truncate">{s.name}</span>
-            {s._count && (
-              <span className="text-xs text-muted-foreground mr-2">
-                {s._count.contentItems}
-              </span>
-            )}
-            {activeSite?.id === s.id && (
-              <Check className="h-4 w-4 text-primary mr-1" />
-            )}
-            <button
-              className="ml-auto p-0.5 rounded hover:bg-muted transition-colors"
-              onClick={(e) => {
-                e.stopPropagation();
-                setEditSite(s);
-              }}
-              title={t('siteSelector.editSiteButton')}
-            >
-              <Settings className="h-3.5 w-3.5 text-muted-foreground" />
-            </button>
+            <LayoutGrid className="mr-2 h-4 w-4" />
+            <span className="flex-1">{t('siteSelector.allSites')}</span>
+            {isAllSites && <Check className="h-4 w-4 text-primary" />}
           </DropdownMenuItem>
-        ))}
-        {sites.length === 0 && (
-          <div className="px-2 py-6 text-center text-sm text-muted-foreground">
-            {t('siteSelector.noSitesYet')}
-          </div>
-        )}
-        <DropdownMenuSeparator />
-        {/* Create new site — `onSelect` (NOT `onClick`) so the handler
-            fires synchronously during item activation, BEFORE the menu
-            auto-closes/unmounts. Reliable in BOTH sidebar states. */}
-        <DropdownMenuItem onSelect={() => setShowCreate(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          {t('siteSelector.createTitle')}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
+          <DropdownMenuSeparator />
+          {/* Individual sites */}
+          {sites.filter((s) => s.status === 'ACTIVE').map((s) => {
+            return (
+              <DropdownMenuItem
+                key={s.id}
+                className={activeSite?.id === s.id ? 'bg-accent' : ''}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActiveSite(s.id);
+                  setMenuOpen(false);
+                }}
+              >
+                <span
+                  className={`mr-2 h-2 w-2 rounded-full shrink-0 ${getSiteColor(s.slug)}`}
+                  aria-hidden="true"
+                />
+                <span className="flex-1 truncate">{s.name}</span>
+                {activeSite?.id === s.id && (
+                  <Check className="h-4 w-4 text-primary shrink-0 mr-1" />
+                )}
+                <span
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Edit ${s.name} settings`}
+                  className="p-1 rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted shrink-0 cursor-pointer"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                    setEditSite(s);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setMenuOpen(false);
+                      setEditSite(s);
+                    }
+                  }}
+                >
+                  <Settings className="h-3.5 w-3.5" />
+                </span>
+              </DropdownMenuItem>
+            );
+          })}
+          {sites.length === 0 && (
+            <div className="px-2 py-6 text-center text-sm text-muted-foreground">
+              {t('siteSelector.noSitesYet')}
+            </div>
+          )}
+          <DropdownMenuSeparator />
+          {/* Create new site */}
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault();
+              setMenuOpen(false);
+              setShowCreate(true);
+            }}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            {t('siteSelector.createTitle')}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
-      {showCreate && <CreateSiteDialog onClose={handleCreate} />}
+      <CreateSiteDialog
+        open={showCreate}
+        onOpenChange={setShowCreate}
+        onCreated={handleCreated}
+      />
+
       {editSite && (
         <EditSiteDialog
+          open={!!editSite}
+          onOpenChange={(open) => {
+            if (!open) setEditSite(null);
+          }}
           site={editSite}
-          onClose={() => setEditSite(null)}
         />
       )}
-    </DropdownMenu>
+    </>
   );
 }

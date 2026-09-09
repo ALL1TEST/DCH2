@@ -13,9 +13,7 @@ import {
   ArrowRight,
   Server,
   BarChart3,
-  MousePointer,
   LayoutGrid,
-  Wifi,
 } from 'lucide-react';
 import {
   Card,
@@ -28,6 +26,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/patterns';
 import { useSiteStore } from '@/lib/stores/site-store';
+import { useNavigationStore } from '@/lib/stores/navigation-store';
 import { useT } from '@/lib/i18n';
 import { cn, formatRelativeTime, truncate } from '@/lib/utils';
 import {
@@ -45,7 +44,6 @@ import {
 import {
   getDashboardData,
   type DashboardScope,
-  type SiteBreakdown,
 } from './mock-dashboard-data';
 
 // -------------------- Status Chart Colors --------------------
@@ -57,8 +55,6 @@ const STATUS_CHART_COLORS: Record<string, string> = {
   UNPUBLISHED: '#f97316',
   ARCHIVED: '#71717a',
 };
-
-const SITE_COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4'];
 
 // -------------------- KPI Card --------------------
 function KpiCard({
@@ -113,57 +109,6 @@ function KpiCard({
   );
 }
 
-// -------------------- Site Grid (All Sites mode) --------------------
-function SiteGrid({ sites, onSiteClick }: { sites: SiteBreakdown[]; onSiteClick: (site: SiteBreakdown) => void }) {
-  const { t } = useT();
-
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-      {sites.map((site, i) => (
-        <Card
-          key={site.id}
-          className="group hover:shadow-md transition-shadow cursor-pointer"
-          onClick={() => onSiteClick(site)}
-        >
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2.5 mb-3">
-              <div
-                className="h-8 w-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0"
-                style={{ backgroundColor: SITE_COLORS[i % SITE_COLORS.length] }}
-              >
-                {site.name.charAt(0)}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold truncate">{site.name}</p>
-                <p className="text-xs text-muted-foreground truncate">{site.slug}</p>
-              </div>
-              {site.status === 'ACTIVE' ? (
-                <Wifi className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-              ) : (
-                <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-              )}
-            </div>
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div>
-                <p className="text-sm font-semibold">{site._count.contentItems}</p>
-                <p className="text-[10px] text-muted-foreground uppercase">{t('title.articles')}</p>
-              </div>
-              <div>
-                <p className="text-sm font-semibold">{site._count.media}</p>
-                <p className="text-[10px] text-muted-foreground uppercase">{t('title.media')}</p>
-              </div>
-              <div>
-                <p className="text-sm font-semibold">{site._count.comments}</p>
-                <p className="text-[10px] text-muted-foreground uppercase">{t('title.comments')}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  );
-}
-
 // -------------------- Pending Action Item --------------------
 function PendingActionItem({
   action,
@@ -171,6 +116,28 @@ function PendingActionItem({
   action: ReturnType<typeof getDashboardData>['pendingActions'][number];
 }) {
   const { t } = useT();
+  const navigate = useNavigationStore((s) => s.navigate);
+
+  const handleClick = () => {
+    const act = action as any;
+    if (act.module) {
+      navigate(act.module, act.itemId ?? null, act.subPage ?? null);
+    } else if (action.action === 'Fix' || action.message.toLowerCase().includes('ssl')) {
+      navigate('settings', null, 'smtp');
+    } else if (action.action === 'Renew' || action.message.toLowerCase().includes('domain')) {
+      navigate('billing');
+    } else if (action.action === 'Open' && action.message.toLowerCase().includes('seo')) {
+      navigate('seo');
+    } else if (action.action === 'Moderate' || action.message.toLowerCase().includes('comment')) {
+      navigate('comments');
+    } else if (action.action === 'Review' || action.message.toLowerCase().includes('article')) {
+      navigate('content');
+    } else if (action.action === 'View' || action.message.toLowerCase().includes('backup')) {
+      navigate('backups');
+    } else if (action.message.toLowerCase().includes('ai draft')) {
+      navigate('content');
+    }
+  };
 
   const typeStyles = {
     CRITICAL: {
@@ -193,19 +160,32 @@ function PendingActionItem({
   const style = typeStyles[action.type];
 
   return (
-    <div className={cn('flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-accent/50 transition-colors', style.bg)}>
+    <div
+      onClick={handleClick}
+      className={cn(
+        'flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-accent/50 transition-colors cursor-pointer group',
+        style.bg,
+      )}
+    >
       <div className="shrink-0">{style.icon}</div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium text-muted-foreground truncate">{action.siteName || t('dashboard.network')}</span>
           {style.badge}
         </div>
-        <p className="text-sm truncate mt-0.5">{action.message}</p>
+        <p className="text-sm truncate mt-0.5 group-hover:text-primary transition-colors">{action.message}</p>
       </div>
       <div className="flex items-center gap-2 shrink-0">
         <span className="text-xs text-muted-foreground hidden sm:block">{action.time}</span>
         {action.action && (
-          <button className="text-xs font-medium text-primary hover:underline whitespace-nowrap">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleClick();
+            }}
+            className="text-xs font-medium text-primary hover:underline whitespace-nowrap cursor-pointer flex items-center gap-1"
+          >
             {action.action} <ArrowRight className="inline h-3 w-3" />
           </button>
         )}
@@ -237,10 +217,10 @@ function KpiGridSkeleton() {
  */
 export function DashboardWidgets() {
   const { t } = useT();
+  const navigate = useNavigationStore((s) => s.navigate);
 
   const isAllSites = useSiteStore((s) => s.isAllSites());
   const activeSite = useSiteStore((s) => s.getActiveSite());
-  const setActiveSite = useSiteStore((s) => s.setActiveSite);
   const sites = useSiteStore((s) => s.sites);
   const isInitialized = useSiteStore((s) => s.isInitialized);
 
@@ -279,14 +259,9 @@ export function DashboardWidgets() {
     [data.content],
   );
 
-  // Handle clicking a site card in All Sites mode → switch to that site
-  const handleSiteClick = (site: SiteBreakdown) => {
-    setActiveSite(site.id);
-  };
-
   return (
     <div className="space-y-6">
-      {/* Widget sections (KPIs, Site Network, Pending Actions,
+      {/* Widget sections (KPIs, Pending Actions,
           Traffic, Recent Content, Content Pipeline) */}
       {/* Section 1: Executive KPIs */}
       {isLoading ? (
@@ -336,28 +311,7 @@ export function DashboardWidgets() {
         </div>
       )}
 
-      {/* Section 2: Site Grid (All Sites only) */}
-      {isAllSites && !isLoading && data.siteBreakdown.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base">{t('dashboard.siteNetwork')}</CardTitle>
-                <CardDescription className="text-xs mt-0.5">{t('dashboard.siteNetworkDescription')}</CardDescription>
-              </div>
-              <Badge variant="outline" className="text-xs">
-                <Wifi className="h-3 w-3 mr-1" />
-                {data.activeSites} {t('dashboard.onlineSuffix')}
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <SiteGrid sites={data.siteBreakdown} onSiteClick={handleSiteClick} />
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Section 3: Pending Actions + Traffic */}
+      {/* Section 2: Pending Actions + Traffic */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* Pending Action Center */}
         <Card>
@@ -404,10 +358,6 @@ export function DashboardWidgets() {
               <div>
                 <CardTitle className="text-base">{t('dashboard.trafficOverview')}</CardTitle>
                 <CardDescription className="text-xs mt-0.5">{t('dashboard.trafficDescription')}</CardDescription>
-              </div>
-              <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {t('dashboard.visitors')}</span>
-                <span className="flex items-center gap-1"><MousePointer className="h-3 w-3" /> {t('dashboard.sessions')}</span>
               </div>
             </div>
           </CardHeader>
@@ -479,9 +429,13 @@ export function DashboardWidgets() {
                   </thead>
                   <tbody className="divide-y">
                     {recentContentItems.map((item) => (
-                      <tr key={item.id} className="hover:bg-accent/30 transition-colors">
+                      <tr
+                        key={item.id}
+                        onClick={() => navigate('content', item.id)}
+                        className="hover:bg-accent/30 transition-colors cursor-pointer group"
+                      >
                         <td className="py-2.5 pr-4">
-                          <p className="font-medium truncate max-w-[250px]">{truncate(item.title, 40)}</p>
+                          <p className="font-medium truncate max-w-[250px] group-hover:text-primary transition-colors">{truncate(item.title, 40)}</p>
                         </td>
                         <td className="py-2.5 pr-4">
                           <StatusBadge status={item.status} size="sm" />

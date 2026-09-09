@@ -59,6 +59,14 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -580,7 +588,18 @@ export function TemplateEditor({ templateId, isNew = false, scope = 'client', on
 
   // Refs
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fullscreenTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const lastSelectionRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const variableGroups = useMemo(() => getVariableGroups(scope), [scope]);
+
+  const handleSelectionUpdate = useCallback((e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+    lastSelectionRef.current = {
+      start: e.currentTarget.selectionStart,
+      end: e.currentTarget.selectionEnd,
+    };
+  }, []);
 
   // -------------------- Track dirty --------------------
 
@@ -744,22 +763,35 @@ export function TemplateEditor({ templateId, isNew = false, scope = 'client', on
 
   const insertVariable = useCallback(
     (key: string) => {
-      const textarea = textareaRef.current;
-      if (!textarea) return;
+      const textarea = (isFullscreen ? fullscreenTextareaRef.current : textareaRef.current) || textareaRef.current;
       const tag = `{{${key}}}`;
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const before = htmlBody.substring(0, start);
-      const after = htmlBody.substring(end);
-      setHtmlBody(before + tag + after);
+      let start = lastSelectionRef.current.start;
+      let end = lastSelectionRef.current.end;
+
+      if (textarea && typeof textarea.selectionStart === 'number' && textarea.selectionStart !== textarea.selectionEnd) {
+        start = textarea.selectionStart;
+        end = textarea.selectionEnd;
+      }
+
+      setHtmlBody((prev) => {
+        const safeStart = Math.min(Math.max(0, start), prev.length);
+        const safeEnd = Math.min(Math.max(0, end), prev.length);
+        const before = prev.substring(0, safeStart);
+        const after = prev.substring(safeEnd);
+        return before + tag + after;
+      });
+
       requestAnimationFrame(() => {
-        textarea.focus();
-        const newPos = start + tag.length;
-        textarea.setSelectionRange(newPos, newPos);
+        if (textarea) {
+          textarea.focus();
+          const newPos = start + tag.length;
+          textarea.setSelectionRange(newPos, newPos);
+          lastSelectionRef.current = { start: newPos, end: newPos };
+        }
       });
       toast.success(`${t('emailTemplates.insertedPrefix')} {{${key}}}`);
     },
-    [htmlBody, t],
+    [isFullscreen, t],
   );
 
   // -------------------- Search/Replace --------------------
@@ -1049,21 +1081,49 @@ export function TemplateEditor({ templateId, isNew = false, scope = 'client', on
             <TooltipContent>{t('emailTemplates.searchReplace')}</TooltipContent>
           </Tooltip>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => {
-                  setSidebarOpen(true);
-                }}
-              >
-                <Variable className="h-3.5 w-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t('emailTemplates.insertVariable')}</TooltipContent>
-          </Tooltip>
+          <DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                  >
+                    <Variable className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>{t('emailTemplates.insertVariable')}</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="start" className="w-64 max-h-80 overflow-y-auto">
+              <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground px-2 py-1.5">
+                {t('emailTemplates.insertVariable')}
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {variableGroups.map((group, gIdx) => (
+                <div key={group.labelKey}>
+                  {gIdx > 0 && <DropdownMenuSeparator />}
+                  <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                    {group.icon}
+                    <span>{t(group.labelKey)}</span>
+                  </div>
+                  {group.variables.map((v) => (
+                    <DropdownMenuItem
+                      key={v.key}
+                      onClick={() => insertVariable(v.key)}
+                      className="flex items-center justify-between cursor-pointer py-1 px-2 text-xs"
+                    >
+                      <code className="font-mono text-[11px] text-primary">{`{{${v.key}}}`}</code>
+                      <span className="text-[10px] text-muted-foreground truncate max-w-[100px]">
+                        {t(v.descriptionKey)}
+                      </span>
+                    </DropdownMenuItem>
+                  ))}
+                </div>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <div className="ml-auto flex items-center gap-1">
             <span className="mr-2 text-[11px] tabular-nums text-muted-foreground">
@@ -1113,6 +1173,9 @@ export function TemplateEditor({ templateId, isNew = false, scope = 'client', on
             onChange={(e) => setHtmlBody(e.target.value)}
             onKeyDown={handleEditorKeyDown}
             onScroll={(e) => setEditorScrollTop(e.currentTarget.scrollTop)}
+            onSelect={handleSelectionUpdate}
+            onKeyUp={handleSelectionUpdate}
+            onMouseUp={handleSelectionUpdate}
             spellCheck={false}
             className="flex-1 resize-none bg-zinc-100 dark:bg-zinc-950 p-4 font-mono text-sm leading-6 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-500 dark:placeholder:text-zinc-600 focus:outline-none"
             style={{ minHeight: 500 }}
@@ -1138,7 +1201,7 @@ export function TemplateEditor({ templateId, isNew = false, scope = 'client', on
         </CollapsibleTrigger>
         <CollapsibleContent>
           <div className="max-h-72 overflow-y-auto px-1 pb-2">
-            {getVariableGroups(scope).map((group) => (
+            {variableGroups.map((group) => (
               <div key={group.labelKey} className="mb-3">
                 <div className="flex items-center gap-1.5 px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   {group.icon}
@@ -1310,10 +1373,14 @@ export function TemplateEditor({ templateId, isNew = false, scope = 'client', on
                 <LineNumbers text={htmlBody} scrollTop={editorScrollTop} />
               </div>
               <textarea
+                ref={fullscreenTextareaRef}
                 value={htmlBody}
                 onChange={(e) => setHtmlBody(e.target.value)}
                 onKeyDown={handleEditorKeyDown}
                 onScroll={(e) => setEditorScrollTop(e.currentTarget.scrollTop)}
+                onSelect={handleSelectionUpdate}
+                onKeyUp={handleSelectionUpdate}
+                onMouseUp={handleSelectionUpdate}
                 spellCheck={false}
                 className="flex-1 resize-none bg-zinc-950 p-4 font-mono text-sm leading-6 text-zinc-100 placeholder:text-zinc-600 focus:outline-none dark:bg-zinc-950"
                 placeholder="<!DOCTYPE html>\n<html>\n  <head>...</head>\n  <body>...</body>\n</html>"

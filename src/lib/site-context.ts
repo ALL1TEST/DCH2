@@ -20,7 +20,7 @@ export async function getSiteFromRequest(request: NextRequest): Promise<string |
 
   // Otherwise it might be a slug — resolve to DB ID
   try {
-    const site = await db.site.findUnique({
+    const site = await db.site.findFirst({
       where: { slug: siteId },
       select: { id: true },
     });

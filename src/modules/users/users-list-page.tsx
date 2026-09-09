@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigationStore } from '@/lib/stores/navigation-store';
 import { toast } from 'sonner';
 import {
   UserPlus,
@@ -362,6 +363,8 @@ function InviteUserDialog({
 export function UsersListPage() {
   const queryClient = useQueryClient();
   const { t } = useT();
+  const currentSubPage = useNavigationStore((s) => s.currentSubPage);
+  const navigate = useNavigationStore((s) => s.navigate);
 
   // Table state
   const table = useDataTable({
@@ -378,6 +381,12 @@ export function UsersListPage() {
   const [deleteTarget, setDeleteTarget] = useState<UserRow | null>(null);
   const [suspendTarget, setSuspendTarget] = useState<UserRow | null>(null);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (currentSubPage === 'create' || currentSubPage === 'new') {
+      setInviteDialogOpen(true);
+    }
+  }, [currentSubPage]);
 
   // Build query params
   const queryParams = useMemo(
@@ -448,6 +457,9 @@ export function UsersListPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
       setInviteDialogOpen(false);
+      if (currentSubPage === 'create' || currentSubPage === 'new') {
+        navigate('users');
+      }
       toast.success(t('users.invitationSent'));
     },
     onError: (err: Error) => {
@@ -740,7 +752,12 @@ export function UsersListPage() {
       {/* Invite Dialog */}
       <InviteUserDialog
         open={inviteDialogOpen}
-        onOpenChange={setInviteDialogOpen}
+        onOpenChange={(open) => {
+          setInviteDialogOpen(open);
+          if (!open && (currentSubPage === 'create' || currentSubPage === 'new')) {
+            navigate('users');
+          }
+        }}
         onSubmit={(d) => inviteMutation.mutate(d)}
         isLoading={inviteMutation.isPending}
       />

@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigationStore } from '@/lib/stores/navigation-store';
 import {
   Upload, LayoutGrid, List, Search, FolderPlus, X, Loader2, Check, Minus,
   MoreHorizontal, Maximize2, Download, Trash2, ArrowRightLeft,
@@ -340,6 +341,8 @@ export function MediaListPage() {
 
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
+  const currentSubPage = useNavigationStore((s) => s.currentSubPage);
+  const navigate = useNavigationStore((s) => s.navigate);
 
   // ---- Folder navigation state (full path) ----
   const [folderPath, setFolderPath] = useState<FolderCrumb[]>([]);
@@ -355,6 +358,12 @@ export function MediaListPage() {
 
   // Dialogs
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (currentSubPage === 'upload') {
+      setUploadDialogOpen(true);
+    }
+  }, [currentSubPage]);
   const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [newFolderParentId, setNewFolderParentId] = useState<string | null>(null);
@@ -1091,7 +1100,20 @@ export function MediaListPage() {
       )}
 
       {/* ====== Upload Dialog ====== */}
-      <Dialog open={uploadDialogOpen} onOpenChange={(open) => { if (!open) { setUploadDialogOpen(false); setUploadFiles([]); } }}>
+      <Dialog
+        open={uploadDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setUploadDialogOpen(false);
+            setUploadFiles([]);
+            if (currentSubPage === 'upload') {
+              navigate('media');
+            }
+          } else {
+            setUploadDialogOpen(true);
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>{t('media.uploadFiles')}</DialogTitle>

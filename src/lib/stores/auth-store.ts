@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import { postApi, getApi } from '@/lib/api-client';
 import type { UserRole } from '@/shared/types';
+import { useSiteStore } from './site-store';
 
 // -------------------- Types --------------------
 
@@ -85,6 +86,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       const res = await postApi<{ user: ApiUser; token: string }>('/api/auth/login', { email, password });
       const user = mapApiUser(res.user);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+      useSiteStore.getState().reset();
       set({ user, isAuthenticated: true, isLoading: false, error: null });
     } catch (err) {
       const message =
@@ -101,6 +103,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       // Best-effort: clear local state regardless
     } finally {
       localStorage.removeItem(STORAGE_KEY);
+      useSiteStore.getState().reset();
       set({ user: null, isAuthenticated: false, error: null });
     }
   },

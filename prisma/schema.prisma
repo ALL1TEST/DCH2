@@ -578,6 +578,10 @@ model Site {
   // owner) so the migration is non-breaking. Platform staff always see
   // every site regardless of planScope.
   planScope   String?
+  // Dedicated plan assigned to this specific site ('free' | 'plus' | 'pro' | 'max').
+  // Each site carries its own independent plan and entitlements.
+  planId          String      @default("free")
+  billingInterval String      @default("monthly")
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
@@ -590,6 +594,7 @@ model Site {
   @@unique([ownerId, slug])
   @@index([ownerId])
   @@index([ownerId, planScope])
+  @@index([planId])
 
   // Content
   contentTypes        ContentType[]

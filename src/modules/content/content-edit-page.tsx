@@ -790,7 +790,7 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex-1 min-h-0 flex flex-col gap-4">
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
@@ -801,7 +801,7 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
       />
 
       {/* Header Row */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 shrink-0">
         <div className="flex-1">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -881,33 +881,27 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
         />
       )}
 
-      {/* Main Grid: Editor (9 cols) + Sidebar (3 cols) — SAME as Create page */}
-      <div className={cn('grid grid-cols-1 lg:grid-cols-12 gap-4 transition-all items-start', previewOpen ? 'hidden' : '')}>
-        {/* LEFT: Editor Area — NO forced height. Natural content height. */}
-        <div className="lg:col-span-9">
-          {/* Editor + AI input in a flex column. The TiptapEditor (which
-              has its own border + rounded-xl) sits at the top. The AI bar
-              sits BELOW it as a normal flex child (NOT absolute) — so the
-              AI bar is always right after the editor content with no gap
-              and no overlap. Natural content height, page scrolls if tall. */}
-          <div className="flex flex-col">
-            {/* Tiptap Rich Text Editor */}
-            <TiptapEditor
-              ref={editorRef}
-              content={editorContent}
-              onChange={setEditorContent}
-              onSelectionChange={handleEditorSelectionChange}
-            />
+      {/* Main Grid: Editor (9 cols) + Sidebar (3 cols) — fills remaining vertical space down to pb-6 */}
+      <div className={cn('grid grid-cols-1 lg:grid-cols-12 gap-4 transition-all flex-1 min-h-0 items-stretch', previewOpen ? 'hidden' : '')}>
+        {/* LEFT: Editor Area — Fixed height matching right sidebar with internal vertical scroll */}
+        <div className="lg:col-span-9 h-full min-h-0 flex flex-col">
+          <div className="flex flex-col h-full min-h-0 border border-border/50 rounded-xl overflow-hidden bg-background shadow-2xs">
+            {/* Tiptap Rich Text Editor — internal vertical scroll */}
+            <div className="flex-1 min-h-0 flex flex-col">
+              <TiptapEditor
+                ref={editorRef}
+                content={editorContent}
+                onChange={setEditorContent}
+                onSelectionChange={handleEditorSelectionChange}
+                className="border-0 rounded-none h-full flex-1 min-h-0"
+              />
+            </div>
 
-            {/* AI Assistant Bar — a normal flex child below the editor
-                (not absolute). Sits right after the editor content with
-                no gap. The top border + rounded-b-xl connect it visually
-                to the editor card above. */}
-            {aiToolsEnabled && (
-            <div className="border-t border-l border-r border-border/50 rounded-b-xl bg-background/95 backdrop-blur-sm -mt-px">
-              {/* Fix #2/#17: Persistent saved selection indicator (survives focus loss to AI textarea) */}
+            {/* AI Assistant Bar — matching Image 1 */}
+            <div className="shrink-0 p-3 pt-2 bg-background">
+              {/* Persistent saved selection indicator */}
               {savedSelectedText && (
-                <div className="flex items-center gap-2 px-3 pt-2 pb-0">
+                <div className="flex items-center gap-2 mb-2">
                   <div className="flex items-center gap-1.5 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 px-2.5 py-1 min-w-0 flex-1">
                     <Sparkles className="h-3 w-3 text-amber-500 shrink-0" />
                     <span className="text-[11px] text-amber-700 dark:text-amber-400 font-medium shrink-0">{t('articles.selectedPrefix')}</span>
@@ -924,79 +918,61 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
                   </button>
                 </div>
               )}
-              <div className="flex items-center gap-2 px-3 pt-2.5">
-                <div className="flex size-7 items-center justify-center rounded-full bg-amber-100">
-                  <Sparkles className="size-3 text-amber-700" />
-                </div>
-                <div className="relative flex-1">
-                  <textarea
-                    value={aiInput}
-                    onChange={(e) => setAiInput(e.target.value)}
-                    /* Fix #2: Save editor selection BEFORE the textarea takes focus */
-                    onMouseDown={() => {
-                      editorRef.current?.saveSelectionForReplace();
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        if (aiInput.trim()) {
-                          handleAiSubmit(aiInput.trim());
-                          setAiInput('');
+
+              {/* AI Box: matching Image 1 with full rounded border */}
+              <div className="border border-border/80 rounded-2xl p-2.5 bg-background shadow-2xs">
+                <div className="flex items-center gap-2 px-1">
+                  <div className="flex size-7 items-center justify-center rounded-full bg-amber-500 text-white shrink-0">
+                    <Sparkles className="size-3.5" />
+                  </div>
+                  <div className="relative flex-1">
+                    <textarea
+                      value={aiInput}
+                      onChange={(e) => setAiInput(e.target.value)}
+                      onMouseDown={() => {
+                        editorRef.current?.saveSelectionForReplace();
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          if (aiInput.trim()) {
+                            handleAiSubmit(aiInput.trim());
+                            setAiInput('');
+                          }
                         }
-                      }
-                    }}
-                    placeholder={savedSelectedText ? t('articles.editSelectedTextPlaceholder') : t('articles.askAiPlaceholder')}
-                    rows={1}
-                    className="flex-1 resize-none bg-transparent text-sm leading-normal placeholder:text-muted-foreground/50 focus:outline-none w-full"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onMouseDown={captureSelectionOnMouseDown}
-                  onClick={() => {
-                    if (aiInput.trim()) {
-                      handleAiSubmit(aiInput.trim());
-                      setAiInput('');
-                    }
-                  }}
-                  className="size-7 rounded-full flex items-center justify-center shrink-0 transition-all text-muted-foreground hover:text-foreground"
-                  title={t('articles.sendToAi')}
-                >
-                  {aiGenerateMutation.isPending || aiEditSelectionMutation.isPending ? (
-                    <Loader2 className="size-3.5 animate-spin" />
-                  ) : (
-                    <Send className="size-3.5" />
-                  )}
-                </button>
-              </div>
-              {/* Fix #17: Context-aware quick action chips — different per state */}
-              <div className="flex gap-1.5 px-3 pb-2.5 flex-wrap">
-                {(savedSelectedText ? AI_SELECTED_ACTIONS : AI_NORMAL_ACTIONS).map((action) => (
+                      }}
+                      placeholder={savedSelectedText ? t('articles.editSelectedTextPlaceholder') : t('articles.askAiPlaceholder')}
+                      rows={1}
+                      className="flex-1 resize-none bg-transparent text-sm leading-normal placeholder:text-muted-foreground/60 focus:outline-none w-full py-0.5"
+                    />
+                  </div>
                   <button
-                    key={action.id}
                     type="button"
                     onMouseDown={captureSelectionOnMouseDown}
-                    onClick={() => captureAndHandleQuickAction(action.id)}
-                    disabled={aiGenerateMutation.isPending || aiEditSelectionMutation.isPending}
-                    className={cn(
-                      'text-[11px] px-2.5 py-1 rounded-full border transition-colors disabled:opacity-50 disabled:pointer-events-none',
-                      savedSelectedText
-                        ? 'border-amber-300/60 bg-amber-50/60 text-amber-700 dark:bg-amber-950/20 dark:border-amber-700/40 dark:text-amber-400 hover:bg-amber-100/80 dark:hover:bg-amber-900/30'
-                        : 'border-border/50 bg-background hover:bg-muted hover:border-border text-muted-foreground',
-                    )}
+                    onClick={() => {
+                      if (aiInput.trim()) {
+                        handleAiSubmit(aiInput.trim());
+                        setAiInput('');
+                      }
+                    }}
+                    className="size-7 rounded-full flex items-center justify-center shrink-0 transition-all text-muted-foreground hover:text-foreground"
+                    title={t('articles.sendToAi')}
                   >
-                    {t(action.key)}
+                    {aiGenerateMutation.isPending || aiEditSelectionMutation.isPending ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Send className="size-3.5" />
+                    )}
                   </button>
-                ))}
+                </div>
               </div>
             </div>
-            )}
           </div>
         </div>
 
-        {/* RIGHT: Sidebar — natural height, no forced max-height. */}
-        <div className="hidden lg:block lg:col-span-3">
-          <div className="rounded-lg border bg-card">
+        {/* RIGHT: Sidebar — height matching the editor with internal scroll */}
+        <div className="col-span-1 lg:col-span-3 h-full min-h-0">
+          <div className="h-full overflow-y-auto rounded-lg border bg-card">
               <Accordion type="multiple" defaultValue={['featured-image', 'publishing', 'title-slug', 'excerpt']} className="px-4">
                 {/* 1. Featured Image */}
                 <AccordionItem value="featured-image">

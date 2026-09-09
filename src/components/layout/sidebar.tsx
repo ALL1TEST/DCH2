@@ -98,6 +98,32 @@ import { SMTP_SETTINGS_ROUTE } from '@/lib/platform/feature-config';
 import { NotificationBell } from '@/components/layout/notification-bell';
 import { UserProfileMenu } from '@/components/layout/user-profile-menu';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
+import { useSiteStore } from '@/lib/stores/site-store';
+
+/**
+ * In "All Sites" mode, ONLY cross-site aggregation pages are permitted:
+ *   - Dashboard / Overview
+ *   - Articles
+ *   - Calendar
+ *   - Media
+ *   - Users
+ *   - Comments
+ *   - Newsletter
+ *
+ * Single-site specific modules (SEO, AI, Automation, Settings + Email Templates,
+ * SMTP Settings, Notifications, Backups) MUST NOT appear when All Sites is selected.
+ */
+const ALL_SITES_ALLOWED_MODULES = new Set([
+  '',
+  'dashboard',
+  'internal-dashboard',
+  'content',
+  'calendar',
+  'media',
+  'users',
+  'comments',
+  'newsletter',
+]);
 
 // -------------------- Icon Mapping --------------------
 
@@ -1047,6 +1073,7 @@ export function AppSidebar() {
   // keeps the footer layout stable) so a default/stale value is never
   // displayed.
   const { currentPlan, serverSynced } = useSubscriptionStore();
+  const isAllSites = useSiteStore((s) => s.isAllSites());
   const currentModule = useNavigationStore((s) => s.currentModule);
   const currentSubPage = useNavigationStore((s) => s.currentSubPage);
   const openCommandPalette = useCommandPaletteStore((s) => s.open);
@@ -1089,9 +1116,23 @@ export function AppSidebar() {
         ? INTERNAL_NAV_ITEMS
         : NAV_ITEMS;
     const items = getVisibleNavItems(userRole, sourceItems, pagePermissions);
-    if (isPlatformAdmin || isInternalAccount) return items;
+    if (isPlatformAdmin) return items;
+    if (isInternalAccount) {
+      return isAllSites
+        ? items.filter((item) => ALL_SITES_ALLOWED_MODULES.has(pageKeyOf(item.href)))
+        : items;
+    }
+
+    // When "All Sites" is selected, ONLY cross-site aggregation pages are permitted:
+    // Dashboard, Articles, Calendar, Media, Users, Comments, Newsletter.
+    // Single-site specific modules (SEO, AI, Automation, Settings + Email Templates,
+    // SMTP Settings, Notifications, Backups) MUST NOT appear when All Sites is selected.
+    const siteFilteredItems = isAllSites
+      ? items.filter((item) => ALL_SITES_ALLOWED_MODULES.has(pageKeyOf(item.href)))
+      : items;
+
     const smtpHref = `#${SMTP_SETTINGS_ROUTE}`;
-    return items
+    return siteFilteredItems
       .map((item) => ({
         ...item,
         children: item.children
@@ -1139,7 +1180,7 @@ export function AppSidebar() {
         return item;
       })
       .filter((item) => !(item as NavItem & { _hide?: boolean })._hide);
-  }, [userRole, pagePermissions, isPlatformAdmin, isInternalAccount, planEntitlements]);
+  }, [userRole, pagePermissions, isPlatformAdmin, isInternalAccount, planEntitlements, isAllSites]);
 
   /*
    * SINGLE SOURCE OF TRUTH for the expanded top-level section.
@@ -1257,10 +1298,7 @@ export function AppSidebar() {
 
         {/* All Sites site selector — lives directly BELOW the CMS Admin logo
             in BOTH sidebar states. Platform admins do not have "their" site
-            (they manage all customers), so the selector is hidden for them.
-            The Internal Account has full CMS access and works with the same
-            sites (All Sites network view by default), so the selector is
-            shown for it exactly like the Admin User experience. */}
+            (they manage all customers), so the selector is hidden for them. */}
         {!isPlatformAdmin && <SiteSelector />}
       </SidebarHeader>
 
@@ -1356,7 +1394,9 @@ export function AppSidebar() {
               same gap from the sidebar's left edge — never flush, never
               clipped. Log out is still reachable via the profile dropdown
               menu (UserProfileMenu above) so no functionality is lost. */}
-          <NotificationBell side="top" align="start" sideOffset={8} alignOffset={8} collisionPadding={12} />
+          {!isAllSites && (
+            <NotificationBell side="top" align="start" sideOffset={8} alignOffset={8} collisionPadding={12} />
+          )}
         </div>
 
         {/* Collapsed rail: icon-only utility cluster + bare avatar.
@@ -1398,13 +1438,15 @@ export function AppSidebar() {
               The expanded-state positioning (side="top" align="start"
               sideOffset=8 alignOffset=8 collisionPadding=12 above) is NOT
               touched — only the collapsed rail is fixed here. */}
-          <NotificationBell
-            side="right"
-            align="end"
-            sideOffset={16}
-            collisionPadding={12}
-            withTooltip
-          />
+          {!isAllSites && (
+            <NotificationBell
+              side="right"
+              align="end"
+              sideOffset={16}
+              collisionPadding={12}
+              withTooltip
+            />
+          )}
 
           {/* Collapsed-rail avatar — tapping it opens the shared profile
               menu. Positioning is IDENTICAL to the collapsed-rail

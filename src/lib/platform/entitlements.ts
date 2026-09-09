@@ -136,13 +136,16 @@ export function siteEligibleForPlan(
   sitePlanScope: string | null | undefined,
   userPlanTier: number,
   planMaxSites: number,
+  userPlanId?: string,
 ): boolean {
-  // A plan that allows 0 sites (maxSites=0) makes NO site eligible —
-  // regardless of tier. This is the Plus-plan case: even free-tier
-  // sites are not eligible because the plan itself forbids sites.
-  // -1 = unlimited (always eligible if tier passes).
+  // A plan that allows 0 sites (maxSites=0) makes NO site eligible.
   if (planMaxSites === 0) return false;
-  // Otherwise: eligible if the user's tier >= the site's required tier.
+  // If userPlanId is specified, match the plan directly so sites created in one plan don't leak into others
+  if (userPlanId && userPlanId !== 'internal') {
+    const sPlan = (sitePlanScope || 'free').toLowerCase();
+    const uPlan = userPlanId.toLowerCase();
+    return sPlan === uPlan;
+  }
   return siteVisibleForTier(sitePlanScope, userPlanTier);
 }
 
@@ -164,16 +167,12 @@ export async function getEligibleSiteCount(
   // If the plan allows 0 sites, no sites are eligible → count is 0.
   if (planMaxSites === 0) return 0;
   try {
-    // Fetch the user's owned sites' planScope values + apply the
-    // SAME eligibility filter GET /api/sites uses, so the count
-    // matches the visible list exactly. Exclude ARCHIVED (soft-deleted)
-    // sites — a deleted site must NOT consume the plan quota. This is
-    // the centralized active-site definition: status !== 'ARCHIVED'.
+    const { planId: userPlanId } = await getEffectivePlanIdAsync(user);
     const sites = await db.site.findMany({
       where: { ownerId: user.id, status: { not: 'ARCHIVED' } },
       select: { planScope: true },
     });
-    return sites.filter((s) => siteEligibleForPlan(s.planScope, userPlanTier, planMaxSites)).length;
+    return sites.filter((s) => siteEligibleForPlan(s.planScope, userPlanTier, planMaxSites, userPlanId)).length;
   } catch {
     // If the query fails, fail open (count 0 → allow creation) —
     // the worst case is one extra site, which is recoverable.
@@ -242,12 +241,34 @@ export async function listEntitlementsForUser(user: EntitlementUser): Promise<st
   return [...granted];
 }
 
-/** The core server-side check. Async because of override + subscription DB lookup. */
-export async function hasFeature(user: EntitlementUser, feature: string): Promise<boolean> {
+/** The core server-side check. Async because of override + subscription DB lookup.
+ *  Accepts optional `siteId` to check feature access under the specific site's plan. */
+export async function hasFeature(
+  user: EntitlementUser,
+  feature: string,
+  siteId?: string | null,
+): Promise<boolean> {
   // 1. Owner / billing bypass → all features.
   if (hasBillingBypass(user)) return true;
 
-  // 2. Per-customer override (explicit grant/revoke, possibly time-limited).
+  // 2. Per-site plan entitlement: if siteId is specified, check against the site's own plan!
+  if (siteId) {
+    try {
+      const site = await db.site.findUnique({
+        where: { id: siteId },
+        select: { planScope: true },
+      });
+      if (site?.planScope) {
+        if (site.planScope === 'internal') return true;
+        const sitePlanEntitlements = getPlanEntitlements(site.planScope);
+        if (sitePlanEntitlements.includes(feature)) return true;
+      }
+    } catch {
+      // fallback to account plan
+    }
+  }
+
+  // 3. Per-customer override (explicit grant/revoke, possibly time-limited).
   const override = await db.customerEntitlementOverride.findUnique({
     where: { customerEmail_feature: { customerEmail: user.email, feature } },
   });
@@ -257,12 +278,12 @@ export async function hasFeature(user: EntitlementUser, feature: string): Promis
     if (!expired) return override.granted;
   }
 
-  // 3. DB Subscription + free-trial-expiration check.
+  // 4. DB Subscription + free-trial-expiration check (account level fallback).
   const { planId, freeTrialExpired } = await getEffectivePlanIdAsync(user);
   if (freeTrialExpired) return false; // free trial expired → block gated features
   if (planId === 'internal') return true;
 
-  // 4. Plan entitlements.
+  // 5. Plan entitlements.
   const planEntitlements = getPlanEntitlements(planId);
   return planEntitlements.includes(feature);
 }

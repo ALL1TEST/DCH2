@@ -15,6 +15,17 @@ export interface Site {
   favicon: string | null;
   status: 'ACTIVE' | 'MAINTENANCE' | 'SUSPENDED' | 'ARCHIVED';
   config: Record<string, unknown> | null;
+  planId?: string;
+  planScope?: string | null;
+  billingInterval?: string;
+  plan?: {
+    planId: string;
+    name: string;
+    badgeVariant?: string;
+    priceMonthly?: number;
+    priceYearly?: number;
+    currency?: string;
+  };
   createdAt: string;
   updatedAt: string;
   _count?: {
@@ -58,9 +69,10 @@ interface SiteState {
   getSiteContext: () => SiteContext;
   /** Get the DB id to send in API calls (null for All Sites) */
   getSiteDbId: () => string | null;
-  createSite: (data: { name: string; slug: string; domain?: string; description?: string }) => Promise<Site>;
-  updateSite: (id: string, data: { name?: string; slug?: string; domain?: string; description?: string; status?: string }) => Promise<void>;
+  createSite: (data: { name: string; slug: string; domain?: string; description?: string; planId?: string }) => Promise<Site>;
+  updateSite: (id: string, data: { name?: string; slug?: string; domain?: string; description?: string; status?: string; planId?: string }) => Promise<void>;
   deleteSite: (id: string) => Promise<void>;
+  reset: () => void;
 }
 
 // -------------------- Helpers --------------------
@@ -281,6 +293,18 @@ export const useSiteStore = create<SiteState>((set, get) => ({
       get().setAllSites();
     }
     await get().fetchSites();
+  },
+
+  reset: () => {
+    writeToStorage(null, null);
+    set({
+      sites: [],
+      activeSiteDbId: null,
+      activeSiteSlug: null,
+      isLoading: false,
+      isInitialized: false,
+      error: null,
+    });
   },
 }));
 

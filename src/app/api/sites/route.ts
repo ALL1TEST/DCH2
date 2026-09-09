@@ -67,6 +67,22 @@ export async function GET(request: NextRequest) {
       // own sites. This is the ownership boundary that keeps the
       // Admin User's sites separate from the Internal Account's sites.
       where.ownerId = user.id;
+
+      // Plan isolation: sites created under a specific plan only appear
+      // when the user is on that plan.
+      // E.g. A site created under Free does NOT appear in Plus, Pro, or Max.
+      if (user.role !== 'INTERNAL') {
+        const { planId } = await getEffectivePlanIdAsync(user);
+        const currentPlan = (planId || 'free').toLowerCase();
+        if (currentPlan === 'free') {
+          where.OR = [
+            { planScope: 'free' },
+            { planScope: null },
+          ];
+        } else {
+          where.planScope = currentPlan;
+        }
+      }
     }
 
     const allOwnedSites = await db.site.findMany({
@@ -84,35 +100,42 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // PLAN ENTITLEMENT FILTER — apply server-side. A site is visible
-    // only if it is ELIGIBLE under the user's current plan: tier check
-    // (user's plan tier >= site's planScope tier) AND the plan allows
-    // sites (maxSites > 0 or -1). This is the SAME eligibility logic
-    // checkLimit() uses for the count, so what the user sees matches
-    // the limit exactly. A plan with maxSites=0 (e.g. Plus in the DB)
-    // shows ZERO sites even if the user owns lower-tier sites — the
-    // plan itself forbids sites. Billing-bypass users (INTERNAL/OWNER)
-    // have tier Infinity + skip the filter (see every owned site).
-    // Platform staff also bypass (they manage the whole platform).
-    let visibleSites = allOwnedSites;
-    if (!isPlatformStaff && !hasBillingBypass(user)) {
-      const userTier = await getUserPlanTier(user);
-      const limits = await getEffectiveLimitsAsync(user);
-      const planMaxSites = limits.maxSites;
-      visibleSites = allOwnedSites.filter((s) =>
-        siteEligibleForPlan(s.planScope, userTier, planMaxSites),
-      );
-    }
+    // PER-SITE PLAN MODEL: each site carries its own plan (planId / planScope).
+    // All non-archived sites owned by the user are visible to the user,
+    // with their respective plan details attached.
+    const sitesWithPlans = allOwnedSites.map((site) => {
+      const planId = (site as any).planId || site.planScope || 'free';
+      let planInfo = null;
+      try {
+        const { getPlanConfigSync } = require('@/lib/platform/plan-config');
+        const cfg = getPlanConfigSync(planId);
+        planInfo = {
+          planId: cfg.planId,
+          name: cfg.name,
+          badgeVariant: cfg.badgeVariant,
+          priceMonthly: cfg.priceMonthly,
+          priceYearly: cfg.priceYearly,
+          currency: cfg.currency,
+        };
+      } catch {
+        planInfo = { planId, name: planId.toUpperCase(), badgeVariant: planId };
+      }
+      return {
+        ...site,
+        planId,
+        plan: planInfo,
+      };
+    });
 
     return NextResponse.json({
-      data: visibleSites,
+      data: sitesWithPlans,
       meta: {
         requestId: crypto.randomUUID(),
         timestamp: new Date().toISOString(),
         pagination: {
           page: 1,
-          pageSize: visibleSites.length,
-          total: visibleSites.length,
+          pageSize: sitesWithPlans.length,
+          total: sitesWithPlans.length,
           totalPages: 1,
         },
       },
@@ -162,7 +185,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { name, slug, domain, description, logo, favicon } = body;
+    const { name, slug, domain, description, logo, favicon, planId: rawPlanId } = body;
 
     if (!name || !slug) {
       return NextResponse.json(
@@ -178,15 +201,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ACCOUNT-SCOPED SLUG UNIQUENESS: a slug only needs to be unique
-    // within the SAME owner/account, NOT globally. Two different
-    // accounts can each have a site with slug "plus" — the composite
-    // @@unique([ownerId, slug]) DB constraint enforces this. The check
-    // here only looks at the CURRENT account's ACTIVE (non-ARCHIVED)
-    // sites, so a deleted site with the same slug does NOT block
-    // creation (soft-deleted sites are excluded). Previously this used
-    // db.site.findUnique({ where: { slug } }) which checked ALL sites
-    // globally — causing false "already exists" errors when Account B
-    // tried to create a slug Account A already had.
+    // within the SAME owner/account, NOT globally.
     const existing = await db.site.findFirst({
       where: {
         ownerId: user.id,
@@ -207,19 +222,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Stamp the site with the authenticated user's id as its owner +
-    // the user's CURRENT plan id as the site's planScope. This is the
-    // plan-entitlement boundary: a site created while the owner is on
-    // Pro is stamped planScope='pro', so if the owner later downgrades
-    // to Free, GET /api/sites filters it out (the user's Free tier 0 <
-    // the site's Pro tier 2). Billing-bypass users (INTERNAL/OWNER)
-    // get planScope=null (always visible — they are not plan-gated).
-    // Platform staff sites are also stamped with the owner's plan.
-    let planScope: string | null = null;
-    if (!hasBillingBypass(user)) {
-      const { planId } = await getEffectivePlanIdAsync(user);
-      planScope = planId === 'internal' ? null : planId;
-    }
+    // Plan isolation: assign the site to the user's active plan tier
+    const { planId: activePlanId } = await getEffectivePlanIdAsync(user);
+    const chosenPlanId = (typeof rawPlanId === 'string' && rawPlanId.trim())
+      ? rawPlanId.trim().toLowerCase()
+      : (activePlanId || 'free').toLowerCase();
+    const planScope = chosenPlanId;
+
     const site = await db.site.create({
       data: {
         name,
@@ -250,9 +259,40 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Also ensure the SQLite planId column is populated
+    try {
+      await db.$executeRawUnsafe(
+        `UPDATE Site SET planId = ?, billingInterval = 'monthly' WHERE id = ?`,
+        chosenPlanId,
+        site.id,
+      );
+    } catch {
+      // Column may not be strictly required if using planScope
+    }
+
+    let planInfo = null;
+    try {
+      const { getPlanConfigSync } = require('@/lib/platform/plan-config');
+      const cfg = getPlanConfigSync(chosenPlanId);
+      planInfo = {
+        planId: cfg.planId,
+        name: cfg.name,
+        badgeVariant: cfg.badgeVariant,
+        priceMonthly: cfg.priceMonthly,
+        priceYearly: cfg.priceYearly,
+        currency: cfg.currency,
+      };
+    } catch {
+      planInfo = { planId: chosenPlanId, name: chosenPlanId.toUpperCase(), badgeVariant: chosenPlanId };
+    }
+
     return NextResponse.json(
       {
-        data: site,
+        data: {
+          ...site,
+          planId: chosenPlanId,
+          plan: planInfo,
+        },
         meta: { requestId: crypto.randomUUID(), timestamp: new Date().toISOString() },
       },
       { status: 201 },

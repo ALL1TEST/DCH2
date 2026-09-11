@@ -8,6 +8,10 @@ import { z } from 'zod/v4';
 import { requireFeature } from '@/lib/platform/platform-auth';
 import { checkAiLimit, aiLimitExceededResponse } from '@/lib/platform/usage-limits';
 import { resolvePlatformPrompt, resolveAiProviderForUser, getOperationMaxTokens } from '@/lib/ai/platform-ai';
+import {
+  buildEditorialPrompts,
+  validateAndPolishContent,
+} from '@/lib/ai/editorial-skill';
 
 function reqId() {
   return 'req_' + crypto.randomUUID().slice(0, 8);
@@ -80,21 +84,17 @@ export async function POST(request: NextRequest) {
     };
     const wordCount = lengthMap[targetLength] || targetLength;
 
-    // ---- Built-in default prompts (used when no Platform Admin
-    // prompt is bound to the "article" slot) ----
-    const defaultSystemPrompt = `You are a professional content writer. Write an article in HTML format using common HTML tags like <h2>, <h3>, <p>, <ul>, <li>, <strong>, <em>, <blockquote>. Do NOT use <html>, <head>, <body>, or <div> wrapper tags. Start directly with an <h2> or <p> tag.
-
-Writing style: ${writingStyle}
-Target length: ${wordCount} words
-${includeCta ? 'Include a compelling call-to-action at the end.' : ''}`;
-
-    const defaultUserPrompt = `Write an article with the following details:
-
-Title: ${title}
-${brief ? `Brief/Description: ${brief}` : ''}
-${keywords ? `Target keywords: ${keywords}` : ''}
-
-Write the full article content now. Use proper HTML formatting for headings, paragraphs, lists, and emphasis. Make it engaging and SEO-optimized.`;
+    // ---- Global Editorial Content Style Skill ----
+    // Builds niche-aware editorial structure, 22 global publication principles,
+    // multi-format blocks, and anti-AI phrase bans.
+    const editorial = buildEditorialPrompts({
+      title,
+      brief: brief ?? '',
+      keywords: keywords ?? '',
+      writingStyle,
+      targetLength: wordCount,
+      includeCta,
+    });
 
     // ---- Internally select the Platform Admin prompt (Prompt
     // Library slot "article") and inject the tool variables. ----
@@ -106,8 +106,15 @@ Write the full article content now. Use proper HTML formatting for headings, par
       length: wordCount,
       cta: includeCta ? 'Include a compelling call-to-action at the end.' : '',
     });
-    const systemPrompt = platformPrompt?.systemPrompt || defaultSystemPrompt;
-    const userPrompt = platformPrompt?.userPrompt || defaultUserPrompt;
+
+    // Merge system & user prompts: Platform custom prompt enhances or guides the editorial skill
+    const systemPrompt = platformPrompt?.systemPrompt
+      ? `${editorial.systemPrompt}\n\nADDITIONAL PLATFORM INSTRUCTIONS:\n${platformPrompt.systemPrompt}`
+      : editorial.systemPrompt;
+
+    const userPrompt = platformPrompt?.userPrompt
+      ? `${editorial.userPrompt}\n\nADDITIONAL CONTEXT & GUIDELINES:\n${platformPrompt.userPrompt}`
+      : editorial.userPrompt;
 
     const messages: ChatMessage[] = [
       { role: 'system', content: systemPrompt },
@@ -123,7 +130,7 @@ Write the full article content now. Use proper HTML formatting for headings, par
     const userModelMatches = userSettings?.defaultModelId && activeProvider?.models.some((m) => (m.id === userSettings.defaultModelId || m.modelId === userSettings.defaultModelId) && m.isActive);
     const aiSettings = userModelMatches ? userSettings : globalSettings;
 
-    const drafts: Array<{ content: string; wordCount: number }> = [];
+    const drafts: Array<{ content: string; wordCount: number; qualityReport?: any }> = [];
 
     if (activeProvider) {
       // Resolve model: use AiSettings.defaultModelId if set and belongs to the provider
@@ -150,9 +157,19 @@ Write the full article content now. Use proper HTML formatting for headings, par
           // usage tracker (AiLog).
           userId: auth.user.id,
         });
+
+        // Apply Editorial Skill Post-Generation Validation & Polish
+        const polished = validateAndPolishContent(result.content, {
+          title,
+          targetLength: wordCount,
+          niche: editorial.blueprint.niche,
+          articleType: editorial.blueprint.articleType,
+        });
+
         drafts.push({
-          content: result.content,
-          wordCount: result.content.split(/\s+/).length,
+          content: polished.content,
+          wordCount: polished.wordCount,
+          qualityReport: polished.qualityReport,
         });
       }
     } else {
@@ -200,9 +217,19 @@ Write the full article content now. Use proper HTML formatting for headings, par
           .catch(() => {
             /* usage logging failure shouldn't mask the result */
           });
+
+        // Apply Editorial Skill Post-Generation Validation & Polish
+        const polished = validateAndPolishContent(content, {
+          title,
+          targetLength: wordCount,
+          niche: editorial.blueprint.niche,
+          articleType: editorial.blueprint.articleType,
+        });
+
         drafts.push({
-          content,
-          wordCount: content.split(/\s+/).length,
+          content: polished.content,
+          wordCount: polished.wordCount,
+          qualityReport: polished.qualityReport,
         });
       }
     }

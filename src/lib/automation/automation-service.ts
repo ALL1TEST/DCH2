@@ -7,6 +7,10 @@
 import { db } from '@/lib/db';
 import { executeChat, type ChatMessage } from '@/lib/ai/ai-service';
 import { resolveAiProviderForUser, resolvePlatformPrompt, getOperationMaxTokens } from '@/lib/ai/platform-ai';
+import {
+  buildEditorialPrompts,
+  validateAndPolishContent,
+} from '@/lib/ai/editorial-skill';
 
 interface LogEntry {
   timestamp: string;
@@ -56,31 +60,26 @@ export async function executeAutomation(automationId: string, runId: string): Pr
     };
     const wordCount = lengthMap[length] || length;
 
-    const defaultSystemPrompt = `You are a professional content creator and SEO journalist. Write a complete, comprehensive, and engaging article in HTML format using semantic HTML tags (<h2>, <h3>, <p>, <ul>, <ol>, <li>, <strong>, <em>, <blockquote>).
-Do NOT include <html>, <head>, <body>, or <div> wrapper tags. Start directly with an <h2> or opening <p>.
-
-Writing style & tone: ${tone}
-Target length: ${wordCount} words`;
-
+    // ---- Global Professional Editorial Content Style Skill ----
     const outlineInstructions = contentConfig.articleStructure
       ? [
-          contentConfig.articleStructure.introduction ? '• Engaging introduction that hooks the reader' : '',
+          contentConfig.articleStructure.introduction ? '• Engaging introduction addressing reader intent' : '',
           contentConfig.articleStructure.tableOfContents ? '• Key takeaways or quick outline overview' : '',
-          contentConfig.articleStructure.h2Sections ? '• Well-defined main sections with <h2> headings' : '',
+          contentConfig.articleStructure.h2Sections ? '• Meaningful, descriptive <h2> section headings' : '',
           contentConfig.articleStructure.h3Subsections ? '• Detailed subsections with <h3> subheadings' : '',
-          contentConfig.articleStructure.faqSection ? '• Frequently Asked Questions (FAQ) section' : '',
-          contentConfig.articleStructure.conclusion ? '• Clear and impactful conclusion' : '',
+          contentConfig.articleStructure.faqSection ? '• Realistic Frequently Asked Questions (FAQ)' : '',
+          contentConfig.articleStructure.conclusion ? '• Actionable summary / final takeaways' : '',
         ].filter(Boolean).join('\n')
       : '';
 
-    const defaultUserPrompt = `Write a comprehensive, publish-ready article on the following topic:
-
-Title: ${topic}
-${contentConfig.description ? `Description / Brief: ${contentConfig.description}` : ''}
-${keywords ? `Target keywords to naturally incorporate: ${keywords}` : ''}
-${outlineInstructions ? `Article Structure:\n${outlineInstructions}` : ''}
-
-Generate the complete article body now with rich paragraphs, headings, and lists in semantic HTML.`;
+    const editorial = buildEditorialPrompts({
+      title: topic,
+      brief: contentConfig.description || topic,
+      keywords,
+      writingStyle: tone,
+      targetLength: wordCount,
+      extraInstructions: outlineInstructions ? `Requested Structure Elements:\n${outlineInstructions}` : undefined,
+    });
 
     const platformPrompt = await resolvePlatformPrompt('article', {
       title: topic,
@@ -90,8 +89,14 @@ Generate the complete article body now with rich paragraphs, headings, and lists
       length: wordCount,
       cta: '',
     });
-    const systemPrompt = platformPrompt?.systemPrompt || defaultSystemPrompt;
-    const userPrompt = platformPrompt?.userPrompt || defaultUserPrompt;
+
+    const systemPrompt = platformPrompt?.systemPrompt
+      ? `${editorial.systemPrompt}\n\nADDITIONAL PLATFORM INSTRUCTIONS:\n${platformPrompt.systemPrompt}`
+      : editorial.systemPrompt;
+
+    const userPrompt = platformPrompt?.userPrompt
+      ? `${editorial.userPrompt}\n\nADDITIONAL CONTEXT & GUIDELINES:\n${platformPrompt.userPrompt}`
+      : editorial.userPrompt;
 
     const messages: ChatMessage[] = [
       { role: 'system', content: systemPrompt },
@@ -185,16 +190,19 @@ Generate the complete article body now with rich paragraphs, headings, and lists
       throw new Error('AI generation returned empty content');
     }
 
-    // Strip markdown code fences if output is enclosed in ```html ... ```
-    let cleanContent = generatedHtml.trim();
-    if (cleanContent.startsWith('```html')) {
-      cleanContent = cleanContent.replace(/^```html\s*/, '').replace(/\s*```$/, '');
-    } else if (cleanContent.startsWith('```')) {
-      cleanContent = cleanContent.replace(/^```\w*\s*/, '').replace(/\s*```$/, '');
-    }
-
-    const calculatedWordCount = cleanContent.split(/\s+/).filter(Boolean).length;
-    await log('content_generation', `Article content generated successfully (~${calculatedWordCount} words)`);
+    // Apply Global Editorial Content Skill Validation & Polish
+    const polished = validateAndPolishContent(generatedHtml, {
+      title: topic,
+      targetLength: wordCount,
+      niche: editorial.blueprint.niche,
+      articleType: editorial.blueprint.articleType,
+    });
+    let cleanContent = polished.content;
+    const calculatedWordCount = polished.wordCount;
+    await log(
+      'content_generation',
+      `Article content generated and validated via Editorial Skill (~${calculatedWordCount} words, niche: ${polished.qualityReport.niche}, format: ${polished.qualityReport.articleType})`,
+    );
 
     // Step 2: SEO Processing
     const seoConfig = workflow.seoProcessing || {};

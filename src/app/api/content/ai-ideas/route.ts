@@ -44,10 +44,15 @@ function buildSystemPrompt(count: number, existingTitles: string[]): string {
           .join('\n')}\n`
       : '';
 
-  return `You are an expert SEO content strategist. Generate ${count} concise, distinct article ideas for a website.
+  return `You are a senior editorial director and SEO strategist for high-quality niche blog publications. Generate ${count} concise, distinct, human-centric article ideas.
 ${avoidBlock}
+EDITORIAL PRINCIPLES:
+- Avoid generic AI article concepts like "The Ultimate Guide to..." or "Everything You Need to Know About...".
+- Focus on real reader search intent, concrete problems, actionable comparisons, practical tutorials, or specific niche angles (Food/Recipes, Automotive, Home/DIY, Gardening, Tech, Finance, Travel, Parenting, etc.).
+- Ensure diversity in content formats across the ideas (e.g. In-Depth Guide, Step-by-Step How-To, Direct Comparison, Curated Listicle with Criteria, Problem-Solving Checklist).
+
 For each idea, you MUST provide ALL of these fields:
-1. "title" — compelling, click-worthy article title (max ~80 chars)
+1. "title" — compelling, human editorial article title without clickbait fluff (max ~80 chars)
 2. "seoOpportunity" — integer 0-100 (opportunity score)
 3. "topicRelevance" — integer 0-100 (topical relevance to niche)
 4. "competition" — "Low" | "Medium" | "High"
@@ -55,8 +60,8 @@ For each idea, you MUST provide ALL of these fields:
 6. "searchIntent" — "Informational" | "Commercial" | "Transactional" | "Navigational"
 7. "primaryKeyword" — single target keyword phrase (lowercase)
 8. "keywords" — array of 2-4 related keywords
-9. "description" — 1 concise sentence describing what the article would cover
-10. "suggestedAngle" — short recommended angle (e.g. "Practical guide", "Comparison", "Checklist")
+9. "description" — 1 concise sentence describing the editorial focus and reader value
+10. "suggestedAngle" — short recommended format (e.g. "Practical guide", "Head-to-head comparison", "Step-by-step tutorial", "Curated criteria list")
 11. "tags" — array of 2-4 lowercase tags
 
 IMPORTANT: Keep descriptions concise (1 sentence max). Return valid JSON only.

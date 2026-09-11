@@ -310,37 +310,43 @@ export function MediaDetailPage({ mediaId }: { mediaId: string }) {
         <ArrowLeft className="h-4 w-4 mr-2" />{t('media.backToMediaLibrary')}
       </Button>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* ==================== Preview Area ==================== */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="rounded-lg border bg-card overflow-hidden">
-            {showImage ? (
-              <div className="relative bg-[repeating-conic-gradient(#e5e7eb_0%_25%,transparent_0%_50%)] dark:bg-[repeating-conic-gradient(#374151_0%_25%,transparent_0%_50%)] bg-[length:20px_20px]">
-                <img src={media.url} alt={media.alt || media.originalName} className="w-full h-auto max-h-[600px] object-contain" />
+      <div className="space-y-6">
+        {/* ==================== Image Preview ==================== */}
+        <div className="rounded-lg border bg-card overflow-hidden">
+          {showImage ? (
+            <div className="relative bg-[repeating-conic-gradient(#e5e7eb_0%_25%,transparent_0%_50%)] dark:bg-[repeating-conic-gradient(#374151_0%_25%,transparent_0%_50%)] bg-[length:20px_20px]">
+              <img src={media.url} alt={media.alt || media.originalName} className="w-full h-auto max-h-[600px] object-contain" />
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-20 gap-4 bg-muted/30">
+              <div className="rounded-full bg-muted p-6 text-muted-foreground">{getFileIcon(media.mimeType, 'h-16 w-16')}</div>
+              <div className="text-center">
+                <p className="font-medium">{media.originalName}</p>
+                <p className="text-sm text-muted-foreground mt-1">{getMimeCategory(media.mimeType)} - {formatFileSize(media.size)}</p>
               </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-20 gap-4 bg-muted/30">
-                <div className="rounded-full bg-muted p-6 text-muted-foreground">{getFileIcon(media.mimeType, 'h-16 w-16')}</div>
-                <div className="text-center">
-                  <p className="font-medium">{media.originalName}</p>
-                  <p className="text-sm text-muted-foreground mt-1">{getMimeCategory(media.mimeType)} - {formatFileSize(media.size)}</p>
-                </div>
-                <Button variant="outline" size="sm" asChild>
-                  <a href={media.url} download={media.originalName}><Download className="h-4 w-4 mr-2" />{t('media.downloadFile')}</a>
-                </Button>
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" asChild><a href={media.url} download={media.originalName}><Download className="h-4 w-4 mr-2" />{t('media.download')}</a></Button>
-            <Button variant="outline" size="sm" onClick={handleCopyUrl}><Copy className="h-4 w-4 mr-2" />{t('media.copyUrl')}</Button>
-            <Button variant="outline" size="sm" asChild><a href={media.url} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4 mr-2" />{t('media.openInNewTab')}</a></Button>
-          </div>
+              <Button variant="outline" size="sm" asChild>
+                <a href={media.url} download={media.originalName}><Download className="h-4 w-4 mr-2" />{t('media.downloadFile')}</a>
+              </Button>
+            </div>
+          )}
         </div>
 
-        {/* ==================== Sidebar ==================== */}
-        <div className="space-y-6">
-          {/* Metadata Panel */}
+        {/* ==================== Media Action Buttons ==================== */}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" asChild><a href={media.url} download={media.originalName}><Download className="h-4 w-4 mr-2" />{t('media.download')}</a></Button>
+          <Button variant="outline" size="sm" onClick={handleCopyUrl}><Copy className="h-4 w-4 mr-2" />{t('media.copyUrl')}</Button>
+          <Button variant="outline" size="sm" asChild><a href={media.url} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4 mr-2" />{t('media.openInNewTab')}</a></Button>
+          <Button variant="destructive" size="sm" onClick={() => setShowDeleteDialog(true)}>
+            <Trash2 className="h-4 w-4 mr-2" />{t('media.deleteMedia')}
+          </Button>
+        </div>
+
+        {/* ==================== Details + Image SEO + Folder + File URL ====================
+            Two-column grid: Details (left) + Image SEO (right) on desktop,
+            Folder + File URL below in a second row. All existing sections
+            relocated from the right sidebar to fill the space below the image. */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Details */}
           <div className="rounded-lg border bg-card p-4 space-y-3">
             <h3 className="text-sm font-semibold">{t('media.details')}</h3>
             <Separator />
@@ -365,7 +371,7 @@ export function MediaDetailPage({ mediaId }: { mediaId: string }) {
             </div>
           </div>
 
-          {/* Image SEO Panel */}
+          {/* Image SEO */}
           {showImage && (
             <div className="rounded-lg border bg-card p-4 space-y-4">
               <div className="flex items-center justify-between">
@@ -488,7 +494,7 @@ export function MediaDetailPage({ mediaId }: { mediaId: string }) {
             </div>
           )}
 
-          {/* Folder Panel */}
+          {/* Folder */}
           <div className="rounded-lg border bg-card p-4 space-y-4">
             <h3 className="text-sm font-semibold">{t('media.folder')}</h3>
             <Separator />
@@ -512,7 +518,7 @@ export function MediaDetailPage({ mediaId }: { mediaId: string }) {
             )}
           </div>
 
-          {/* URL Panel */}
+          {/* File URL */}
           <div className="rounded-lg border bg-card p-4 space-y-3">
             <h3 className="text-sm font-semibold">{t('media.fileUrl')}</h3>
             <Separator />
@@ -524,16 +530,6 @@ export function MediaDetailPage({ mediaId }: { mediaId: string }) {
                 <Copy className="h-3.5 w-3.5" /><span className="sr-only">{t('media.copyUrlSr')}</span>
               </Button>
             </div>
-          </div>
-
-          {/* Danger Zone */}
-          <div className="rounded-lg border border-destructive/50 bg-card p-4 space-y-3">
-            <h3 className="text-sm font-semibold text-destructive">{t('media.dangerZone')}</h3>
-            <Separator />
-            <p className="text-xs text-muted-foreground">{t('media.deleteWarning')}</p>
-            <Button variant="destructive" size="sm" onClick={() => setShowDeleteDialog(true)}>
-              <Trash2 className="h-4 w-4 mr-2" />{t('media.deleteMedia')}
-            </Button>
           </div>
         </div>
       </div>

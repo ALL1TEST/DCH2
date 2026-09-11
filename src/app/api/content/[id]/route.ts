@@ -72,6 +72,8 @@ const updateSchema = z.object({
   expiresAt: z.string().datetime({ offset: true }).optional().or(z.literal('')),
   tagIds: z.array(z.string()).optional(),
   changeNote: z.string().max(500).trim().optional(),
+  seoReport: z.union([z.string(), z.record(z.string(), z.any())]).optional(),
+  editorialReport: z.union([z.string(), z.record(z.string(), z.any())]).optional(),
 });
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -170,6 +172,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (d.featuredImageId !== undefined) updateData.featuredImageId = d.featuredImageId === '' ? null : d.featuredImageId;
     if (d.scheduledAt !== undefined) updateData.scheduledAt = d.scheduledAt === '' ? null : d.scheduledAt ? new Date(d.scheduledAt) : null;
     if (d.expiresAt !== undefined) updateData.expiresAt = d.expiresAt === '' ? null : d.expiresAt ? new Date(d.expiresAt) : null;
+    if (d.seoReport !== undefined) updateData.seoReport = typeof d.seoReport === 'object' ? JSON.stringify(d.seoReport) : (d.seoReport === '' ? null : d.seoReport);
+    if (d.editorialReport !== undefined) updateData.editorialReport = typeof d.editorialReport === 'object' ? JSON.stringify(d.editorialReport) : (d.editorialReport === '' ? null : d.editorialReport);
     if (d.status === 'PUBLISHED' && !existing.publishedAt) {
       updateData.publishedAt = new Date();
     }

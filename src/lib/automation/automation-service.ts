@@ -5,12 +5,7 @@
 // Each step is logged to the AutomationRun's logsJson field in real time.
 
 import { db } from '@/lib/db';
-import { executeChat, type ChatMessage } from '@/lib/ai/ai-service';
-import { resolveAiProviderForUser, resolvePlatformPrompt, getOperationMaxTokens } from '@/lib/ai/platform-ai';
-import {
-  buildEditorialPrompts,
-  validateAndPolishContent,
-} from '@/lib/ai/editorial-skill';
+
 
 interface LogEntry {
   timestamp: string;
@@ -60,169 +55,49 @@ export async function executeAutomation(automationId: string, runId: string): Pr
     };
     const wordCount = lengthMap[length] || length;
 
-    // ---- Global Professional Editorial Content Style Skill ----
-    const outlineInstructions = contentConfig.articleStructure
-      ? [
-          contentConfig.articleStructure.introduction ? '• Engaging introduction addressing reader intent' : '',
-          contentConfig.articleStructure.tableOfContents ? '• Key takeaways or quick outline overview' : '',
-          contentConfig.articleStructure.h2Sections ? '• Meaningful, descriptive <h2> section headings' : '',
-          contentConfig.articleStructure.h3Subsections ? '• Detailed subsections with <h3> subheadings' : '',
-          contentConfig.articleStructure.faqSection ? '• Realistic Frequently Asked Questions (FAQ)' : '',
-          contentConfig.articleStructure.conclusion ? '• Actionable summary / final takeaways' : '',
-        ].filter(Boolean).join('\n')
-      : '';
+    // ---- Centralized Article Pipeline Master Engine ----
+    await log('content_generation', 'Invoking Centralized Article Pipeline (Phases 1-4)...');
 
-    const editorial = buildEditorialPrompts({
-      title: topic,
-      brief: contentConfig.description || topic,
-      keywords,
-      writingStyle: tone,
-      targetLength: wordCount,
-      extraInstructions: outlineInstructions ? `Requested Structure Elements:\n${outlineInstructions}` : undefined,
-    });
-
-    const platformPrompt = await resolvePlatformPrompt('article', {
-      title: topic,
-      brief: contentConfig.description || topic,
-      keywords,
-      style: tone,
-      length: wordCount,
-      cta: '',
-    });
-
-    const systemPrompt = platformPrompt?.systemPrompt
-      ? `${editorial.systemPrompt}\n\nADDITIONAL PLATFORM INSTRUCTIONS:\n${platformPrompt.systemPrompt}`
-      : editorial.systemPrompt;
-
-    const userPrompt = platformPrompt?.userPrompt
-      ? `${editorial.userPrompt}\n\nADDITIONAL CONTEXT & GUIDELINES:\n${platformPrompt.userPrompt}`
-      : editorial.userPrompt;
-
-    const messages: ChatMessage[] = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ];
-
-    const userId = automation.createdById;
-    let activeProvider = await resolveAiProviderForUser(userId);
-    let generatedHtml = '';
-
-    if (activeProvider) {
-      await log('content_generation', `Using active AI Provider: ${activeProvider.name}`);
-      try {
-        const userSettings = userId ? await db.aiSettings.findUnique({ where: { scope: `user:${userId}` } }) : null;
-        const globalSettings = await db.aiSettings.findUnique({ where: { scope: 'global' } });
-        const effectiveSettings = userSettings ?? globalSettings;
-
-        // Resolve model: check settings default model, provider default, or first active
-        const defaultModel = effectiveSettings?.defaultModelId
-          ? activeProvider.models.find((m) => (m.id === effectiveSettings.defaultModelId || m.modelId === effectiveSettings.defaultModelId) && m.isActive)
-          : null;
-        const modelId = defaultModel?.id ?? defaultModel?.modelId ?? activeProvider.models.find((m) => m.isActive)?.id;
-
-        const genTemperature = platformPrompt?.temperature ?? effectiveSettings?.defaultTemperature ?? 0.7;
-        const genMaxTokens = getOperationMaxTokens('article', platformPrompt?.maxTokens ?? 4000);
-
-        const result = await executeChat({
-          providerId: activeProvider.id,
-          messages,
-          temperature: genTemperature,
-          maxTokens: genMaxTokens,
-          ...(modelId ? { modelId } : {}),
-          userId,
-        });
-        generatedHtml = result.content;
-      } catch (provErr: any) {
-        await log('content_generation', `Primary provider failed (${provErr.message}), searching for alternative provider...`, 'warn');
-        // Look for alternative active providers
-        const alternativeProviders = await db.aiProvider.findMany({
-          where: { id: { not: activeProvider.id }, isActive: true, apiKeyEncrypted: { not: null } },
-          include: { models: true },
-        });
-        for (const altProvider of alternativeProviders) {
-          try {
-            await log('content_generation', `Trying alternative provider: ${altProvider.name}...`);
-            const altModel = altProvider.models.find((m) => m.isActive && (m.isDefaultText || m.isDefault)) || altProvider.models.find((m) => m.isActive);
-            const altResult = await executeChat({
-              providerId: altProvider.id,
-              messages,
-              temperature: 0.7,
-              maxTokens: 4000,
-              ...(altModel ? { modelId: altModel.id } : {}),
-              userId,
-            });
-            if (altResult.content) {
-              generatedHtml = altResult.content;
-              await log('content_generation', `Successfully generated article using ${altProvider.name}`);
-              break;
-            }
-          } catch (altErr: any) {
-            await log('content_generation', `${altProvider.name} failed: ${altErr.message}`, 'warn');
-          }
-        }
-        if (!generatedHtml) {
-          throw provErr;
-        }
+    const { runArticlePipeline } = await import('@/lib/pipeline/article-pipeline');
+    const pipelineResult = await runArticlePipeline(
+      'generate',
+      {
+        title: topic,
+        brief: contentConfig.description || topic,
+        keywords,
+        writingStyle: tone,
+        targetLength: wordCount,
+        siteId: automation.siteId,
+      },
+      {
+        userId,
+        interactive: false,
       }
-    } else {
-      // Find any active provider
-      const anyActive = await db.aiProvider.findFirst({
-        where: { isActive: true, apiKeyEncrypted: { not: null } },
-        include: { models: true },
-      });
-      if (anyActive) {
-        const altModel = anyActive.models.find((m) => m.isActive && (m.isDefaultText || m.isDefault)) || anyActive.models.find((m) => m.isActive);
-        const altResult = await executeChat({
-          providerId: anyActive.id,
-          messages,
-          temperature: 0.7,
-          maxTokens: 4000,
-          ...(altModel ? { modelId: altModel.id } : {}),
-          userId,
-        });
-        generatedHtml = altResult.content;
-      } else {
-        throw new Error('No active AI provider configured in system');
-      }
-    }
-
-    if (!generatedHtml || !generatedHtml.trim()) {
-      throw new Error('AI generation returned empty content');
-    }
-
-    // Apply Global Editorial Content Skill Validation & Polish
-    const polished = validateAndPolishContent(generatedHtml, {
-      title: topic,
-      targetLength: wordCount,
-      niche: editorial.blueprint.niche,
-      articleType: editorial.blueprint.articleType,
-    });
-    let cleanContent = polished.content;
-    const calculatedWordCount = polished.wordCount;
-    await log(
-      'content_generation',
-      `Article content generated and validated via Editorial Skill (~${calculatedWordCount} words, niche: ${polished.qualityReport.niche}, format: ${polished.qualityReport.articleType})`,
     );
 
-    // Step 2: SEO Processing
-    const seoConfig = workflow.seoProcessing || {};
-    let seoTitle = topic;
-    let seoDescription = cleanContent.replace(/<[^>]*>/g, '').substring(0, 155).trim();
-    if (seoDescription && !seoDescription.endsWith('.')) seoDescription += '...';
-    const baseSlug = topic.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'article';
+    let cleanContent = pipelineResult.primaryContent;
+    const calculatedWordCount = cleanContent.split(/\s+/).filter(Boolean).length;
+    await log(
+      'content_generation',
+      `Article content generated and validated via Centralized Pipeline (~${calculatedWordCount} words, verdict: ${pipelineResult.verdict})`,
+    );
 
-    if (seoConfig.generateSeoTitle || seoConfig.generateMetaDescription || seoConfig.optimizePrimaryKeyword) {
-      await log('seo_optimization', 'Running SEO optimization...');
-      if (seoConfig.generateSeoTitle) {
-        seoTitle = topic.length > 55 ? topic.substring(0, 55) : topic;
-        await log('seo_optimization', `Generated SEO Title: "${seoTitle}"`);
-      }
-      if (seoConfig.generateMetaDescription) {
-        await log('seo_optimization', 'Generated SEO Meta Description');
-      }
-      if (seoConfig.generateSlug) {
-        await log('seo_optimization', `Configured URL slug: ${baseSlug}`);
-      }
+    const seoTitle = pipelineResult.seoFields.seoTitle;
+    const seoDescription = pipelineResult.seoFields.seoDescription;
+    const baseSlug = pipelineResult.seoFields.slug || topic.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'article';
+    const focusKeyword = pipelineResult.seoFields.focusKeyword || keywords || null;
+
+    await log(
+      'seo_optimization',
+      `SEO Pipeline completed: Score ${pipelineResult.seoReport.scores.content_score}/100 | Intent: ${pipelineResult.contentBrief.primary_intent.toUpperCase()} | Schema: ${pipelineResult.contentBrief.schema_recommendation.type}`,
+    );
+
+    if (pipelineResult.quarantined) {
+      await log(
+        'seo_optimization',
+        `[QUARANTINE] Pipeline verdict was FAIL (${pipelineResult.warnings.join('; ')}). Article will be held in review queue.`,
+        'warn'
+      );
     }
 
     // Step 3: Media Processing
@@ -307,17 +182,46 @@ export async function executeAutomation(automationId: string, runId: string): Pr
         contentTypeId: contentType.id,
         authorId: authorUser.id,
         content: cleanContent,
-        status: status as any,
+        status: pipelineResult.quarantined ? ('IN_REVIEW' as any) : (status as any),
         excerpt,
         seoTitle,
         seoDescription,
-        focusKeyword: keywords || null,
+        focusKeyword,
         featuredImageId: featuredImageId || null,
         siteId: articleSiteId,
-        publishedAt: status === 'PUBLISHED' ? new Date() : null,
-        scheduledAt: (status === 'APPROVED' || finalAction.action === 'SCHEDULE') && finalAction.publishDate ? new Date(finalAction.publishDate) : null,
+        publishedAt: !pipelineResult.quarantined && status === 'PUBLISHED' ? new Date() : null,
+        scheduledAt: !pipelineResult.quarantined && (status === 'APPROVED' || finalAction.action === 'SCHEDULE') && finalAction.publishDate ? new Date(finalAction.publishDate) : null,
+        seoReport: JSON.stringify(pipelineResult.seoReport),
+        editorialReport: JSON.stringify(pipelineResult.editorialReport),
       },
     });
+
+    // Persist structured Schema and metadata to SeoConfig
+    if (pipelineResult.seoFields.schemaJsonLd) {
+      await db.seoConfig.upsert({
+        where: {
+          resourceType_resourceId_siteId: {
+            resourceType: 'content',
+            resourceId: article.id,
+            siteId: articleSiteId || '',
+          },
+        },
+        create: {
+          resourceType: 'content',
+          resourceId: article.id,
+          metaTitle: seoTitle,
+          metaDescription: seoDescription,
+          canonicalUrl: null,
+          structuredData: pipelineResult.seoFields.schemaJsonLd,
+          siteId: articleSiteId,
+        },
+        update: {
+          metaTitle: seoTitle,
+          metaDescription: seoDescription,
+          structuredData: pipelineResult.seoFields.schemaJsonLd,
+        },
+      }).catch(() => {});
+    }
 
     await log('save', `Article created successfully (${status}): "${article.title}" (ID: ${article.id})`);
 

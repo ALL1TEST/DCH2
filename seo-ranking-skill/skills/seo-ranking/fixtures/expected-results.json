@@ -1,0 +1,71 @@
+{
+  "skill": "seo-ranking",
+  "notes": [
+    "Fixtures are synthetic; verdicts defined by VALIDATION.md and SCORING.md",
+    "cannibalized-topic is validated at PLAN phase against cms-inventory.json"
+  ],
+  "fixtures": [
+    {
+      "file": "good-article.md",
+      "expected_verdict": "PASS",
+      "expected_content_score": 98,
+      "expected_issue_types": ["thin_coverage", "schema_missing"],
+      "rationale": "The shared-scenario article done well: intent matched, main question answered in the first paragraph, honest hedged specifics, three natural internal links, and valid HowTo JSON-LD matching the visible steps. The only deductions are one WARNING thin_coverage (1.44 from Topic Coverage — the freezing section is a single thin paragraph) and one INFO schema_missing (0.24 from Structured Data — the FAQPage opportunity is unused), which per SCORING.md yields a Content Score of 98, grade A, basis content-only, verdict PASS with no core-field warnings."
+    },
+    {
+      "file": "keyword-stuffing.md",
+      "expected_verdict": "FAIL",
+      "expected_issue_types": ["keyword_stuffing"],
+      "rationale": "The exact-match phrase 'best coffee maker' is forced into the title, the H1, and every H2, and repeated throughout the running text at a density far above the ~1% guidance, including mid-sentence repetitions and a 'best coffee maker best coffee maker deals' construction; SEO-V19 fires keyword_stuffing as CRITICAL, which fails the verdict and halves the On-Page SEO weight."
+    },
+    {
+      "file": "weak-intent-match.md",
+      "expected_verdict": "FAIL",
+      "expected_issue_types": ["intent_mismatch"],
+      "rationale": "The target query 'buy running shoes online' is transactional, but the article is a purely informational history piece with no models, prices, sizing, retailers, or comparisons, so it never enables a purchase decision and SEO-V01 fires intent_mismatch as CRITICAL."
+    },
+    {
+      "file": "cannibalized-topic.md",
+      "expected_phase": "PLAN",
+      "expected_verdict": "BLOCKED",
+      "expected_issue_types": ["cannibalization_high"],
+      "rationale": "The proposed page targets the primary keyword 'best air fryers' with the same commercial comparison intent as the existing /reviews/best-air-fryers entry in cms-inventory.json, so the CANNIBALIZATION module rates the overlap HIGH and blocks the article at PLAN phase, before the 40-check gate ever runs; resolve via improve existing, merge, change intent, change angle, or drop."
+    },
+    {
+      "file": "missing-title.md",
+      "expected_verdict": "FAIL",
+      "expected_issue_types": ["missing_title", "missing_h1"],
+      "rationale": "The payload has no title field in the front-matter and no H1 anywhere in the body (it opens directly with an H2), so SEO-V13 and SEO-V15 fire missing_title and missing_h1 as CRITICAL and the verdict is FAIL."
+    },
+    {
+      "file": "missing-meta.md",
+      "expected_verdict": "WARNING",
+      "expected_issue_types": ["missing_meta_description"],
+      "rationale": "The only real defect is the absent meta_description; a core-field warning (SEO-V16) caps the verdict at WARNING even though the content is otherwise strong and the content score stays high."
+    },
+    {
+      "file": "poor-slug.md",
+      "expected_verdict": "WARNING",
+      "expected_issue_types": ["poor_slug"],
+      "rationale": "The slug '/article.php?id=8371&cat=home%20tips&ref=newsletter' is parameter-laden, unreadable, and unstable (the tracking ref changes per campaign, so one article lives at many URLs), so the core-field poor_slug warning (SEO-V17) caps an otherwise solid article at WARNING."
+    },
+    {
+      "file": "invalid-schema.md",
+      "expected_verdict": "FAIL",
+      "expected_issue_types": ["invalid_schema", "fabricated_schema_property"],
+      "rationale": "The Recipe JSON-LD is missing @context, making it invalid JSON-LD, and it declares an aggregateRating of 4.9 from 212 reviews that appears nowhere on the page, so SEO-V28 fires invalid_schema and fabricated_schema_property as CRITICAL and the Structured Data category scores zero."
+    },
+    {
+      "file": "unsupported-claims.md",
+      "expected_verdict": "FAIL",
+      "expected_issue_types": ["fabricated_data", "unsupported_claim"],
+      "rationale": "The invented ConsumerLab ranking, the 92% owner statistic, and the quote attributed to a non-existent sleep researcher trigger the integrity override: Content Quality & E-E-A-T is zeroed and the verdict is FAIL regardless of the otherwise reasonable article structure."
+    },
+    {
+      "file": "insufficient-info-gain.md",
+      "expected_verdict": "FAIL",
+      "expected_issue_types": ["low_information_gain", "thin_coverage"],
+      "rationale": "The article is generic enough that the reader must search again — no specs, budgets, use cases, or decision framework of any kind — so SEO-V05 fires low_information_gain at CRITICAL grade (Information Gain category zeroed) alongside thin_coverage (SEO-V03), driving the Content Score below 70 and the verdict to FAIL."
+    }
+  ]
+}

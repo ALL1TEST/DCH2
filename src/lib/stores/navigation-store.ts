@@ -49,8 +49,14 @@ function parseHash(hash: string): {
 
   // Canonicalize legacy SEO standalone routes (e.g. "#seo/robots") to their
   // compound Settings form ("settings/robots") BEFORE any state is stored.
-  if (mod === 'seo' && second && SEO_LEGACY_SUBPAGES[second.toLowerCase()]) {
-    return { mod, itemId: null, subPage: SEO_LEGACY_SUBPAGES[second.toLowerCase()] };
+  if (mod === 'seo' && second) {
+    const lower = second.toLowerCase();
+    if (lower === 'overview') {
+      return { mod, itemId: null, subPage: null };
+    }
+    if (SEO_LEGACY_SUBPAGES[lower]) {
+      return { mod, itemId: null, subPage: SEO_LEGACY_SUBPAGES[lower] };
+    }
   }
 
   // Canonicalize legacy standalone routes to Articles Categories & Tags dialog
@@ -68,7 +74,7 @@ function parseHash(hash: string): {
     // Content
     'create', 'new', 'edit', 'versions', 'translations', 'preview', 'categories', 'tags',
     // SEO
-    'redirects', 'sitemap', 'robots', 'search-console', 'indexing', 'broken-links',
+    'overview', 'redirects', 'sitemap', 'robots', 'search-console', 'indexing', 'broken-links',
     'social-preview', 'schema', 'canonicals', 'internal-links', 'audit', 'settings',
     // Email Templates
     'smtp-settings',

@@ -468,6 +468,7 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
   const [editorContent, setEditorContent] = useState('');
   const [featuredImage, setFeaturedImage] = useState<MediaItem | null>(null);
   const [selectedText, setSelectedText] = useState('');
+  const [generatedSeoReport, setGeneratedSeoReport] = useState<any>(null);
   const [savedSelectedText, setSavedSelectedText] = useState(''); // Fix #2: persistent saved selection context for AI bar
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
@@ -654,13 +655,23 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
         { signal: abortControllerRef.current.signal },
       );
     },
-    onSuccess: (result) => {
+    onSuccess: (result: any) => {
       abortControllerRef.current = null;
       // postApi unwraps the ApiResponse envelope → result IS the data object.
       const draft = result?.drafts?.[0];
+      const seo = result?.seo || result?.data?.seo;
       if (draft) {
         setEditorContent(draft.content);
         toast.success(t('articles.aiGeneratedToast'));
+      }
+      if (seo) {
+        setGeneratedSeoReport(seo);
+        if (seo.seoTitle && !getValues('seoTitle')) {
+          setValue('seoTitle', seo.seoTitle, { shouldDirty: true });
+        }
+        if (seo.metaDescription && !getValues('seoDescription')) {
+          setValue('seoDescription', seo.metaDescription, { shouldDirty: true });
+        }
       }
     },
     onError: (err: Error) => {
@@ -1279,6 +1290,7 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
                         <Label className="text-xs text-muted-foreground">{t('articles.metaDescription')}</Label>
                         <Textarea {...register('seoDescription')} placeholder={t('articles.metaDescriptionPlaceholder')} rows={2} className="text-sm" />
                       </div>
+
                     </div>
                   </AccordionContent>
                 </AccordionItem>

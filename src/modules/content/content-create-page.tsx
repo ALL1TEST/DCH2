@@ -58,6 +58,7 @@ import { TiptapEditor, type TiptapEditorRef } from '@/components/editor/tiptap-e
 import { getApi, postApi } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
 import { useNavigationStore } from '@/lib/stores/navigation-store';
+
 import { useAiWorkspace } from '@/hooks/use-ai-workspace';
 import { useT } from '@/lib/i18n';
 import { slugify, cn } from '@/lib/utils';
@@ -459,6 +460,7 @@ export function ContentCreatePage() {
   const [slugValue, setSlugValue] = useState('');
   const [aiInput, setAiInput] = useState('');
   const [editorContent, setEditorContent] = useState('');
+  const [generatedSeoReport, setGeneratedSeoReport] = useState<any>(null);
   const [featuredImage, setFeaturedImage] = useState<MediaItem | null>(null);
   const [customTags, setCustomTags] = useState<string[]>([]); // For newly created tags
   const [selectedText, setSelectedText] = useState(''); // Tracks the currently selected text in the editor (transient)
@@ -663,13 +665,26 @@ export function ContentCreatePage() {
         { signal: abortControllerRef.current.signal },
       );
     },
-    onSuccess: (result) => {
+    onSuccess: (result: any) => {
       abortControllerRef.current = null;
       // postApi unwraps the ApiResponse envelope → result IS the data object.
       const draft = result?.drafts?.[0];
+      const seo = result?.seo || result?.data?.seo;
       if (draft) {
         setEditorContent(draft.content);
         toast.success(t('articles.aiGeneratedToast'));
+      }
+      if (seo) {
+        setGeneratedSeoReport(seo);
+        if (seo.seoTitle && !getValues('seoTitle')) {
+          setValue('seoTitle', seo.seoTitle, { shouldDirty: true });
+        }
+        if (seo.metaDescription && !getValues('seoDescription')) {
+          setValue('seoDescription', seo.metaDescription, { shouldDirty: true });
+        }
+        if (seo.slug && !slugValue) {
+          setSlugValue(seo.slug);
+        }
       }
     },
     onError: (err: Error) => {
@@ -1272,6 +1287,7 @@ export function ContentCreatePage() {
                         <Label className="text-xs text-muted-foreground">{t('articles.metaDescription')}</Label>
                         <Textarea {...register('seoDescription')} placeholder={t('articles.metaDescriptionPlaceholder')} rows={2} className="text-sm" />
                       </div>
+
                     </div>
                   </AccordionContent>
                 </AccordionItem>

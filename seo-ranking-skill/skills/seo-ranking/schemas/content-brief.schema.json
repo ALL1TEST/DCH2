@@ -1,0 +1,301 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "seo-ranking/schemas/content-brief.schema.json",
+  "title": "Content Brief",
+  "description": "Output contract of CONTENT-BRIEF.md (module 03, PLAN phase) and the pre-generation contract handed to the content-style skill as source_material. The brief synthesizes intent (embedded intent-analysis object), keywords, SERP-derived gaps, outline, required subtopics, information-gain opportunities, links, media, schema type, and snippet opportunities into the single document the WRITE and VALIDATE phases judge the article against. Data Availability Policy: fields whose source data was not provided (content_gaps without real SERP data, internal_link_opportunities without inventory) are left empty and the absence is recorded in data_availability and keyword_metrics; never fabricated.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "topic",
+    "intent_summary",
+    "primary_keyword",
+    "secondary_keywords",
+    "semantic_entities",
+    "user_questions",
+    "h1_recommendation",
+    "outline",
+    "required_subtopics",
+    "content_gaps",
+    "information_gain_opportunities",
+    "internal_link_opportunities",
+    "recommended_media",
+    "schema_type",
+    "serp_feature_opportunities",
+    "data_availability",
+    "generated_at",
+    "brief_version"
+  ],
+  "properties": {
+    "topic": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The article's topic as promoted by the CMS."
+    },
+    "intent_summary": {
+      "$ref": "intent-analysis.schema.json",
+      "description": "The full intent-analysis object from SEARCH-INTENT.md, embedded verbatim."
+    },
+    "primary_keyword": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Exactly one primary keyword, identical to the keyword map's."
+    },
+    "secondary_keywords": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Supporting-angle keyword phrasings carried over from the keyword map."
+    },
+    "semantic_entities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Entities (named things search engines recognize) the article should name unambiguously through natural coverage."
+    },
+    "user_questions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Natural-language questions the article must answer; sourced from the keyword map and, when available, real SERP-visible questions."
+    },
+    "h1_recommendation": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Recommended H1: aligned with the primary keyword and main question, phrased for the arriving reader."
+    },
+    "outline": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["heading", "level", "purpose", "required"],
+        "properties": {
+          "heading": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The section heading as planned."
+          },
+          "level": {
+            "type": "string",
+            "enum": ["H2", "H3"],
+            "description": "Heading level in the planned hierarchy."
+          },
+          "purpose": {
+            "type": "string",
+            "minLength": 1,
+            "description": "What this section must accomplish for the reader, including depth notes for deliberately short treatments."
+          },
+          "required": {
+            "type": "boolean",
+            "description": "True when the brief requires this section in the output; optional sections may be cut without a missing_subtopic issue."
+          }
+        }
+      },
+      "description": "The planned H2/H3 structure; the first section must answer the intent's main question."
+    },
+    "required_subtopics": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Subtopics the article must cover with useful treatment; each may carry a depth note (e.g. 'short treatment acceptable'). Feeds checks SEO-V03/V04."
+    },
+    "content_gaps": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Topics the real SERP's top results collectively miss. MUST stay empty when serp_data is false; never fabricate competitor findings to fill it."
+    },
+    "information_gain_opportunities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "What the article will offer beyond the obvious: specifics, comparisons, decision criteria, unanswered subtopics. Feeds INFORMATION-GAIN.md."
+    },
+    "internal_link_opportunities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["target_url", "anchor_suggestion", "reason"],
+        "properties": {
+          "target_url": {
+            "type": "string",
+            "minLength": 1,
+            "description": "URL or slug of a real page from the CMS inventory; never an invented URL."
+          },
+          "anchor_suggestion": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Natural anchor phrasing a reader would expect on the link."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Why this link serves the reader of this article."
+          }
+        }
+      },
+      "description": "Inventory-driven internal link candidates; empty when the CMS inventory is UNAVAILABLE."
+    },
+    "recommended_media": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "description", "placement", "alt_text_suggestion"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["image", "illustration", "diagram", "chart", "video", "other"],
+            "description": "The kind of media recommended."
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "description": "What the media must show to serve comprehension."
+          },
+          "placement": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Where in the article the media belongs, near the text it supports."
+          },
+          "alt_text_suggestion": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Alt text describing the actual image; never a keyword container."
+          }
+        }
+      },
+      "description": "Media the article genuinely needs, with placement and honest alt-text suggestions."
+    },
+    "schema_type": {
+      "type": "string",
+      "enum": ["Article", "BlogPosting", "NewsArticle", "Recipe", "HowTo", "FAQPage", "Product", "none"],
+      "description": "The structured data type matching the article's visible content; 'none' when no type honestly applies."
+    },
+    "serp_feature_opportunities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "featured_snippet_definition",
+          "featured_snippet_list",
+          "featured_snippet_table",
+          "featured_snippet_steps",
+          "people_also_ask",
+          "image_pack",
+          "video",
+          "none"
+        ]
+      },
+      "description": "SERP feature opportunities the planned content genuinely supports; only types observed in real SERP data (or clearly adjacent to it)."
+    },
+    "keyword_metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["search_volume", "keyword_difficulty", "cpc", "competition", "ranking", "traffic_estimate"],
+      "description": "Status of the keyword metrics carried into the brief from the keyword map. Same policy as the keyword map: every field is either a real number from a real integration (source recorded in metrics_sources) or the exact string UNAVAILABLE; never invented or estimated.",
+      "properties": {
+        "search_volume": {
+          "description": "Search volume. Number only when received from a real integration; otherwise exactly \"UNAVAILABLE\".",
+          "oneOf": [
+            { "type": "number", "minimum": 0 },
+            { "type": "string", "const": "UNAVAILABLE" }
+          ]
+        },
+        "keyword_difficulty": {
+          "description": "Keyword difficulty. Number only when received from a real integration; otherwise exactly \"UNAVAILABLE\".",
+          "oneOf": [
+            { "type": "number", "minimum": 0 },
+            { "type": "string", "const": "UNAVAILABLE" }
+          ]
+        },
+        "cpc": {
+          "description": "Cost per click. Number only when received from a real integration; otherwise exactly \"UNAVAILABLE\".",
+          "oneOf": [
+            { "type": "number", "minimum": 0 },
+            { "type": "string", "const": "UNAVAILABLE" }
+          ]
+        },
+        "competition": {
+          "description": "Competition level. Number only when received from a real integration; otherwise exactly \"UNAVAILABLE\".",
+          "oneOf": [
+            { "type": "number", "minimum": 0 },
+            { "type": "string", "const": "UNAVAILABLE" }
+          ]
+        },
+        "ranking": {
+          "description": "Current ranking position. Number only when received from a real integration (e.g. Search Console); otherwise exactly \"UNAVAILABLE\".",
+          "oneOf": [
+            { "type": "number", "minimum": 0 },
+            { "type": "string", "const": "UNAVAILABLE" }
+          ]
+        },
+        "traffic_estimate": {
+          "description": "Estimated traffic. Number only when received from a real integration; otherwise exactly \"UNAVAILABLE\".",
+          "oneOf": [
+            { "type": "number", "minimum": 0 },
+            { "type": "string", "const": "UNAVAILABLE" }
+          ]
+        }
+      }
+    },
+    "metrics_sources": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Map of metric name to the real source that supplied it. Omit when every metric is UNAVAILABLE."
+    },
+    "data_availability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["serp_data", "cms_inventory", "search_console"],
+      "properties": {
+        "serp_data": {
+          "type": "boolean",
+          "description": "True only when real SERP data was provided and analyzed."
+        },
+        "cms_inventory": {
+          "type": "boolean",
+          "description": "True only when the CMS inventory was provided (internal link opportunities depend on it)."
+        },
+        "search_console": {
+          "type": "boolean",
+          "description": "True only when real Search Console data was provided."
+        },
+        "notes": {
+          "type": "string",
+          "description": "What was unavailable and how the brief compensated (intent + keyword reasoning, lower confidence) — the honest record of what this brief rests on."
+        }
+      },
+      "description": "Which real inputs the brief was built on; UNAVAILABLE inputs produce honestly empty fields, never fabricated ones."
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp of brief generation."
+    },
+    "brief_version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Version of this brief; regenerate (do not silently mutate) on scope change."
+    }
+  }
+}

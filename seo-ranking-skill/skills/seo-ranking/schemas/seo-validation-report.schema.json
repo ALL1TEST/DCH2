@@ -1,0 +1,344 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://seo-ranking-skill.example/schemas/seo-validation-report.schema.json",
+  "title": "SEO Validation Report",
+  "description": "Output contract of the seo-ranking skill's validation gate (module 19, VALIDATION.md, checks SEO-V01..SEO-V40). One report is emitted per article at the VALIDATE phase: a PASS/WARNING/FAIL verdict, per-section check results (Content, On-Page, Technical, AI Search), the issue list where every issue carries type/severity/check/location/problem/why_it_matters/recommended_fix, the score summary, the data_availability block stating which inputs were real, and next actions. The Technical section (SEO-V31..V35) is SITE-LEVEL: in the article-generation pipeline it is always NOT_MEASURABLE (technical data is never fetched as a side effect of generating an article — robots/sitemap/crawl/CWV belong to the CMS's SEO dashboard). Issue `type` values come from the canonical registry in VALIDATION.md; UNAVAILABLE or NOT_MEASURABLE markers are honest limitations, never failures.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "skill",
+    "skill_version",
+    "generated_at",
+    "article",
+    "intent",
+    "verdict",
+    "sections",
+    "issues",
+    "scores",
+    "data_availability",
+    "next_actions"
+  ],
+  "definitions": {
+    "check_id": {
+      "type": "string",
+      "pattern": "^SEO-V[0-9]{2}$",
+      "description": "A validation check ID from VALIDATION.md (SEO-V01..SEO-V40; new checks start at SEO-V41)."
+    },
+    "issue_type": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$",
+      "description": "snake_case issue type from the canonical registry in VALIDATION.md (e.g. keyword_stuffing, missing_meta_description, cannibalization_high); extend only via SEO-V41+."
+    },
+    "check_section": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["checks_run", "issue_count"],
+      "description": "Result block for one section of the check catalog. `status` is included where relevant: MEASURABLE (checks ran with the data they need), NOT_MEASURABLE (the whole section needs data that is absent), or UNAVAILABLE (specific inputs such as cms_inventory were missing, so individual checks could not run).",
+      "properties": {
+        "status": {
+          "enum": ["MEASURABLE", "NOT_MEASURABLE", "UNAVAILABLE"],
+          "description": "Only present where relevant; the Technical section always carries it."
+        },
+        "checks_run": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/check_id" },
+          "description": "IDs of the checks that actually ran in this section (empty when the section is NOT_MEASURABLE)."
+        },
+        "issue_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of issues in the report produced by this section's checks."
+        }
+      }
+    },
+    "technical_section": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "checks_run", "issue_count"],
+      "description": "The Technical section (SEO-V31..V35) — SITE-LEVEL maintenance checks. Without technical_data the whole section is NOT_MEASURABLE with an empty checks_run — never failed, never guessed; and technical_data is never present in the article-generation pipeline, so NOT_MEASURABLE is that pipeline's only state (the section activates only in explicit maintenance contexts). Technical health is never inferred from correct title/meta/H1.",
+      "properties": {
+        "status": {
+          "enum": ["MEASURABLE", "NOT_MEASURABLE"]
+        },
+        "checks_run": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/check_id" }
+        },
+        "issue_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "severity", "check", "location", "problem", "why_it_matters", "recommended_fix"],
+      "description": "One finding by one check. All seven fields are obligatory, no exceptions (VALIDATION.md): what is wrong, where, why it matters to search or readers, and what to do about it.",
+      "properties": {
+        "type": { "$ref": "#/definitions/issue_type" },
+        "severity": {
+          "enum": ["CRITICAL", "WARNING", "INFO"],
+          "description": "CRITICAL blocks publishing; WARNING should be fixed (core-field warnings cap the verdict at WARNING); INFO is an optional opportunity that never blocks."
+        },
+        "check": { "$ref": "#/definitions/check_id" },
+        "location": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Where the problem lives: a heading, a metadata field, the JSON-LD block, the URL, etc."
+        },
+        "problem": {
+          "type": "string",
+          "minLength": 1,
+          "description": "What is wrong, stated concretely."
+        },
+        "why_it_matters": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The concrete impact on search visibility or readers — never boilerplate."
+        },
+        "recommended_fix": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The actionable fix for the flagged problem."
+        }
+      }
+    },
+    "deduction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["issue_type", "count", "amount"],
+      "properties": {
+        "issue_type": { "$ref": "#/definitions/issue_type" },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How many issues of this type were deducted in the category."
+        },
+        "amount": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Total points deducted (two decimals; capped at the category weight)."
+        }
+      }
+    },
+    "score_category": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "weight", "earned", "deductions"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Category name exactly as defined in SCORING.md."
+        },
+        "weight": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Category weight; weights are tunable configuration and must sum to 100 per score."
+        },
+        "earned": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Points kept after deductions (two decimals; 0 <= earned <= weight)."
+        },
+        "deductions": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/deduction" },
+          "description": "Every lost point traces to an issue object in the validation report."
+        }
+      }
+    }
+  },
+  "properties": {
+    "skill": {
+      "const": "seo-ranking",
+      "description": "Fixed skill identifier."
+    },
+    "skill_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Semantic version of the seo-ranking skill that produced the report."
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp of report generation, e.g. 2025-01-15T10:30:00Z."
+    },
+    "article": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "slug", "url", "word_count", "primary_keyword"],
+      "description": "The article the gate validated, as the CMS knows it.",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "The article's SEO title; an empty string means the CMS holds no title (reported as missing_title)."
+        },
+        "slug": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The article slug or URL path."
+        },
+        "url": {
+          "type": ["string", "null"],
+          "description": "Final public URL when known; null pre-publish or when the CMS cannot resolve it."
+        },
+        "word_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Word count of the article body (headings included, boilerplate excluded)."
+        },
+        "primary_keyword": {
+          "type": "string",
+          "description": "The primary keyword the article targets."
+        }
+      }
+    },
+    "intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["primary_intent", "main_question", "confidence"],
+      "description": "The intent analysis the gate ran against (from SEARCH-INTENT.md, or derived in-gate with confidence 'low' when the PLAN output was missing).",
+      "properties": {
+        "primary_intent": {
+          "enum": ["informational", "commercial", "transactional", "navigational"],
+          "description": "The classified search intent of the target query."
+        },
+        "main_question": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The single question the searcher most wants answered."
+        },
+        "confidence": {
+          "enum": ["high", "medium", "low"]
+        }
+      }
+    },
+    "verdict": {
+      "enum": ["PASS", "WARNING", "FAIL"],
+      "description": "Per VALIDATION.md: any CRITICAL issue, Content Score < 70, or Technical Score < 40 (when measurable) means FAIL; no criticals plus a core-field warning, Content Score 70-84, or Technical Score < 70 means WARNING; Content Score >= 85 with no criticals and no core-field warnings means PASS."
+    },
+    "sections": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["content", "on_page", "technical", "ai_search"],
+      "description": "Per-section results for the four check groups of the VALIDATION.md catalog.",
+      "properties": {
+        "content": {
+          "$ref": "#/definitions/check_section"
+        },
+        "on_page": {
+          "$ref": "#/definitions/check_section"
+        },
+        "technical": {
+          "$ref": "#/definitions/technical_section"
+        },
+        "ai_search": {
+          "$ref": "#/definitions/check_section"
+        }
+      }
+    },
+    "issues": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/issue" },
+      "description": "All issues found by the gate, ordered by severity then check ID; empty for a flawless article."
+    },
+    "scores": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["content_score", "technical_score", "technical_status", "overall"],
+      "description": "Score summary per SCORING.md. The full three-score output (with technical categories and formulas) is the separate seo-score.schema.json contract; content_score_categories is the optional in-report traceability of the content score.",
+      "properties": {
+        "content_score": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "SEO Content Score: computed with two decimals per SCORING.md, reported as the rounded final integer."
+        },
+        "technical_score": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Technical SEO Score, or null when technical_status is NOT_MEASURABLE."
+        },
+        "technical_status": {
+          "enum": ["MEASURABLE", "NOT_MEASURABLE"],
+          "description": "NOT_MEASURABLE is the honest default without real crawl/platform data — it is not a zero and not a pass, and it is the only state in the article-generation pipeline."
+        },
+        "overall": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "grade", "basis"],
+          "description": "Overall SEO Health: 0.7 x content + 0.3 x technical when both are measurable, otherwise content-only.",
+          "properties": {
+            "value": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "grade": {
+              "enum": ["A", "B", "C", "D", "F"],
+              "description": "A >= 90, B 80-89, C 70-79, D 60-69, F < 60. The score never overrides the verdict."
+            },
+            "basis": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Exactly what the overall number rests on, e.g. 'content-only' or 'content+technical (0.7/0.3)'."
+            }
+          }
+        },
+        "content_score_categories": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/score_category" },
+          "description": "Optional: per-category traceability of the SEO Content Score, in the same category shape as seo-score.schema.json (SCORING.md worked-example style). Validating consumers may ignore it."
+        }
+      },
+      "if": {
+        "properties": {
+          "technical_status": { "const": "NOT_MEASURABLE" }
+        }
+      },
+      "then": {
+        "properties": {
+          "technical_score": { "type": "null" }
+        }
+      },
+      "else": {
+        "properties": {
+          "technical_score": { "type": "integer", "minimum": 0, "maximum": 100 }
+        }
+      }
+    },
+    "data_availability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["serp_data", "search_console", "cms_inventory", "technical_access"],
+      "description": "Which inputs were real, so a human can see exactly what the conclusions rest on (Data Availability Policy, SKILL.md section 5).",
+      "properties": {
+        "serp_data": {
+          "type": "boolean",
+          "description": "Real SERP results were supplied to the gate."
+        },
+        "search_console": {
+          "type": "boolean",
+          "description": "A real Search Console export was supplied."
+        },
+        "cms_inventory": {
+          "type": "boolean",
+          "description": "The real CMS page inventory was supplied (title uniqueness, internal links, anchors)."
+        },
+        "technical_access": {
+          "type": "boolean",
+          "description": "Real crawl/platform data was supplied for the Technical section."
+        }
+      }
+    },
+    "next_actions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "What to do next, in priority order — e.g. 'Publish', scheduled fixes, or 'Fix the CRITICAL issues and re-run'."
+    }
+  }
+}

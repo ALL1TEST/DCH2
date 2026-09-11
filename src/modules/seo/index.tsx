@@ -41,8 +41,9 @@ function SeoSubNav() {
         {SEO_TABS.map((tab) => {
           // Compound Settings routes ("settings/robots", "settings/sitemap",
           // "settings/redirects") keep the "Settings" tab highlighted.
+          // Overview stays active when subPage is empty, 'overview', or inside an overview detail drilldown.
           const isActive = tab.key === null
-            ? !currentSubPage
+            ? (!currentSubPage || currentSubPage === 'overview' || DETAIL_TYPES.has(currentSubPage))
             : tab.key === 'settings'
               ? currentSubPage === 'settings' || (!!currentSubPage && currentSubPage.startsWith('settings/'))
               : currentSubPage === tab.key;
@@ -91,6 +92,7 @@ const SETTINGS_TAB_MAP: Record<string, string> = {
 // render STILL resolves it synchronously — the user can never see an
 // intermediate/wrong page (e.g. the old standalone Robots.txt screen).
 const LEGACY_REDIRECT: Record<string, string | null> = {
+  'overview': null,
   'indexing': 'audit',
   'canonicals': 'audit',
   'internal-links': 'audit',
@@ -131,12 +133,10 @@ function SeoRouter() {
   // Check if this is a "settings" or "settings/X" route
   const isSettings = currentSubPage === 'settings' || !!settingsTab;
 
-  // Hide sub-nav on detail pages
-  const showSubNav = !isDetailPage;
-
   return (
     <>
-      {showSubNav && <SeoSubNav />}
+      {/* Top tools sub-nav bar is always visible across all SEO views */}
+      <SeoSubNav />
       <Suspense fallback={<PageLoader />}>
         {(() => {
           // Detail page (filtered view from Overview metric cards)

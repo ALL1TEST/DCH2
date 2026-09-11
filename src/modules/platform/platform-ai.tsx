@@ -51,35 +51,33 @@ import React, { useEffect } from 'react';
 import { useNavigationStore } from '@/lib/stores/navigation-store';
 import { ProvidersPage } from '@/modules/ai/providers-page';
 import { ModelsPage } from '@/modules/ai/models-page';
-import { SettingsPage } from '@/modules/ai/settings-page';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Server,
   Boxes,
-  Settings,
 } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 
 // Simplified AI section — only features relevant to a blogging CMS.
-// Removed: Playground, Jobs, Logs, Marketplace, Usage (provider dashboards handle analytics).
+// Removed: Playground, Jobs, Logs, Marketplace, Usage, Settings.
 // No Prompt Library tab — it is not exposed in the Platform Admin dashboard.
 const AI_SUB_PAGES = [
   { value: 'providers', label: 'Providers', icon: Server },
   { value: 'models', label: 'Models', icon: Boxes },
-  { value: 'settings', label: 'Settings', icon: Settings },
 ] as const;
 
 type AiSubPage = (typeof AI_SUB_PAGES)[number]['value'];
 
 // Sub-pages that no longer have their own tab — redirect to Providers.
-// 'prompts' (removed from Platform Admin) and legacy pages all fall back.
+// 'prompts', 'settings' and legacy pages all fall back.
 const LEGACY_REDIRECT: Record<string, AiSubPage> = {
   prompts: 'providers',
   playground: 'providers',
   jobs: 'providers',
   logs: 'providers',
   marketplace: 'providers',
-  usage: 'settings',
+  usage: 'providers',
+  settings: 'providers',
 };
 
 export function PlatformAiModule() {
@@ -94,8 +92,6 @@ export function PlatformAiModule() {
         return t('platformAi.providers');
       case 'models':
         return t('platformAi.models');
-      case 'settings':
-        return t('platformAi.settings');
     }
   };
 
@@ -145,9 +141,6 @@ export function PlatformAiModule() {
         </TabsContent>
         <TabsContent value="models">
           <ModelsPage />
-        </TabsContent>
-        <TabsContent value="settings">
-          <SettingsPage />
         </TabsContent>
       </Tabs>
     </div>

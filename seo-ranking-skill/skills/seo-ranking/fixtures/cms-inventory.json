@@ -1,0 +1,53 @@
+{
+  "_note": "SYNTHETIC FIXTURE DATA for cannibalization/internal-linking tests — not real pages. Used by the CANNIBALIZATION module (PLAN phase) and the internal-linking checks (SEO-V22/V23). Fixture-relevant entries: /reviews/best-air-fryers is the collision target for cannibalized-topic.md (same primary keyword 'best air fryers', same commercial comparison intent); /growing-basil-indoors, /how-to-dry-herbs, and /basil-pesto-recipe are the internal-link targets of good-article.md; /how-to-clean-an-air-fryer is the internal-link target of missing-meta.md; /coffee-maker-reviews is the internal-link target of poor-slug.md.",
+  "pages": [
+    {
+      "url": "/reviews/best-air-fryers",
+      "title": "Best Air Fryers of 2025, Tested and Compared",
+      "primary_keyword": "best air fryers",
+      "intent": "commercial"
+    },
+    {
+      "url": "/air-fryer-vs-deep-fryer",
+      "title": "Air Fryer vs Deep Fryer: Which One Belongs in Your Kitchen?",
+      "primary_keyword": "air fryer vs deep fryer",
+      "intent": "informational"
+    },
+    {
+      "url": "/how-to-clean-an-air-fryer",
+      "title": "How to Clean an Air Fryer in Five Steps",
+      "primary_keyword": "how to clean an air fryer",
+      "intent": "informational"
+    },
+    {
+      "url": "/growing-basil-indoors",
+      "title": "Growing Basil Indoors: A Windowsill Guide",
+      "primary_keyword": "growing basil indoors",
+      "intent": "informational"
+    },
+    {
+      "url": "/how-to-dry-herbs",
+      "title": "How to Dry Herbs: Three Reliable Methods",
+      "primary_keyword": "how to dry herbs",
+      "intent": "informational"
+    },
+    {
+      "url": "/best-herb-garden-kits",
+      "title": "Best Herb Garden Kits for Small Spaces",
+      "primary_keyword": "best herb garden kits",
+      "intent": "commercial"
+    },
+    {
+      "url": "/basil-pesto-recipe",
+      "title": "How to Make Basil Pesto from Scratch",
+      "primary_keyword": "how to make basil pesto",
+      "intent": "recipe"
+    },
+    {
+      "url": "/coffee-maker-reviews",
+      "title": "Best Coffee Makers, Tested and Ranked",
+      "primary_keyword": "best coffee maker",
+      "intent": "commercial"
+    }
+  ]
+}

@@ -53,6 +53,8 @@ const createSchema = z.object({
   scheduledAt: z.string().datetime({ offset: true }).optional().or(z.literal('')),
   expiresAt: z.string().datetime({ offset: true }).optional().or(z.literal('')),
   tagIds: z.array(z.string()).optional(),
+  seoReport: z.union([z.string(), z.record(z.string(), z.any())]).optional(),
+  editorialReport: z.union([z.string(), z.record(z.string(), z.any())]).optional(),
 });
 
 // ---------- allowed sort columns -------------------------------------
@@ -204,6 +206,8 @@ export async function POST(request: NextRequest) {
         tags: d.tagIds?.length
           ? { connect: d.tagIds.map((tid) => ({ id: tid })) }
           : undefined,
+        seoReport: typeof d.seoReport === 'object' ? JSON.stringify(d.seoReport) : d.seoReport ?? null,
+        editorialReport: typeof d.editorialReport === 'object' ? JSON.stringify(d.editorialReport) : d.editorialReport ?? null,
       },
       include: contentIncludes,
     });

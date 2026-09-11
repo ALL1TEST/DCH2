@@ -351,8 +351,37 @@ export async function POST(request: NextRequest) {
       .map(normalizeIdea)
       .filter((x): x is ArticleIdeaDTO => x !== null);
 
+    const { runArticlePipeline } = await import('@/lib/pipeline/article-pipeline');
+
+    const enrichedIdeas = await Promise.all(
+      ideas.map(async (idea) => {
+        const pipelineRes = await runArticlePipeline(
+          'idea-screen',
+          {
+            title: idea.title,
+            keywords: idea.primaryKeyword,
+            brief: idea.description,
+            niche: niche || undefined,
+            siteId: undefined,
+          },
+          { userId: auth.user.id }
+        );
+
+        const primaryIntent = pipelineRes.contentBrief.primary_intent;
+        return {
+          ...idea,
+          searchIntent: primaryIntent.charAt(0).toUpperCase() + primaryIntent.slice(1),
+          cannibalizationRisk: pipelineRes.cannibalization?.risk_level || 'LOW',
+          intentExplanation: pipelineRes.contentBrief.outline[0]?.purpose || 'Informational target search query',
+          suggestedAngle: pipelineRes.contentBrief.information_gain_angles[0] || 'Original perspective',
+          seoBrief: pipelineRes.contentBrief,
+          verdict: pipelineRes.verdict,
+        };
+      }),
+    );
+
     return NextResponse.json({
-      data: { ideas },
+      data: { ideas: enrichedIdeas },
       meta: {
         requestId: id,
         timestamp: new Date().toISOString(),

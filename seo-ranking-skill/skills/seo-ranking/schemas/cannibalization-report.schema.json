@@ -1,0 +1,144 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://seo-ranking-skill.local/schemas/cannibalization-report.schema.json",
+  "title": "Cannibalization Report",
+  "description": "Output contract of CANNIBALIZATION.md (module 15, PLAN phase). Reports the overlap of a proposed new article against existing CMS pages, the resulting risk level (LOW / MEDIUM / HIGH), and the recommended action. Only emitted when a real cms_inventory was available; every existing_pages entry must come from that inventory - no URLs or pages may be invented.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "new_article",
+    "existing_pages",
+    "risk_level",
+    "recommendation",
+    "rationale",
+    "data_availability",
+    "generated_at"
+  ],
+  "properties": {
+    "new_article": {
+      "type": "object",
+      "description": "The proposed article as submitted to the cannibalization check.",
+      "additionalProperties": false,
+      "required": ["title", "primary_keyword", "intent"],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Proposed article title."
+        },
+        "primary_keyword": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Primary keyword the proposed article targets."
+        },
+        "intent": {
+          "type": "string",
+          "description": "Search intent classification per SEARCH-INTENT.md.",
+          "enum": ["informational", "commercial", "transactional", "navigational"]
+        }
+      }
+    },
+    "existing_pages": {
+      "type": "array",
+      "description": "Inventory pages with meaningful overlap against the proposal. Empty when no overlapping page exists (risk LOW). Every entry must exist in the provided cms_inventory.",
+      "items": {
+        "type": "object",
+        "description": "One existing page and its overlap with the proposal.",
+        "additionalProperties": false,
+        "required": ["url", "title", "primary_keyword", "intent", "shared_subtopics", "overlap_summary"],
+        "properties": {
+          "url": {
+            "type": "string",
+            "minLength": 1,
+            "description": "URL or slug of the existing page exactly as it appears in the cms_inventory."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Title of the existing page exactly as it appears in the cms_inventory."
+          },
+          "primary_keyword": {
+            "type": "string",
+            "description": "Primary keyword of the existing page as recorded in the cms_inventory; empty string when the inventory records none."
+          },
+          "intent": {
+            "type": "string",
+            "description": "Search intent of the existing page per SEARCH-INTENT.md.",
+            "enum": ["informational", "commercial", "transactional", "navigational"]
+          },
+          "shared_subtopics": {
+            "type": "array",
+            "description": "Subtopics shared between the proposal and this page, listed explicitly.",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "overlap_summary": {
+            "type": "string",
+            "minLength": 1,
+            "description": "One-to-two-line summary of how this page overlaps the proposal (keyword, intent, topic signals)."
+          }
+        }
+      }
+    },
+    "risk_level": {
+      "type": "string",
+      "description": "Cannibalization risk: LOW (different primary keyword AND different intent, or minor subtopic overlap only), MEDIUM (same intent with different angle/keyword variant, or meaningful shared subtopics), HIGH (same primary keyword AND same intent).",
+      "enum": ["LOW", "MEDIUM", "HIGH"]
+    },
+    "recommendation": {
+      "type": "string",
+      "description": "The prescribed action. HIGH: improve_existing / merge / change_intent / change_angle / abandon (preference order). MEDIUM: differentiate (with the differentiation stated in rationale). LOW: proceed.",
+      "enum": ["improve_existing", "merge", "change_intent", "change_angle", "differentiate", "abandon", "proceed"]
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Why this risk level and recommendation: the triggering overlap signals, and for MEDIUM the required explicit differentiation statement."
+    },
+    "data_availability": {
+      "type": "object",
+      "description": "Which inputs were real when the report was generated.",
+      "additionalProperties": false,
+      "required": ["cms_inventory"],
+      "properties": {
+        "cms_inventory": {
+          "type": "boolean",
+          "description": "True when the report was generated against a real cms_inventory. This schema is only instantiated when true; an unavailable inventory produces no report object (the brief records cannibalization as UNAVAILABLE instead)."
+        }
+      }
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp of report generation."
+    }
+  },
+  "examples": [
+    {
+      "new_article": {
+        "title": "How to Freeze Basil",
+        "primary_keyword": "how to freeze basil",
+        "intent": "informational"
+      },
+      "existing_pages": [
+        {
+          "url": "/how-to-store-fresh-basil",
+          "title": "How to Store Fresh Basil",
+          "primary_keyword": "how to store fresh basil",
+          "intent": "informational",
+          "shared_subtopics": ["freezing (covered briefly)"],
+          "overlap_summary": "Different primary keyword and different core question; freezing is a minor subtopic of the existing page, not its core."
+        }
+      ],
+      "risk_level": "LOW",
+      "recommendation": "proceed",
+      "rationale": "Different primary keyword and a peripheral subtopic overlap only. Proceed, keeping the new article focused on freezing depth, and cross-link both pages so the overlap stays complementary.",
+      "data_availability": {
+        "cms_inventory": true
+      },
+      "generated_at": "2025-01-15T10:30:00Z"
+    }
+  ]
+}

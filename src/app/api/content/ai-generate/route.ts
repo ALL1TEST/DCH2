@@ -1,17 +1,15 @@
 'use server';
 
+// ============================================================
+// POST /api/content/ai-generate — Centralized AI Generation / Regeneration / Improvement
+// Powered by ONE centralized runArticlePipeline()
+// ============================================================
+
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { executeChat } from '@/lib/ai/ai-service';
-import type { ChatMessage } from '@/lib/ai/ai-service';
 import { z } from 'zod/v4';
 import { requireFeature } from '@/lib/platform/platform-auth';
 import { checkAiLimit, aiLimitExceededResponse } from '@/lib/platform/usage-limits';
-import { resolvePlatformPrompt, resolveAiProviderForUser, getOperationMaxTokens } from '@/lib/ai/platform-ai';
-import {
-  buildEditorialPrompts,
-  validateAndPolishContent,
-} from '@/lib/ai/editorial-skill';
+import { runArticlePipeline } from '@/lib/pipeline/article-pipeline';
 
 function reqId() {
   return 'req_' + crypto.randomUUID().slice(0, 8);
@@ -32,23 +30,12 @@ const schema = z.object({
   targetLength: z.string().optional().default('Medium (800-1200 words)'),
   numberOfDrafts: z.number().int().min(1).max(3).optional().default(1),
   includeCta: z.boolean().optional().default(false),
+  mode: z.enum(['generate', 'regenerate', 'improve']).optional().default('generate'),
+  originalArticle: z.string().optional(),
+  siteId: z.string().optional().nullable(),
+  niche: z.string().optional(),
+  contentType: z.string().optional(),
 });
-
-// =====================================================================
-// POST — generate article draft with AI (client AI tool)
-// =====================================================================
-// This is a PLATFORM AI generation endpoint:
-//   • Requires the Platform AI plan feature — a client without it is
-//     denied (403). The client never configures providers or API keys;
-//     the platform's configured provider/model is used automatically.
-//   • Usage is tracked against the plan's AI Articles / month limit.
-//   • The system internally selects the matching Platform Admin
-//     prompt (Prompt Library slot "article") and injects the tool
-//     variables — the client never sees the prompt templates.
-//   • Generation runs exclusively on PLATFORM-OWNED providers
-//     (created by platform staff) or, when none is configured, on
-//     the platform SDK (z-ai-web-dev-sdk).
-// =====================================================================
 
 export async function POST(request: NextRequest) {
   const auth = await requireFeature(request, 'ai_platform');
@@ -68,13 +55,24 @@ export async function POST(request: NextRequest) {
       return err(parsed.error.issues[0]?.message ?? 'Invalid input');
     }
 
-    // Platform AI usage limit — one article generation per requested
-    // draft, enforced server-side before generating. Client's Own AI
-    // API plans and owner bypass are never counted.
+    // Platform AI usage limit
     const aiLimit = await checkAiLimit(auth.user, { articles: parsed.data.numberOfDrafts ?? 1 });
     if (aiLimit && !aiLimit.ok) return aiLimitExceededResponse(aiLimit);
 
-    const { title, brief, keywords, writingStyle, targetLength, numberOfDrafts, includeCta } = parsed.data;
+    const {
+      title,
+      brief,
+      keywords,
+      writingStyle,
+      targetLength,
+      numberOfDrafts,
+      includeCta,
+      mode,
+      originalArticle,
+      siteId,
+      niche,
+      contentType,
+    } = parsed.data;
 
     const lengthMap: Record<string, string> = {
       'Short (300-600 words)': '300-600',
@@ -84,158 +82,54 @@ export async function POST(request: NextRequest) {
     };
     const wordCount = lengthMap[targetLength] || targetLength;
 
-    // ---- Global Editorial Content Style Skill ----
-    // Builds niche-aware editorial structure, 22 global publication principles,
-    // multi-format blocks, and anti-AI phrase bans.
-    const editorial = buildEditorialPrompts({
-      title,
-      brief: brief ?? '',
-      keywords: keywords ?? '',
-      writingStyle,
-      targetLength: wordCount,
-      includeCta,
-    });
-
-    // ---- Internally select the Platform Admin prompt (Prompt
-    // Library slot "article") and inject the tool variables. ----
-    const platformPrompt = await resolvePlatformPrompt('article', {
-      title,
-      brief: brief ?? '',
-      keywords: keywords ?? '',
-      style: writingStyle,
-      length: wordCount,
-      cta: includeCta ? 'Include a compelling call-to-action at the end.' : '',
-    });
-
-    // Merge system & user prompts: Platform custom prompt enhances or guides the editorial skill
-    const systemPrompt = platformPrompt?.systemPrompt
-      ? `${editorial.systemPrompt}\n\nADDITIONAL PLATFORM INSTRUCTIONS:\n${platformPrompt.systemPrompt}`
-      : editorial.systemPrompt;
-
-    const userPrompt = platformPrompt?.userPrompt
-      ? `${editorial.userPrompt}\n\nADDITIONAL CONTEXT & GUIDELINES:\n${platformPrompt.userPrompt}`
-      : editorial.userPrompt;
-
-    const messages: ChatMessage[] = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ];
-
-    // ---- Resolve the platform's configured provider ----
-    // Read global AI settings (managed by Platform Admin) for the
-    // default provider/model/temperature/maxTokens.
-    const activeProvider = await resolveAiProviderForUser(auth.user.id);
-    const userSettings = await db.aiSettings.findUnique({ where: { scope: `user:${auth.user.id}` } });
-    const globalSettings = await db.aiSettings.findUnique({ where: { scope: 'global' } });
-    const userModelMatches = userSettings?.defaultModelId && activeProvider?.models.some((m) => (m.id === userSettings.defaultModelId || m.modelId === userSettings.defaultModelId) && m.isActive);
-    const aiSettings = userModelMatches ? userSettings : globalSettings;
-
-    const drafts: Array<{ content: string; wordCount: number; qualityReport?: any }> = [];
-
-    if (activeProvider) {
-      // Resolve model: use AiSettings.defaultModelId if set and belongs to the provider
-      const defaultModel = aiSettings?.defaultModelId
-        ? activeProvider.models.find((m) => (m.id === aiSettings.defaultModelId || m.modelId === aiSettings.defaultModelId) && m.isActive && m.type?.toUpperCase() === 'TEXT')
-        : null;
-      const modelId = defaultModel?.id ?? defaultModel?.modelId
-        ?? activeProvider.models.find((m) => m.isActive && (m.isDefaultText || m.isDefault) && m.type?.toUpperCase() === 'TEXT')?.id
-        ?? activeProvider.models.find((m) => m.isActive && m.type?.toUpperCase() === 'TEXT')?.id;
-
-      // Use global AI settings for temperature (or prompt override if defined)
-      const genTemperature = platformPrompt?.temperature ?? aiSettings?.defaultTemperature ?? 0.7;
-      // Operation-specific max output tokens: larger limit for full article generation
-      const genMaxTokens = getOperationMaxTokens('article', platformPrompt?.maxTokens);
-
-      for (let i = 0; i < numberOfDrafts; i++) {
-        const result = await executeChat({
-          providerId: activeProvider.id,
-          messages,
-          temperature: genTemperature + i * 0.15,
-          maxTokens: genMaxTokens,
-          ...(modelId ? { modelId } : {}),
-          // Attribute the usage to the user for the Platform AI monthly
-          // usage tracker (AiLog).
-          userId: auth.user.id,
-        });
-
-        // Apply Editorial Skill Post-Generation Validation & Polish
-        const polished = validateAndPolishContent(result.content, {
-          title,
-          targetLength: wordCount,
-          niche: editorial.blueprint.niche,
-          articleType: editorial.blueprint.articleType,
-        });
-
-        drafts.push({
-          content: polished.content,
-          wordCount: polished.wordCount,
-          qualityReport: polished.qualityReport,
-        });
+    // Run the ONE centralized Article Pipeline
+    const operation = mode === 'regenerate' ? 'regenerate' : mode === 'improve' ? 'improve' : 'generate';
+    const pipelineResult = await runArticlePipeline(
+      operation,
+      {
+        title,
+        brief: brief || undefined,
+        keywords: keywords || undefined,
+        writingStyle,
+        targetLength: wordCount,
+        numberOfDrafts,
+        includeCta,
+        originalArticle,
+        authorName: auth.user.name || undefined,
+        siteId: siteId || undefined,
+        niche,
+        contentType,
+      },
+      {
+        userId: auth.user.id,
+        interactive: true,
       }
-    } else {
-      // ---- Platform SDK fallback (z-ai-web-dev-sdk) ----
-      const { getEffectivePlanIdAsync } = await import('@/lib/platform/entitlements');
-      const { getPlanConfigSync } = await import('@/lib/platform/plan-config');
-      const { planId } = await getEffectivePlanIdAsync(auth.user);
-      const planEnts = planId === 'internal' ? ['ai_platform'] : getPlanConfigSync(planId).entitlements;
-      if (!planEnts.includes('ai_platform') && planId !== 'internal') {
-        return err(
-          "No AI provider connected, and your plan does not include Platform AI. Connect your own AI provider (Client's Own AI API) or upgrade your plan.",
-          403,
-          'FEATURE_NOT_AVAILABLE',
-        );
-      }
-      const ZAI = (await import('z-ai-web-dev-sdk')).default;
-      const zai = await ZAI.create();
-      for (let i = 0; i < numberOfDrafts; i++) {
-        const response = await zai.chat.completions.create({
-          messages,
-          thinking: { type: 'disabled' },
-        });
-        const content = response?.choices?.[0]?.message?.content ?? '';
-        if (!content) {
-          return err('AI generation returned no content. Please try again.', 502, 'AI_ERROR');
-        }
-        await db.aiLog
-          .create({
-            data: {
-              providerId: null,
-              providerName: 'Platform SDK (fallback)',
-              modelId: null,
-              question: userPrompt,
-              response: content,
-              inputTokens: response?.usage?.promptTokens ?? 0,
-              outputTokens: response?.usage?.completionTokens ?? 0,
-              totalTokens:
-                (response?.usage?.promptTokens ?? 0) + (response?.usage?.completionTokens ?? 0),
-              costUsd: 0,
-              durationMs: null,
-              status: 'success',
-              userId: auth.user.id,
-            },
-          })
-          .catch(() => {
-            /* usage logging failure shouldn't mask the result */
-          });
-
-        // Apply Editorial Skill Post-Generation Validation & Polish
-        const polished = validateAndPolishContent(content, {
-          title,
-          targetLength: wordCount,
-          niche: editorial.blueprint.niche,
-          articleType: editorial.blueprint.articleType,
-        });
-
-        drafts.push({
-          content: polished.content,
-          wordCount: polished.wordCount,
-          qualityReport: polished.qualityReport,
-        });
-      }
-    }
+    );
 
     return NextResponse.json({
-      data: { drafts },
+      data: {
+        drafts: pipelineResult.drafts,
+        seo: {
+          seoTitle: pipelineResult.seoFields.seoTitle,
+          metaDescription: pipelineResult.seoFields.seoDescription,
+          seoDescription: pipelineResult.seoFields.seoDescription,
+          slug: pipelineResult.seoFields.slug,
+          focusKeyword: pipelineResult.seoFields.focusKeyword,
+          schemaJsonLd: pipelineResult.seoFields.schemaJsonLd,
+          overallScore: pipelineResult.seoReport.scores.content_score,
+          verdict: pipelineResult.verdict,
+          scores: pipelineResult.seoReport.scores,
+          issues: pipelineResult.seoReport.issues,
+          nextActions: pipelineResult.seoReport.next_actions,
+        },
+        seoReport: pipelineResult.seoReport,
+        editorialReport: pipelineResult.editorialReport,
+        contentBrief: pipelineResult.contentBrief,
+        cannibalization: pipelineResult.cannibalization,
+        verdict: pipelineResult.verdict,
+        warnings: pipelineResult.warnings,
+        quarantined: pipelineResult.quarantined,
+      },
       meta: {
         requestId: id,
         timestamp: new Date().toISOString(),

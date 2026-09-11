@@ -1,0 +1,146 @@
+{
+  "skill": "seo-ranking",
+  "skill_version": "1.0.0",
+  "generated_at": "2025-01-15T10:30:00Z",
+  "article": {
+    "title": "How to Store Fresh Basil So It Lasts for Weeks",
+    "slug": "/how-to-store-fresh-basil",
+    "url": null,
+    "word_count": 983,
+    "primary_keyword": "how to store fresh basil"
+  },
+  "intent": {
+    "primary_intent": "informational",
+    "main_question": "How do I keep fresh basil fresh for more than a few days?",
+    "confidence": "high"
+  },
+  "verdict": "PASS",
+  "sections": {
+    "content": {
+      "checks_run": ["SEO-V01", "SEO-V02", "SEO-V03", "SEO-V04", "SEO-V05", "SEO-V06", "SEO-V07", "SEO-V08", "SEO-V09", "SEO-V10", "SEO-V11", "SEO-V12"],
+      "issue_count": 1
+    },
+    "on_page": {
+      "checks_run": ["SEO-V13", "SEO-V14", "SEO-V15", "SEO-V16", "SEO-V17", "SEO-V18", "SEO-V19", "SEO-V20", "SEO-V21", "SEO-V22", "SEO-V23", "SEO-V24", "SEO-V25", "SEO-V26", "SEO-V27", "SEO-V28", "SEO-V29", "SEO-V30"],
+      "issue_count": 1
+    },
+    "technical": {
+      "status": "NOT_MEASURABLE",
+      "checks_run": [],
+      "issue_count": 0
+    },
+    "ai_search": {
+      "checks_run": ["SEO-V36", "SEO-V37", "SEO-V38", "SEO-V39", "SEO-V40"],
+      "issue_count": 0
+    }
+  },
+  "issues": [
+    {
+      "type": "thin_coverage",
+      "severity": "WARNING",
+      "check": "SEO-V03",
+      "location": "H2 'Freezing Fresh Basil' (single 47-word paragraph)",
+      "problem": "The freezing method is covered in one thin paragraph, while the content brief lists freezing as a required subtopic with expected depth; the article says only that frozen leaves keep 'within a few months' and offers no prep steps, no oil-versus-no-oil guidance, and no notes on using frozen leaves.",
+      "why_it_matters": "Freezing is the long-term option promised in the article's direct answer, so a reader who scrolls straight to that section cannot act on it and will leave to search again — exactly the unmet-need behavior search engines read from engagement. The gap costs Topic Coverage 1.44 of its 12 points.",
+      "recommended_fix": "Expand the section to roughly 100 words: dry the leaves first, then either freeze whole leaves flat on a tray (better for garnishing) or chop them into ice-cube trays covered with olive oil (better for cooked sauces); note that texture is lost but aroma survives, and keep the hedged storage window of a few months at a standard home freezer setting."
+    },
+    {
+      "type": "schema_missing",
+      "severity": "INFO",
+      "check": "SEO-V27",
+      "location": "article structured data (FAQPage opportunity; the existing HowTo JSON-LD is valid and matches the visible steps)",
+      "problem": "The FAQPage schema opportunity is unused: two genuine user questions are already answered under H2 headings ('Why Does Basil Turn Black in the Refrigerator?' and 'Should You Wash Basil Before Storing It?'), but the page ships no FAQPage JSON-LD and no visible FAQ block.",
+      "why_it_matters": "Pairing a visible FAQ block with matching FAQPage JSON-LD would make those two answers eligible for FAQ rich results and would hand AI answer engines cleanly delimited question-answer pairs instead of leaving the answers embedded in body prose. As an INFO-level opportunity it costs Structured Data 0.24 of its 8 points and never blocks publishing.",
+      "recommended_fix": "Only if a visible FAQ block quoting the two questions and their current answers is added to the page, also emit FAQPage JSON-LD with exactly those two Question/Answer pairs; structured data must mirror visible content, so do not mark up questions the page does not visibly answer."
+    }
+  ],
+  "scores": {
+    "content_score": 98,
+    "technical_score": null,
+    "technical_status": "NOT_MEASURABLE",
+    "overall": {
+      "value": 98,
+      "grade": "A",
+      "basis": "content-only"
+    },
+    "content_score_categories": [
+      {
+        "name": "Search Intent Alignment",
+        "weight": 12,
+        "earned": 12.00,
+        "deductions": []
+      },
+      {
+        "name": "Content Quality & E-E-A-T",
+        "weight": 14,
+        "earned": 14.00,
+        "deductions": []
+      },
+      {
+        "name": "Topic Coverage",
+        "weight": 12,
+        "earned": 10.56,
+        "deductions": [
+          {
+            "issue_type": "thin_coverage",
+            "count": 1,
+            "amount": 1.44
+          }
+        ]
+      },
+      {
+        "name": "Information Gain",
+        "weight": 12,
+        "earned": 12.00,
+        "deductions": []
+      },
+      {
+        "name": "On-Page SEO",
+        "weight": 22,
+        "earned": 22.00,
+        "deductions": []
+      },
+      {
+        "name": "Internal Linking",
+        "weight": 8,
+        "earned": 8.00,
+        "deductions": []
+      },
+      {
+        "name": "Image SEO",
+        "weight": 6,
+        "earned": 6.00,
+        "deductions": []
+      },
+      {
+        "name": "Structured Data",
+        "weight": 8,
+        "earned": 7.76,
+        "deductions": [
+          {
+            "issue_type": "schema_missing",
+            "count": 1,
+            "amount": 0.24
+          }
+        ]
+      },
+      {
+        "name": "AI Search Readiness",
+        "weight": 6,
+        "earned": 6.00,
+        "deductions": []
+      }
+    ]
+  },
+  "data_availability": {
+    "serp_data": false,
+    "search_console": false,
+    "cms_inventory": true,
+    "technical_access": false
+  },
+  "next_actions": [
+    "Publish",
+    "Schedule the freezing-section expansion for the next content refresh",
+    "Add FAQPage schema only if a visible FAQ block is added"
+  ]
+}

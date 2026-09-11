@@ -1,0 +1,134 @@
+{
+  "skill": "content-style",
+  "fixtures": [
+    {
+      "file": "pass-recipe.md",
+      "expected_verdict": "PASS",
+      "classification": { "content_type": "recipe", "niche": "food" },
+      "expected_check_results": {
+        "CS-01": "PASS",
+        "CS-02": "PASS",
+        "CS-03": "PASS",
+        "CS-04": "PASS",
+        "CS-05": "PASS",
+        "CS-06": "PASS",
+        "CS-07": "PASS",
+        "CS-08": "PASS",
+        "CS-09": "PASS",
+        "CS-10": "PASS",
+        "CS-11": "PASS",
+        "CS-12": "PASS",
+        "CS-13": "PASS",
+        "CS-14": "PASS",
+        "CS-15": "PASS",
+        "CS-16": "PASS",
+        "CS-17": "PASS",
+        "CS-18": "PASS",
+        "CS-19": "PASS",
+        "CS-20": "PASS",
+        "CS-21": "PASS",
+        "CS-23": "PASS",
+        "CS-24": "PASS",
+        "CS-25": "PASS",
+        "CS-26": "PASS",
+        "CS-27": "PASS",
+        "CS-28": "PASS",
+        "CS-29": "PASS",
+        "CS-30": "PASS"
+      },
+      "rationale": "Healthy compact recipe. Intro delivers specifics (425F/220C, two-ingredient glaze, about 25 minutes) within two sentences; all critical recipe sections (ingredients, instructions) and recommended sections (tips, storage) are present, with FAQ legitimately omitted as optional; single H1, H2-only hierarchy; numbered one-action steps; hedged shelf life; no fabricated nutrition data, testing, or experience. CS-22 is omitted (n/a): no target_word_count is configured for this fixture, and VALIDATION.md requires not-applicable checks to be omitted rather than forced to PASS. Demonstrates that a small complete article passes without padding."
+    },
+    {
+      "file": "warn-thin-howto.md",
+      "expected_verdict": "WARNING",
+      "classification": { "content_type": "how-to", "niche": "home/DIY" },
+      "expected_check_results": {
+        "CS-01": "WARNING",
+        "CS-07": "WARNING",
+        "CS-09": "WARNING",
+        "CS-02": "PASS",
+        "CS-04": "PASS",
+        "CS-05": "PASS",
+        "CS-12": "PASS",
+        "CS-20": "PASS",
+        "CS-23": "PASS",
+        "CS-24": "PASS",
+        "CS-26": "PASS",
+        "CS-27": "PASS"
+      },
+      "rationale": "Three WARNING-level defects and nothing above them. CS-01: intro is on-topic but takes 3+ sentences to reach its first specific element (the one-to-three-month descaling interval arrives in sentence four). CS-07: the recommended Troubleshooting section of the A-1 how-to skeleton is missing, while all critical sections (problem/context intro, requirements, steps) are present, so it stays a WARNING. CS-09: exactly one paragraph ('Why Regular Cleaning Matters') exceeds both the 150-word and 6-sentence limits at roughly 180 words and 8 sentences, a single instance under the 250-word wall. No FAIL anywhere: clean hierarchy, imperative single-action steps, no catalog phrases in opening/closing positions, no fabrication, natural conclusion. CS-22 omitted (n/a): no target_word_count configured."
+    },
+    {
+      "file": "fail-generic-ai-intro.md",
+      "expected_verdict": "FAIL",
+      "classification": { "content_type": "informational", "niche": "productivity" },
+      "expected_check_results": {
+        "CS-02": "FAIL",
+        "CS-19": "FAIL",
+        "CS-26": "FAIL",
+        "CS-01": "WARNING",
+        "CS-15": "WARNING",
+        "CS-18": "WARNING",
+        "CS-04": "PASS",
+        "CS-05": "PASS",
+        "CS-23": "PASS",
+        "CS-24": "PASS"
+      },
+      "rationale": "Generic AI-written article with zero specifics. CS-02 FAIL: 3+ distinct catalog patterns across intro + conclusion ('In today's fast-paced world', 'Whether you're a busy professional or', 'game-changer', 'Let's dive in', 'In conclusion', 'consistency is key') with no specific content around them. CS-19 FAIL: catalog phrases are the article's connective tissue, present in most sections in paragraph-opener positions doing transition work ('When it comes to', 'In the ever-evolving landscape of', 'It's important to note', 'At the end of the day', 'In the realm of', 'revolutionize', 'unlock the potential', 'Harness the power of', 'seamless'). CS-26 FAIL: the conclusion is a catalog closer plus a restated intro that adds nothing. Cascades (not the fixture's primary purpose, verdict unchanged): CS-01 WARNING (on-topic but never specific), CS-18 WARNING (topic supports specifics, article stays vague throughout), CS-15 WARNING ('It's important to note' and 'Whether you're' each repeat 4+ times)."
+    },
+    {
+      "file": "fail-repetition.md",
+      "expected_verdict": "FAIL",
+      "classification": { "content_type": "informational", "niche": "home/DIY" },
+      "expected_check_results": {
+        "CS-14": "FAIL",
+        "CS-15": "FAIL",
+        "CS-02": "PASS",
+        "CS-03": "PASS",
+        "CS-04": "PASS",
+        "CS-05": "PASS",
+        "CS-07": "PASS",
+        "CS-18": "PASS",
+        "CS-23": "PASS",
+        "CS-24": "PASS"
+      },
+      "rationale": "Repetition-driven FAIL. CS-14 FAIL: all five body paragraphs open with the same three-word opener 'When it comes to', passing both FAIL thresholds at once (>=50% of paragraphs and 4+ consecutive). CS-15 FAIL: the identical rhetorical template (claim -> 'Whether you're X or Y' -> 'It's important to note' -> restate) drives 100% of body paragraphs, and the same non-technical 4+ word phrases ('When it comes down to it', 'it's important to note', 'Whether you're') each repeat five times article-wide. The intro and final paragraph deliberately avoid catalog phrasing and the article does contain specifics (finish names, room types), so CS-02 and CS-18 are expected PASS and the failure signal stays on repetition. Acceptable cascades from the same root cause, in either WARNING or FAIL severity without changing the verdict: CS-19 (catalog phrases in opener positions at high density), CS-20 (restatement sentences surviving the delete test), CS-21 (points repeated with synonyms). The contract is the FAIL verdict with CS-14 and CS-15 cited as primary evidence."
+    },
+    {
+      "file": "fail-fabricated-statistics.md",
+      "expected_verdict": "FAIL",
+      "classification": { "content_type": "informational", "niche": "productivity" },
+      "expected_check_results": {
+        "CS-23": "FAIL",
+        "CS-24": "FAIL",
+        "CS-25": "WARNING",
+        "CS-17": "WARNING",
+        "CS-04": "PASS",
+        "CS-05": "PASS",
+        "CS-07": "PASS",
+        "CS-26": "PASS"
+      },
+      "rationale": "Integrity override FAIL; both integrity checks must be cited as evidence. CS-23 FAIL (unconditional): fabricated named study ('a 2024 Stanford study'), precise fabricated statistics ('87.3% of knowledge workers', 'more than two hours per day', '74 times per day' attributed to 'a 2024 Gallup survey'), a fabricated named expert with an invented quote ('Dr. Elena Marshwood, behavioral scientist at the Center for Attention Research'), and fabricated test results ('cut return visits by 62%', '4.8 out of 5'). CS-24 FAIL (unconditional): fabricated firsthand experience ('After testing 40 apps in our lab over six months', 'our testers', 'our lab's participants') with no CMS-supplied author experience. All names and figures are synthetic test data invented for this fixture. Per VALIDATION.md fabrication precedence: CS-17 may additionally be reported against claims that leaned on the fabricated data, and CS-25 against the unhedged precise figures; both are pinned as WARNING here but their absence would not change the verdict, which FAILs unconditionally on CS-23 and CS-24."
+    },
+    {
+      "file": "fail-padding.md",
+      "expected_verdict": "FAIL",
+      "classification": { "content_type": "how-to", "niche": "productivity", "target_word_count": 450 },
+      "expected_check_results": {
+        "CS-20": "FAIL",
+        "CS-21": "FAIL",
+        "CS-22": "FAIL",
+        "CS-01": "WARNING",
+        "CS-02": "WARNING",
+        "CS-19": "WARNING",
+        "CS-27": "WARNING",
+        "CS-04": "PASS",
+        "CS-05": "PASS",
+        "CS-07": "PASS",
+        "CS-23": "PASS",
+        "CS-24": "PASS"
+      },
+      "rationale": "Padding-driven FAIL with the word-count target hit through padding. CS-20 FAIL: filler sentences are well over 10% of the body (topic praise, 'As you can see' restatements, 'Now let's look at' announcements, and 'Whether you are' permission filler in nearly every section). CS-21 FAIL: padding is well over 15% of the body: each of the three core points is stated, restated in different words, and summarized again in the outro; obvious steps are over-explained one micro-action at a time; the intro and outro are inflated. CS-22 FAIL: the body lands at approximately 445 words against the configured target of 450 (in range) while CS-21 FAILs, which is this check's FAIL condition by design. Cascades pinned as WARNING: CS-01 (inflated intro promises value without signaling what it is), CS-02 and CS-19 (a small number of catalog phrases in intro/conclusion positions doing filler work), CS-27 (conclusion restates the body with no next step). No fabricated facts and a clean heading hierarchy keep the failure on filler and padding rather than integrity or structure."
+    }
+  ]
+}

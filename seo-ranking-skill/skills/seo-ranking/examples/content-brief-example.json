@@ -1,0 +1,163 @@
+{
+  "topic": "how to store fresh basil",
+  "intent_summary": {
+    "query": "how to store fresh basil",
+    "primary_intent": "informational",
+    "intent_confidence": "high",
+    "mixed_intent": false,
+    "secondary_intent": null,
+    "user_goal": "Keep a bunch of fresh basil usable for as long as possible after buying or harvesting it",
+    "main_question": "How do I keep fresh basil fresh for more than a few days?",
+    "expected_format": ["how_to"],
+    "journey_stage": "consideration",
+    "important_subtopics": [
+      "room-temperature bunch method",
+      "paper-towel refrigerator method",
+      "freezing basil",
+      "drying basil",
+      "common storage mistakes"
+    ],
+    "structure_recommendation": {
+      "recommended_archetype": "how_to",
+      "rationale": "Procedural 'how to' query with a decisive modifier and a single plausible user goal; answer-first how-to structure per the intent-to-structure mapping"
+    },
+    "data_availability": {
+      "serp_data": false,
+      "notes": "No SERP export provided; intent derived from query-pattern reasoning with a decisive modifier"
+    },
+    "generated_at": "2025-01-15T08:50:00Z"
+  },
+  "primary_keyword": "how to store fresh basil",
+  "secondary_keywords": [
+    "keep basil fresh",
+    "store basil in the fridge",
+    "freeze fresh basil"
+  ],
+  "semantic_entities": [
+    "basil",
+    "Ocimum basilicum",
+    "refrigeration",
+    "freezing"
+  ],
+  "user_questions": [
+    "how long does fresh basil last?",
+    "can you freeze basil?",
+    "should you refrigerate basil?"
+  ],
+  "h1_recommendation": "How to Store Fresh Basil So It Lasts for Weeks",
+  "outline": [
+    {
+      "heading": "Quick Answer: How to Store Fresh Basil",
+      "level": "H2",
+      "purpose": "Direct answer to the main question in the first section: room-temperature bunch for use within days, paper-towel refrigeration for longer storage, with the expected shelf life of each",
+      "required": true
+    },
+    {
+      "heading": "Shelf Life by Method at a Glance",
+      "level": "H3",
+      "purpose": "Comparison table of expected storage duration per method — the article's core information gain; answers 'how long does fresh basil last?' in one scan",
+      "required": true
+    },
+    {
+      "heading": "Method 1: Store Basil at Room Temperature in a Jar of Water",
+      "level": "H2",
+      "purpose": "Trim the stems, stand the bunch in a jar of water on the counter out of direct sun, change the water; includes when NOT to refrigerate",
+      "required": true
+    },
+    {
+      "heading": "Method 2: Refrigerate Basil Wrapped in Paper Towels",
+      "level": "H2",
+      "purpose": "Paper-towel method step by step, and why uncovered refrigeration blackens the leaves",
+      "required": true
+    },
+    {
+      "heading": "Method 3: Freeze Basil",
+      "level": "H2",
+      "purpose": "Required subtopic with short treatment acceptable: whole frozen leaves versus frozen puree in two or three concrete sentences each, plus expected freezer storage life",
+      "required": true
+    },
+    {
+      "heading": "Method 4: Dry Basil for Long-Term Storage",
+      "level": "H2",
+      "purpose": "Brief treatment by design; the internal link to the dedicated herb-drying guide carries the depth",
+      "required": true
+    },
+    {
+      "heading": "Which Storage Method Should You Choose?",
+      "level": "H3",
+      "purpose": "One-line-per-method decision aid for readers who skip the details; cut first if length pressure appears",
+      "required": false
+    },
+    {
+      "heading": "Common Basil Storage Mistakes to Avoid",
+      "level": "H2",
+      "purpose": "Refrigerating an uncovered bunch, storing the leaves wet, skipping the stem trim, treating dried and fresh basil identically in recipes",
+      "required": true
+    }
+  ],
+  "required_subtopics": [
+    "room-temperature bunch method (jar of water on the counter)",
+    "paper-towel refrigerator method",
+    "freezing basil (short treatment acceptable)",
+    "drying basil (brief treatment, link out to the dedicated guide)",
+    "common basil storage mistakes"
+  ],
+  "content_gaps": [],
+  "information_gain_opportunities": [
+    "Shelf-life durations per method (days at room temperature versus refrigerated versus frozen versus dried)",
+    "When NOT to refrigerate basil, and why plain refrigeration blackens the leaves",
+    "Selection-at-store tips: what to look for when buying basil so it stores longer"
+  ],
+  "internal_link_opportunities": [
+    {
+      "target_url": "/growing-basil-indoors",
+      "anchor_suggestion": "growing basil indoors",
+      "reason": "Reader who wants a steady supply beyond storage life; topically adjacent page in the CMS inventory"
+    },
+    {
+      "target_url": "/how-to-dry-herbs",
+      "anchor_suggestion": "how to dry herbs",
+      "reason": "The drying section is deliberately brief; the dedicated drying guide carries the depth"
+    },
+    {
+      "target_url": "/best-herb-garden-kits",
+      "anchor_suggestion": "best herb garden kits",
+      "reason": "Natural closing link for readers who decide stored basil is not enough and want to grow their own"
+    }
+  ],
+  "recommended_media": [
+    {
+      "type": "image",
+      "description": "Featured image: a bunch of fresh basil standing in a jar of water on a kitchen counter",
+      "placement": "Top of the article, above the Quick Answer section",
+      "alt_text_suggestion": "Fresh basil bunch with trimmed stems standing in a jar of water on a kitchen counter"
+    },
+    {
+      "type": "image",
+      "description": "Step image: basil leaves loosely wrapped in a dry paper towel before refrigeration",
+      "placement": "Inside Method 2, next to the paper-towel steps",
+      "alt_text_suggestion": "Fresh basil leaves wrapped in a paper towel, ready for refrigerator storage"
+    }
+  ],
+  "schema_type": "HowTo",
+  "serp_feature_opportunities": [
+    "featured_snippet_steps",
+    "people_also_ask"
+  ],
+  "keyword_metrics": {
+    "search_volume": "UNAVAILABLE",
+    "keyword_difficulty": "UNAVAILABLE",
+    "cpc": "UNAVAILABLE",
+    "competition": "UNAVAILABLE",
+    "ranking": "UNAVAILABLE",
+    "traffic_estimate": "UNAVAILABLE"
+  },
+  "data_availability": {
+    "serp_data": false,
+    "cms_inventory": true,
+    "search_console": false,
+    "notes": "SERP data UNAVAILABLE (no export provided) — content_gaps not derived; brief built from intent and keyword reasoning at reduced confidence. Search Console data UNAVAILABLE. CMS inventory available: three relevant pages used for internal link opportunities. All keyword metrics UNAVAILABLE — no metrics integration provided."
+  },
+  "generated_at": "2025-01-15T09:00:00Z",
+  "brief_version": "1.0"
+}

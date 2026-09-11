@@ -1,0 +1,152 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://seo-ranking-skill.example/schemas/seo-score.schema.json",
+  "title": "SEO Score",
+  "description": "Output contract of the seo-ranking skill's scoring module (module 20, SCORING.md): the SEO Content Score (0-100, always computable, deduction-based across 9 weighted categories) — the article-generation gate; the Technical SEO Score (SITE-LEVEL: in the article-generation pipeline it is always NOT_MEASURABLE with a null value and empty categories, because technical data is never fetched as a side effect of generating an article — it is only MEASURABLE in an explicit maintenance context with real data, owned by the CMS's SEO dashboard); and the Overall SEO Health blend (0-100, A-F grade, explicit basis and formula — 'content-only' basis in the article pipeline). Every deduction references an issue type from the VALIDATION.md registry so lost points trace to real issues; earned values carry two decimals; value fields carry the rounded final integer. Scores rank improvement priorities — they never promise rankings and never override the verdict.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["seo_content_score", "technical_seo_score", "overall_seo_health"],
+  "definitions": {
+    "issue_type": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$",
+      "description": "snake_case issue type from the canonical registry in VALIDATION.md (e.g. thin_coverage, keyword_stuffing, cwv_issue); extend only via SEO-V41+."
+    },
+    "deduction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["issue_type", "count", "amount"],
+      "properties": {
+        "issue_type": { "$ref": "#/definitions/issue_type" },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How many issues of this type were deducted in the category."
+        },
+        "amount": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Total points deducted (two decimals; capped at the category weight; special-case integrity deductions may zero the category)."
+        }
+      }
+    },
+    "score_category": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "weight", "earned", "deductions"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Category name exactly as defined in SCORING.md."
+        },
+        "weight": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Category weight; weights are tunable configuration and must sum to 100 per score."
+        },
+        "earned": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Points kept after deductions (two decimals; 0 <= earned <= weight; integrity overrides can set earned to 0)."
+        },
+        "deductions": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/deduction" },
+          "description": "Every lost point traces to an issue object in the validation report; earned values with no corresponding report issues are audit errors."
+        }
+      }
+    }
+  },
+  "properties": {
+    "seo_content_score": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "categories"],
+      "description": "Score 1 of 3: how strong the page is as search content. Always computable; technical-section issues do not touch it.",
+      "properties": {
+        "value": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Rounded final integer (compute with two decimals, round half up, per SCORING.md)."
+        },
+        "categories": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/definitions/score_category" },
+          "description": "The 9 default categories and weights per SCORING.md: Search Intent Alignment 12, Content Quality & E-E-A-T 14, Topic Coverage 12, Information Gain 12, On-Page SEO 22, Internal Linking 8, Image SEO 6, Structured Data 8, AI Search Readiness 6."
+        }
+      }
+    },
+    "technical_seo_score": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "value", "categories"],
+      "description": "Score 2 of 3: SITE-LEVEL technical soundness — never computed during article generation (NOT_MEASURABLE there); measurable only in explicit maintenance contexts with real crawl/platform data. Status first, number second — technical health is never inferred from correct title/meta/H1.",
+      "properties": {
+        "status": {
+          "enum": ["MEASURABLE", "NOT_MEASURABLE"],
+          "description": "NOT_MEASURABLE without real crawl/platform data — the honest default and the ONLY state in the article-generation pipeline, not a zero and not a pass."
+        },
+        "value": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "maximum": 100,
+          "description": "The score when MEASURABLE, otherwise null."
+        },
+        "categories": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/score_category" },
+          "description": "Empty when NOT_MEASURABLE; when MEASURABLE the 8 default categories per SCORING.md (Crawlability & robots.txt 15, Sitemap & Indexation 20, Canonical & Redirects 15, Duplicate Content 12, Structured Data validity 10, Broken Links 8, Mobile Readiness 10, Core Web Vitals 10 — rescaled to 100 when CWV lacks real data)."
+        }
+      },
+      "if": {
+        "properties": {
+          "status": { "const": "NOT_MEASURABLE" }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": { "type": "null" },
+          "categories": { "maxItems": 0 }
+        }
+      },
+      "else": {
+        "properties": {
+          "value": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "categories": { "minItems": 1 }
+        }
+      }
+    },
+    "overall_seo_health": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "grade", "basis", "formula"],
+      "description": "Score 3 of 3: the blend, with its basis stated. Never overrides the verdict — a 92 with a fabricated statistic is still a FAIL.",
+      "properties": {
+        "value": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "0.7 x content + 0.3 x technical when both are measurable, otherwise the content score. In the article-generation pipeline this is always the content score on a 'content-only' basis."
+        },
+        "grade": {
+          "enum": ["A", "B", "C", "D", "F"],
+          "description": "A >= 90, B 80-89, C 70-79, D 60-69, F < 60."
+        },
+        "basis": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Exactly what the overall number rests on: 'content-only' or the content+technical blend."
+        },
+        "formula": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The arithmetic applied, e.g. 'overall = content (technical NOT_MEASURABLE)' or 'overall = 0.7 x content + 0.3 x technical'."
+        }
+      }
+    }
+  }
+}

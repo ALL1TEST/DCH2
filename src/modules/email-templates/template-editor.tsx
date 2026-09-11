@@ -22,9 +22,6 @@ import {
   Eye,
   Save,
   ChevronRight,
-  ChevronDown,
-  Copy,
-  Check,
   Loader2,
   ArrowLeft,
   Code2,
@@ -34,8 +31,6 @@ import {
   MousePointerClick,
   Replace,
   X,
-  PanelRightClose,
-  PanelRightOpen,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -45,7 +40,6 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Select,
   SelectContent,
@@ -66,11 +60,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useT } from '@/lib/i18n';
 
@@ -509,59 +498,6 @@ function SearchReplaceBar({
 }
 
 // ============================================================
-// Component: Variable Chip
-// ============================================================
-
-function VariableChip({
-  variable,
-  onInsert,
-}: {
-  variable: DynamicVariable;
-  onInsert: (key: string) => void;
-}) {
-  const [copied, setCopied] = useState(false);
-  const tag = `{{${variable.key}}}`;
-  const { t } = useT();
-
-  const handleCopy = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    navigator.clipboard.writeText(tag);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          onClick={() => onInsert(variable.key)}
-          className="group flex w-full items-center justify-between gap-2 rounded-md border border-transparent px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent hover:border-border"
-        >
-          <code className="truncate font-mono text-[11px] text-foreground">
-            {tag}
-          </code>
-          <button
-            type="button"
-            onClick={handleCopy}
-            className="flex-shrink-0 rounded p-0.5 opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100"
-          >
-            {copied ? (
-              <Check className="h-3 w-3 text-emerald-500" />
-            ) : (
-              <Copy className="h-3 w-3 text-muted-foreground" />
-            )}
-          </button>
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="left" className="max-w-xs">
-        {t(variable.descriptionKey)}
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
-// ============================================================
 // Main Component
 // ============================================================
 
@@ -583,7 +519,6 @@ export function TemplateEditor({ templateId, isNew = false, scope = 'client', on
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [originalData, setOriginalData] = useState<{ name: string; subject: string; htmlBody: string; settings: TemplateSettings } | null>(null);
 
   // Refs
@@ -798,7 +733,7 @@ export function TemplateEditor({ templateId, isNew = false, scope = 'client', on
 
   const handleSearch = useCallback(
     (query: string) => {
-      const textarea = textareaRef.current;
+      const textarea = (isFullscreen ? fullscreenTextareaRef.current : textareaRef.current) || textareaRef.current;
       if (!textarea) return;
       const idx = htmlBody.indexOf(query, textarea.selectionEnd);
       if (idx >= 0) {
@@ -812,12 +747,12 @@ export function TemplateEditor({ templateId, isNew = false, scope = 'client', on
         }
       }
     },
-    [htmlBody],
+    [htmlBody, isFullscreen],
   );
 
   const handleReplace = useCallback(
     (query: string, replacement: string) => {
-      const textarea = textareaRef.current;
+      const textarea = (isFullscreen ? fullscreenTextareaRef.current : textareaRef.current) || textareaRef.current;
       if (!textarea) return;
       const start = textarea.selectionStart;
       const selected = htmlBody.substring(start, textarea.selectionEnd);
@@ -834,7 +769,7 @@ export function TemplateEditor({ templateId, isNew = false, scope = 'client', on
         handleSearch(query);
       }
     },
-    [htmlBody, handleSearch],
+    [htmlBody, handleSearch, isFullscreen],
   );
 
   const handleReplaceAll = useCallback(
@@ -940,7 +875,127 @@ export function TemplateEditor({ templateId, isNew = false, scope = 'client', on
     );
   }
 
-  // -------------------- Render --------------------
+  // ---- Editor Toolbar ----
+  const renderToolbar = (isFs: boolean) => (
+    <div className="flex items-center gap-1 border-b px-2 py-1.5 bg-muted/30">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => {
+              const ta = isFs ? fullscreenTextareaRef.current : textareaRef.current;
+              ta?.focus();
+              document.execCommand('undo');
+            }}
+          >
+            <Undo2 className="h-3.5 w-3.5" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{t('emailTemplates.undo')}</TooltipContent>
+      </Tooltip>
+
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => {
+              const ta = isFs ? fullscreenTextareaRef.current : textareaRef.current;
+              ta?.focus();
+              document.execCommand('redo');
+            }}
+          >
+            <Redo2 className="h-3.5 w-3.5" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{t('emailTemplates.redo')}</TooltipContent>
+      </Tooltip>
+
+      <Separator orientation="vertical" className="mx-1 h-5" />
+
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant={showSearch ? 'secondary' : 'ghost'}
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => setShowSearch(!showSearch)}
+          >
+            <Search className="h-3.5 w-3.5" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{t('emailTemplates.searchReplace')}</TooltipContent>
+      </Tooltip>
+
+      <DropdownMenu>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+              >
+                <Variable className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent>{t('emailTemplates.insertVariable')}</TooltipContent>
+        </Tooltip>
+        <DropdownMenuContent align="start" className="w-64 max-h-80 overflow-y-auto">
+          <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground px-2 py-1.5">
+            {t('emailTemplates.insertVariable')}
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {variableGroups.map((group, gIdx) => (
+            <div key={group.labelKey}>
+              {gIdx > 0 && <DropdownMenuSeparator />}
+              <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                {group.icon}
+                <span>{t(group.labelKey)}</span>
+              </div>
+              {group.variables.map((v) => (
+                <DropdownMenuItem
+                  key={v.key}
+                  onClick={() => insertVariable(v.key)}
+                  className="flex items-center justify-between cursor-pointer py-1 px-2 text-xs"
+                >
+                  <code className="font-mono text-[11px] text-primary">{`{{${v.key}}}`}</code>
+                  <span className="text-[10px] text-muted-foreground truncate max-w-[100px]">
+                    {t(v.descriptionKey)}
+                  </span>
+                </DropdownMenuItem>
+              ))}
+            </div>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {!isFs && (
+        <div className="ml-auto flex items-center gap-1">
+          <span className="mr-2 text-[11px] tabular-nums text-muted-foreground">
+            {lineCount} {t('emailTemplates.lines')}
+          </span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => setIsFullscreen(true)}
+              >
+                <Maximize2 className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('emailTemplates.fullscreen')}</TooltipContent>
+          </Tooltip>
+        </div>
+      )}
+    </div>
+  );
 
   const editorContent = (
     <>
@@ -1030,124 +1085,7 @@ export function TemplateEditor({ templateId, isNew = false, scope = 'client', on
       {/* ---- HTML Editor ---- */}
       <div className="flex flex-1 flex-col overflow-hidden rounded-lg border bg-card">
         {/* Toolbar */}
-        <div className="flex items-center gap-1 border-b px-2 py-1.5">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => {
-                  textareaRef.current?.focus();
-                  document.execCommand('undo');
-                }}
-              >
-                <Undo2 className="h-3.5 w-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t('emailTemplates.undo')}</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => {
-                  textareaRef.current?.focus();
-                  document.execCommand('redo');
-                }}
-              >
-                <Redo2 className="h-3.5 w-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t('emailTemplates.redo')}</TooltipContent>
-          </Tooltip>
-
-          <Separator orientation="vertical" className="mx-1 h-5" />
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant={showSearch ? 'secondary' : 'ghost'}
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => setShowSearch(!showSearch)}
-              >
-                <Search className="h-3.5 w-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t('emailTemplates.searchReplace')}</TooltipContent>
-          </Tooltip>
-
-          <DropdownMenu>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                  >
-                    <Variable className="h-3.5 w-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-              </TooltipTrigger>
-              <TooltipContent>{t('emailTemplates.insertVariable')}</TooltipContent>
-            </Tooltip>
-            <DropdownMenuContent align="start" className="w-64 max-h-80 overflow-y-auto">
-              <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground px-2 py-1.5">
-                {t('emailTemplates.insertVariable')}
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {variableGroups.map((group, gIdx) => (
-                <div key={group.labelKey}>
-                  {gIdx > 0 && <DropdownMenuSeparator />}
-                  <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-                    {group.icon}
-                    <span>{t(group.labelKey)}</span>
-                  </div>
-                  {group.variables.map((v) => (
-                    <DropdownMenuItem
-                      key={v.key}
-                      onClick={() => insertVariable(v.key)}
-                      className="flex items-center justify-between cursor-pointer py-1 px-2 text-xs"
-                    >
-                      <code className="font-mono text-[11px] text-primary">{`{{${v.key}}}`}</code>
-                      <span className="text-[10px] text-muted-foreground truncate max-w-[100px]">
-                        {t(v.descriptionKey)}
-                      </span>
-                    </DropdownMenuItem>
-                  ))}
-                </div>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <div className="ml-auto flex items-center gap-1">
-            <span className="mr-2 text-[11px] tabular-nums text-muted-foreground">
-              {lineCount} {t('emailTemplates.lines')}
-            </span>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => setIsFullscreen(!isFullscreen)}
-                >
-                  {isFullscreen ? (
-                    <Minimize2 className="h-3.5 w-3.5" />
-                  ) : (
-                    <Maximize2 className="h-3.5 w-3.5" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{isFullscreen ? t('emailTemplates.exitFullscreen') : t('emailTemplates.fullscreen')}</TooltipContent>
-            </Tooltip>
-          </div>
-        </div>
+        {renderToolbar(false)}
 
         {/* Search/Replace Bar */}
         <AnimatePresence>
@@ -1184,44 +1122,6 @@ export function TemplateEditor({ templateId, isNew = false, scope = 'client', on
         </div>
       </div>
     </>
-  );
-
-  // ---- Sidebar Content ----
-
-  const sidebarContent = (
-    <div className="space-y-1">
-      {/* ====== Dynamic Variables ====== */}
-      <Collapsible defaultOpen>
-        <CollapsibleTrigger className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent">
-          <div className="flex items-center gap-2">
-            <Variable className="h-4 w-4 text-muted-foreground" />
-            {t('emailTemplates.dynamicVariables')}
-          </div>
-          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [[data-state=open]>&]:rotate-0 [[data-state=closed]>&]:-rotate-90" />
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          <div className="max-h-72 overflow-y-auto px-1 pb-2">
-            {variableGroups.map((group) => (
-              <div key={group.labelKey} className="mb-3">
-                <div className="flex items-center gap-1.5 px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  {group.icon}
-                  {t(group.labelKey)}
-                </div>
-                <div className="space-y-0.5">
-                  {group.variables.map((v) => (
-                    <VariableChip
-                      key={v.key}
-                      variable={v}
-                      onInsert={insertVariable}
-                    />
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
-    </div>
   );
 
   return (
@@ -1279,59 +1179,15 @@ export function TemplateEditor({ templateId, isNew = false, scope = 'client', on
             <span className="ml-1.5">{isNew ? t('emailTemplates.createTemplate') : t('common.save')}</span>
           </Button>
 
-          {/* Toggle Sidebar (mobile) */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 lg:hidden"
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-          >
-            {sidebarOpen ? (
-              <PanelRightClose className="h-4 w-4" />
-            ) : (
-              <PanelRightOpen className="h-4 w-4" />
-            )}
-          </Button>
         </div>
       </header>
 
       {/* ====== Main Content ====== */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left Column - Editor */}
+        {/* Full-width Editor */}
         <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-6">
           {editorContent}
         </main>
-
-        {/* Right Sidebar */}
-        <aside
-          className={cn(
-            'flex-shrink-0 border-l bg-card overflow-y-auto transition-all duration-300',
-            'fixed inset-y-0 right-0 z-50 w-80 shadow-xl lg:relative lg:inset-auto lg:z-auto lg:shadow-none',
-            sidebarOpen
-              ? 'translate-x-0'
-              : 'translate-x-full lg:translate-x-0 lg:w-0 lg:border-l-0 lg:overflow-hidden',
-            !sidebarOpen && 'lg:w-0',
-          )}
-        >
-          <ScrollArea className="h-full max-h-screen">
-            <div className="w-80 p-4">
-              {sidebarContent}
-            </div>
-          </ScrollArea>
-        </aside>
-
-        {/* Mobile sidebar backdrop */}
-        <AnimatePresence>
-          {sidebarOpen && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-40 bg-black/50 lg:hidden"
-              onClick={() => setSidebarOpen(false)}
-            />
-          )}
-        </AnimatePresence>
       </div>
 
       {/* ====== Fullscreen Overlay ====== */}
@@ -1367,6 +1223,22 @@ export function TemplateEditor({ templateId, isNew = false, scope = 'client', on
                 </Button>
               </div>
             </div>
+
+            {/* Fullscreen Tools Bar */}
+            {renderToolbar(true)}
+
+            {/* Search/Replace Bar in Fullscreen */}
+            <AnimatePresence>
+              {showSearch && (
+                <SearchReplaceBar
+                  isOpen={showSearch}
+                  onClose={() => setShowSearch(false)}
+                  onSearch={handleSearch}
+                  onReplace={handleReplace}
+                  onReplaceAll={handleReplaceAll}
+                />
+              )}
+            </AnimatePresence>
             {/* Fullscreen Editor */}
             <div className="flex flex-1 overflow-hidden">
               <div className="overflow-hidden bg-zinc-950 dark:bg-zinc-950">

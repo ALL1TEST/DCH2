@@ -17,7 +17,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   XCircle,
-  ArrowLeft,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -35,7 +34,6 @@ import { getApi, postApi } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
 import { useSiteStore } from '@/lib/stores/site-store';
 import { useT } from '@/lib/i18n';
-import { useNavigationStore } from '@/lib/stores/navigation-store';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -175,7 +173,6 @@ function SitemapSkeleton() {
 
 export function SeoSitemapPage() {
   const { t } = useT();
-  const navigate = useNavigationStore((s) => s.navigate);
   const queryClient = useQueryClient();
   const [previewOpen, setPreviewOpen] = useState(false);
   const activeSite = useSiteStore((s) => s.getActiveSite());
@@ -247,10 +244,6 @@ export function SeoSitemapPage() {
 
   return (
     <div className="space-y-6">
-      <Button variant="outline" size="sm" onClick={() => navigate('seo')}>
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        {t('common.back')}
-      </Button>
       {/* Error state */}
       {error && (
         <Card className="border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/20">

@@ -162,7 +162,7 @@ export function AutomationListPage({ showRunsOnly = false }: { showRunsOnly?: bo
                     <p className="text-xs text-muted-foreground mt-1">{t('automation.emptyHint')}</p>
                   </td></tr>
                 ) : automations.map((a: AutomationRow) => (
-                  <tr key={a.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
+                  <tr key={a.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => navigate('automation', a.id, 'details')}>
                     <td className="px-4 py-3">
                       <p className="text-sm font-medium">{a.name}</p>
                       {a.description && <p className="text-xs text-muted-foreground truncate max-w-[200px]">{a.description}</p>}
@@ -180,7 +180,7 @@ export function AutomationListPage({ showRunsOnly = false }: { showRunsOnly?: bo
                     <td className="hidden md:table-cell px-4 py-3 text-xs text-muted-foreground">{a.lastRunAt ? formatRelativeTime(a.lastRunAt) : t('automation.never')}</td>
                     <td className="hidden lg:table-cell px-4 py-3 text-xs text-muted-foreground">{a.nextRunAt ? formatRelativeTime(a.nextRunAt) : '—'}</td>
                     <td className="hidden lg:table-cell px-4 py-3 text-right text-xs text-muted-foreground">{a.totalRuns}</td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-0.5">
                         <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => navigate('automation', a.id, 'details')} title={t('common.view')}><Eye className="h-3.5 w-3.5" /></Button>
                         <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-600 hover:text-emerald-700 dark:text-emerald-400" onClick={() => runMutation.mutate(a.id)} disabled={runMutation.isPending} title={t('automation.runNow')}><Play className="h-3.5 w-3.5" /></Button>

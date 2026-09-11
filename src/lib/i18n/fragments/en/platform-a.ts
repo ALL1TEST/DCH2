@@ -100,6 +100,8 @@ export const platformAEn: Record<string, string> = {
   'platformCustomerDetail.accountStatus': 'Account Status',
   'platformCustomerDetail.created': 'Created',
   'platformCustomerDetail.subscription': 'Subscription',
+  'platformCustomerDetail.subscriptionStatus': 'Subscription Status',
+  'platformCustomerDetail.billing': 'Billing',
   'platformCustomerDetail.billingInterval': 'Billing Interval',
   'platformCustomerDetail.monthly': 'Monthly',
   'platformCustomerDetail.yearly': 'Yearly',

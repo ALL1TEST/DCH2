@@ -109,7 +109,7 @@ export function PlatformCustomerDetailModule() {
         <PlatformKpi label={t('platformCustomerDetail.articles')} value={data.sites.reduce((a, s) => a + s.articles, 0)} sublabel={t('platformCustomerDetail.acrossAllSites')} icon={<FileText className="h-4 w-4" />} color="emerald" />
       </div>
 
-      {/* Account info */}
+      {/* Account + Subscription (merged into one section) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <CardHeader><CardTitle className="text-base">{t('platformCustomerDetail.account')}</CardTitle></CardHeader>
@@ -138,22 +138,26 @@ export function PlatformCustomerDetailModule() {
               <span className="text-muted-foreground">{t('platformCustomerDetail.created')}</span>
               <span className="text-foreground">{formatDate(data.createdAt)}</span>
             </div>
+            <Separator />
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">{t('platformCustomerDetail.subscriptionStatus')}</span>
+              <SubStatusBadge status={data.subscriptionStatus} />
+            </div>
+            {data.trialEnd && (
+              <>
+                <Separator />
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">{t('platformCustomerDetail.trialEnds')}</span>
+                  <span className="text-foreground">{formatDate(data.trialEnd)}</span>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="text-base">{t('platformCustomerDetail.subscription')}</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">{t('platformCustomerDetail.billing')}</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">{t('platformCustomerDetail.plan')}</span>
-              <PlanBadge planId={data.planId} />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">{t('common.status')}</span>
-              <SubStatusBadge status={data.subscriptionStatus} />
-            </div>
-            <Separator />
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">{t('platformCustomerDetail.billingInterval')}</span>
               <span className="text-foreground capitalize">{data.billingInterval === 'yearly' ? t('platformCustomerDetail.yearly') : t('platformCustomerDetail.monthly')}</span>
@@ -168,55 +172,9 @@ export function PlatformCustomerDetailModule() {
               <span className="text-muted-foreground">{t('platformCustomerDetail.nextBilling')}</span>
               <span className="text-foreground">{formatDate(data.nextBillingAt)}</span>
             </div>
-            {data.trialEnd && (
-              <>
-                <Separator />
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">{t('platformCustomerDetail.trialEnds')}</span>
-                  <span className="text-foreground">{formatDate(data.trialEnd)}</span>
-                </div>
-              </>
-            )}
           </CardContent>
         </Card>
       </div>
-
-      {/* Sites */}
-      <Card>
-        <CardHeader><CardTitle className="text-base">{t('platformCustomerDetail.sites')} ({data.sites.length})</CardTitle></CardHeader>
-        <CardContent className="p-4">
-          {data.sites.length === 0 ? (
-            <EmptyState message={t('platformCustomerDetail.noSites')} />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left">
-                    <th className="pb-2 pr-4 font-medium text-xs text-muted-foreground">{t('platformCustomerDetail.site')}</th>
-                    <th className="pb-2 pr-4 font-medium text-xs text-muted-foreground">{t('platformCustomerDetail.domain')}</th>
-                    <th className="pb-2 pr-4 font-medium text-xs text-muted-foreground">{t('common.status')}</th>
-                    <th className="pb-2 pr-4 font-medium text-xs text-muted-foreground text-center">{t('platformCustomerDetail.articles')}</th>
-                    <th className="pb-2 pr-4 font-medium text-xs text-muted-foreground text-center">{t('platformCustomerDetail.media')}</th>
-                    <th className="pb-2 font-medium text-xs text-muted-foreground text-right">{t('platformCustomerDetail.storage')}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {data.sites.map((s) => (
-                    <tr key={s.id} className="hover:bg-accent/30 transition-colors">
-                      <td className="py-2.5 pr-4 font-medium">{s.name}</td>
-                      <td className="py-2.5 pr-4 text-xs text-muted-foreground">{s.domain ?? '—'}</td>
-                      <td className="py-2.5 pr-4"><CustomerStatusBadge status={s.status} /></td>
-                      <td className="py-2.5 pr-4 text-center">{s.articles}</td>
-                      <td className="py-2.5 pr-4 text-center">{s.media}</td>
-                      <td className="py-2.5 text-right text-xs text-muted-foreground whitespace-nowrap">{formatBytes(s.storageBytes)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       {/* Recent payments */}
       <Card>

@@ -10903,3 +10903,68 @@ Stage Summary:
 - Page scrolls naturally when content exceeds the viewport (verified at 1280x720).
 - All editor tools, AI input, sidebar sections, publishing controls intact.
 - Lint clean. HTTP 200.
+
+---
+Task ID: 30
+Agent: main (frontend UI polish pass)
+Task: 8 specific UI/UX fixes — article back button, AI icon alignment, stop button styling, campaign schedule, model capabilities, automation actions, automation width, template form layout.
+
+Work Log:
+1. Article Detail — Back button (content-detail-page.tsx)
+   - Added ArrowLeft import from lucide-react
+   - Added "Back" button (variant="outline", size="sm") next to the "Edit" button in the PageHeader action area
+   - Clicking Back calls navigate('content') → returns to Articles list
+   - Uses the same navigation store mechanism as all other pages
+
+2. Featured Image AI button (content-create-page.tsx)
+   - Added `dark:text-amber-400` to the AI button className for consistent dark mode styling
+   - The button already had the same h-7, text-xs, gap-1.5, flex-1 as Upload/Library
+   - All three buttons share the same flex group with gap-1.5
+
+3. AI generating stop button (content-create-page.tsx + content-edit-page.tsx)
+   - Changed from `bg-blue-600 hover:bg-blue-700` + `Square fill-white` (blue square)
+   - To `bg-amber-500 hover:bg-amber-600` + `Loader2 animate-spin` (amber spinner)
+   - Matches the amber AI visual language used elsewhere (Sparkles icon, amber accents)
+   - The stop/cancel behavior (handleStopAi) is unchanged — only visual styling changed
+   - Applied to both create and edit pages
+
+4. Campaign Schedule (newsletter-page.tsx)
+   - Replaced `border-amber-200 bg-amber-50 dark:border-amber-800/40 dark:bg-amber-900/10 text-amber-700 dark:text-amber-400`
+   - With `border-blue-200 bg-blue-50 dark:border-blue-800/40 dark:bg-blue-900/10 text-blue-700 dark:text-blue-400`
+   - Applied to both schedule info boxes (lines 768 + 1032)
+   - Matches the neutral blue CMS style used for informational alerts
+
+5. Model Capabilities UI (ai/models-page.tsx)
+   - Redesigned the 3 capability options as a clean selectable option group:
+     - Removed per-option colored icon backgrounds (sky/amber/purple) → unified to primary/muted
+     - Changed border-2 rounded-lg with primary/muted states for clear selected/unselected
+     - Added radio-button style indicators (h-4 w-4 rounded-full border-2) on the right
+     - Uniform icon container (h-8 w-8 rounded-lg) with consistent bg/text colors
+     - Removed the outer `p-3 rounded-lg border bg-muted/20` container — cleaner, less noise
+   - Capability values and behavior unchanged (TEXT_GENERATION / IMAGE_GENERATION / both)
+   - Guardrail message styled with muted/neutral instead of amber
+
+6. Automation list actions (automation-list-page.tsx)
+   - View: `Eye` icon, muted-foreground color → opens details page
+   - Run: `Play` icon, emerald-600 color → runs automation (does NOT open details)
+   - Pause/Activate: `Pause`/`CirclePlay` icon, amber-600 color → toggles status (does NOT open details)
+   - Each action has distinct color (muted/emerald/amber) for visual hierarchy
+   - Added CirclePlay import for the "activate" state (was using Play for both run and activate)
+   - Delete: `Trash2` icon, destructive color (unchanged)
+
+7. Automation detail width (automation-details-page.tsx)
+   - Removed `max-w-4xl` constraint from the main container
+   - Content now uses the full available width, matching AI pages
+
+8. Create Template form layout (email-templates/template-editor.tsx)
+   - Row 1: Template Name | Subject — side by side in a `grid grid-cols-1 sm:grid-cols-2 gap-4`
+   - Row 2: Category | Status — already in a grid (unchanged)
+   - Subject preview moved to full width below Row 1
+   - Responsive: stacks on smaller screens (sm:grid-cols-2 → grid-cols-1)
+
+VERIFICATION:
+- ESLint: 0 new errors. Pre-existing errors (1 error in content-create-page line 335, 2 react-hook-form warnings) verified unchanged via git stash comparison.
+- Dev server: HTTP 200, all pages compile without errors.
+- No backend/API/database/AI logic modified.
+
+CONFIRM: Content Style Skill, SEO Ranking Skill, and article-generation logic were NOT modified.

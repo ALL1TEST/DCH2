@@ -765,7 +765,7 @@ export function NewsletterPage() {
                         {t('newsletter.loadingTemplates')}
                       </div>
                     ) : emailTemplates.length === 0 ? (
-                      <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800/40 dark:bg-amber-900/10 px-3 py-2.5 text-sm text-amber-700 dark:text-amber-400">
+                      <div className="rounded-md border border-blue-200 bg-blue-50 dark:border-blue-800/40 dark:bg-blue-900/10 px-3 py-2.5 text-sm text-blue-700 dark:text-blue-400">
                         {t('newsletter.noTemplatesHint')}
                       </div>
                     ) : (
@@ -1029,7 +1029,7 @@ export function NewsletterPage() {
                   {t('newsletter.loadingTemplates')}
                 </div>
               ) : emailTemplates.length === 0 ? (
-                <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800/40 dark:bg-amber-900/10 px-3 py-2.5 text-sm text-amber-700 dark:text-amber-400">
+                <div className="rounded-md border border-blue-200 bg-blue-50 dark:border-blue-800/40 dark:bg-blue-900/10 px-3 py-2.5 text-sm text-blue-700 dark:text-blue-400">
                   {t('newsletter.noTemplates')}
                 </div>
               ) : (

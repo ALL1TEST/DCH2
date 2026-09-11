@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Zap, Plus, Play, Pause, Copy, Trash2, Eye, Loader2, CheckCircle2, XCircle, Clock, Activity } from 'lucide-react';
+import { Zap, Plus, Play, Pause, Copy, Trash2, Eye, Loader2, CheckCircle2, XCircle, Clock, Activity, CirclePlay } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -182,10 +182,10 @@ export function AutomationListPage({ showRunsOnly = false }: { showRunsOnly?: bo
                     <td className="hidden lg:table-cell px-4 py-3 text-right text-xs text-muted-foreground">{a.totalRuns}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-0.5">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate('automation', a.id, 'details')} title={t('common.view')}><Eye className="h-3.5 w-3.5" /></Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => runMutation.mutate(a.id)} disabled={runMutation.isPending} title={t('automation.runNow')}><Play className="h-3.5 w-3.5" /></Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => toggleMutation.mutate({ id: a.id, status: a.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE' })} title={a.status === 'ACTIVE' ? t('automation.pause') : t('automation.activate')}>
-                          {a.status === 'ACTIVE' ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => navigate('automation', a.id, 'details')} title={t('common.view')}><Eye className="h-3.5 w-3.5" /></Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-600 hover:text-emerald-700 dark:text-emerald-400" onClick={() => runMutation.mutate(a.id)} disabled={runMutation.isPending} title={t('automation.runNow')}><Play className="h-3.5 w-3.5" /></Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-600 hover:text-amber-700 dark:text-amber-400" onClick={() => toggleMutation.mutate({ id: a.id, status: a.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE' })} title={a.status === 'ACTIVE' ? t('automation.pause') : t('automation.activate')}>
+                          {a.status === 'ACTIVE' ? <Pause className="h-3.5 w-3.5" /> : <CirclePlay className="h-3.5 w-3.5" />}
                         </Button>
                         <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteTarget(a)} title={t('common.delete')}><Trash2 className="h-3.5 w-3.5" /></Button>
                       </div>

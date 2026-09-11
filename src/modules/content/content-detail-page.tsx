@@ -8,6 +8,7 @@ import {
   FolderOpen,
   Tag,
   Search,
+  ArrowLeft,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -136,10 +137,16 @@ export function ContentDetailPage({ contentId }: { contentId: string }) {
         title={content.title}
         breadcrumbs={false}
         action={
-          <Button size="sm" onClick={goEdit}>
-            <Pencil className="h-4 w-4 mr-2" />
-            {t('common.edit')}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate('content')}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              {t('common.back')}
+            </Button>
+            <Button size="sm" onClick={goEdit}>
+              <Pencil className="h-4 w-4 mr-2" />
+              {t('common.edit')}
+            </Button>
+          </div>
         }
       />
 

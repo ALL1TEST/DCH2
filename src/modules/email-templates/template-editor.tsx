@@ -999,45 +999,48 @@ export function TemplateEditor({ templateId, isNew = false, scope = 'client', on
 
   const editorContent = (
     <>
-      {/* ---- Template Name Field (shown in both create and edit mode) ---- */}
-      <div className="space-y-1.5">
-        <Label htmlFor="template-name" className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-          {t('emailTemplates.templateName')} <span className="text-red-500">*</span>
-        </Label>
-        <Input
-          id="template-name"
-          value={templateName}
-          onChange={(e) => setTemplateName(e.target.value)}
-          placeholder={t('emailTemplates.templateNamePlaceholder')}
-          className="h-10 text-sm"
-          autoFocus={isNew}
-        />
+      {/* ---- Row 1: Template Name | Subject (side by side) ---- */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="template-name" className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            {t('emailTemplates.templateName')} <span className="text-red-500">*</span>
+          </Label>
+          <Input
+            id="template-name"
+            value={templateName}
+            onChange={(e) => setTemplateName(e.target.value)}
+            placeholder={t('emailTemplates.templateNamePlaceholder')}
+            className="h-10 text-sm"
+            autoFocus={isNew}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="template-subject" className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            {t('emailTemplates.subjectLabel')} <span className="text-red-500">*</span>
+          </Label>
+          <Input
+            id="template-subject"
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            placeholder={t('emailTemplates.subjectPlaceholder')}
+            className="h-10 text-sm"
+          />
+        </div>
       </div>
 
-      {/* ---- Subject Field ---- */}
-      <div className="space-y-1.5">
-        <Label htmlFor="template-subject" className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-          {t('emailTemplates.subjectLabel')} <span className="text-red-500">*</span>
-        </Label>
-        <Input
-          id="template-subject"
-          value={subject}
-          onChange={(e) => setSubject(e.target.value)}
-          placeholder={t('emailTemplates.subjectPlaceholder')}
-          className="h-10 text-sm"
-        />
-        {subject && (
-          <p className="text-xs text-muted-foreground truncate">
-            {t('emailTemplates.previewPrefix')} {subject.replace(/\{\{[^}]+\}\}/g, (match) => {
-              const key = match.replace(/\{\{|\}\}/g, '');
-              const found = getVariableGroups(scope).flatMap((g) => g.variables).find((v) => v.key === key);
-              return found ? `[${t(found.descriptionKey)}]` : match;
-            })}
-          </p>
-        )}
-      </div>
+      {/* Subject preview (full width) */}
+      {subject && (
+        <p className="text-xs text-muted-foreground truncate">
+          {t('emailTemplates.previewPrefix')} {subject.replace(/\{\{[^}]+\}\}/g, (match) => {
+            const key = match.replace(/\{\{|\}\}/g, '');
+            const found = getVariableGroups(scope).flatMap((g) => g.variables).find((v) => v.key === key);
+            return found ? `[${t(found.descriptionKey)}]` : match;
+          })}
+        </p>
+      )}
 
-      {/* ---- Category + Status Row ---- */}
+      {/* ---- Row 2: Category | Status (already in grid) ---- */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">

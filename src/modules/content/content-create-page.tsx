@@ -1071,14 +1071,14 @@ export function ContentCreatePage() {
                     }}
                     className={
                       isAiGenerating
-                        ? 'size-7 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center shrink-0 shadow-sm transition-all active:scale-95'
+                        ? 'size-7 rounded-full bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center shrink-0 transition-all active:scale-95'
                         : 'size-7 rounded-full flex items-center justify-center shrink-0 transition-all text-muted-foreground hover:text-foreground'
                     }
                     title={isAiGenerating ? t('articles.stopGeneration') : t('articles.sendToAi')}
                     aria-label={isAiGenerating ? t('articles.stopGeneration') : t('articles.sendToAi')}
                   >
                     {isAiGenerating ? (
-                      <Square className="size-3 fill-white text-white" />
+                      <Loader2 className="size-3.5 animate-spin" />
                     ) : (
                       <Send className="size-3.5" />
                     )}
@@ -1142,7 +1142,7 @@ export function ContentCreatePage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="flex-1 h-7 text-xs gap-1.5 border-amber-400/30 text-amber-600 hover:bg-amber-400/10"
+                          className="flex-1 h-7 text-xs gap-1.5 border-amber-400/30 text-amber-600 hover:bg-amber-400/10 dark:text-amber-400"
                           onClick={() => setAiAssistOpen(true)}
                           disabled={!aiToolsEnabled}
                           title={aiToolsEnabled ? t('articles.aiAssistantTitle') : t('articles.aiPlatformNotIncluded')}

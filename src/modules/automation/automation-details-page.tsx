@@ -102,7 +102,7 @@ export function AutomationDetailsPage({ automationId }: { automationId: string }
   const avgDuration = automation.runs.length > 0 ? Math.round(automation.runs.reduce((sum, r) => sum + (r.durationMs || 0), 0) / automation.runs.length / 1000) : '—';
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate('automation')}><ArrowLeft className="h-4 w-4" /></Button>

@@ -524,26 +524,24 @@ export function ModelsPage() {
                     <span className="text-xs text-muted-foreground">Select what this model can do</span>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-2 p-3 rounded-lg border bg-muted/20">
+                  <div className="grid grid-cols-1 gap-2">
                     {/* Option 1: Text Generation Only */}
                     <div
                       onClick={() => setFormData((p) => ({ ...p, capabilities: ['TEXT_GENERATION'] }))}
-                      className={`flex items-start gap-3 p-2.5 rounded-md border transition-colors cursor-pointer ${
+                      className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all cursor-pointer ${
                         isTextOnly
-                          ? 'border-primary bg-primary/5 text-foreground shadow-xs'
-                          : 'border-transparent bg-background/60 hover:bg-background/90 text-muted-foreground'
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border hover:border-primary/30 hover:bg-muted/50'
                       }`}
                     >
-                      <div className="mt-0.5 rounded p-1 bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-400">
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${isTextOnly ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground'}`}>
                         <FileText className="h-4 w-4" />
                       </div>
                       <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-semibold text-foreground">{t('ai.textType')} Only</span>
-                          <span className={`h-2 w-2 rounded-full ${isTextOnly ? 'bg-primary' : 'bg-transparent'}`} />
-                        </div>
-                        <p className="text-xs text-muted-foreground">Articles, chat, prompts, and content generation.</p>
+                        <span className="text-sm font-medium">{t('ai.textType')} Only</span>
+                        <p className="text-xs text-muted-foreground mt-0.5">Articles, chat, prompts, and content generation.</p>
                       </div>
+                      <span className={`h-4 w-4 rounded-full border-2 transition-colors shrink-0 ${isTextOnly ? 'border-primary bg-primary' : 'border-muted-foreground/30'}`} />
                     </div>
 
                     {/* Option 2: Image Generation Only */}
@@ -552,24 +550,22 @@ export function ModelsPage() {
                         if (imageDisabled) return;
                         setFormData((p) => ({ ...p, capabilities: ['IMAGE_GENERATION'] }));
                       }}
-                      className={`flex items-start gap-3 p-2.5 rounded-md border transition-colors ${
+                      className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
                         imageDisabled
-                          ? 'opacity-40 cursor-not-allowed border-transparent bg-background/30'
+                          ? 'opacity-40 cursor-not-allowed border-border bg-muted/30'
                           : isImageOnly
-                          ? 'border-amber-500 bg-amber-500/10 text-foreground cursor-pointer shadow-xs'
-                          : 'border-transparent bg-background/60 hover:bg-background/90 text-muted-foreground cursor-pointer'
+                          ? 'border-primary bg-primary/5 cursor-pointer'
+                          : 'border-border hover:border-primary/30 hover:bg-muted/50 cursor-pointer'
                       }`}
                     >
-                      <div className="mt-0.5 rounded p-1 bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400">
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${isImageOnly ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground'}`}>
                         <ImageIcon className="h-4 w-4" />
                       </div>
                       <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-semibold text-foreground">{t('ai.imageType')} Only</span>
-                          <span className={`h-2 w-2 rounded-full ${isImageOnly ? 'bg-amber-500' : 'bg-transparent'}`} />
-                        </div>
-                        <p className="text-xs text-muted-foreground">Image generator models (e.g. DALL-E, Imagen, Flux).</p>
+                        <span className="text-sm font-medium">{t('ai.imageType')} Only</span>
+                        <p className="text-xs text-muted-foreground mt-0.5">Image generator models (e.g. DALL-E, Imagen, Flux).</p>
                       </div>
+                      <span className={`h-4 w-4 rounded-full border-2 transition-colors shrink-0 ${isImageOnly ? 'border-primary bg-primary' : 'border-muted-foreground/30'}`} />
                     </div>
 
                     {/* Option 3: Both Text & Image Generation */}
@@ -578,30 +574,28 @@ export function ModelsPage() {
                         if (imageDisabled) return;
                         setFormData((p) => ({ ...p, capabilities: ['TEXT_GENERATION', 'IMAGE_GENERATION'] }));
                       }}
-                      className={`flex items-start gap-3 p-2.5 rounded-md border transition-colors ${
+                      className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
                         imageDisabled
-                          ? 'opacity-40 cursor-not-allowed border-transparent bg-background/30'
+                          ? 'opacity-40 cursor-not-allowed border-border bg-muted/30'
                           : isBoth
-                          ? 'border-purple-500 bg-purple-500/10 text-foreground cursor-pointer shadow-xs'
-                          : 'border-transparent bg-background/60 hover:bg-background/90 text-muted-foreground cursor-pointer'
+                          ? 'border-primary bg-primary/5 cursor-pointer'
+                          : 'border-border hover:border-primary/30 hover:bg-muted/50 cursor-pointer'
                       }`}
                     >
-                      <div className="mt-0.5 rounded p-1 bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-400">
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${isBoth ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground'}`}>
                         <Sparkles className="h-4 w-4" />
                       </div>
                       <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-semibold text-foreground">Both Text & Image Generation</span>
-                          <span className={`h-2 w-2 rounded-full ${isBoth ? 'bg-purple-500' : 'bg-transparent'}`} />
-                        </div>
-                        <p className="text-xs text-muted-foreground">Unified model that supports both articles and images.</p>
+                        <span className="text-sm font-medium">Both Text & Image Generation</span>
+                        <p className="text-xs text-muted-foreground mt-0.5">Unified model that supports both articles and images.</p>
                       </div>
+                      <span className={`h-4 w-4 rounded-full border-2 transition-colors shrink-0 ${isBoth ? 'border-primary bg-primary' : 'border-muted-foreground/30'}`} />
                     </div>
 
                     {/* Explanatory guardrail message when image is disabled */}
                     {imageDisabled && (
-                      <div className="flex items-start gap-2 p-2.5 rounded-md bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-300 mt-1">
-                        <AlertCircle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                      <div className="flex items-start gap-2 p-2.5 rounded-md bg-muted/50 border border-border text-xs text-muted-foreground mt-1">
+                        <AlertCircle className="h-4 w-4 shrink-0 text-muted-foreground mt-0.5" />
                         <div>
                           <span className="font-semibold">Image generation disabled: </span>
                           {modelForbidden.forbidden

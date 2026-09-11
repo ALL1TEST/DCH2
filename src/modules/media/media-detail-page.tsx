@@ -336,6 +336,40 @@ export function MediaDetailPage({ mediaId }: { mediaId: string }) {
             <Button variant="outline" size="sm" onClick={handleCopyUrl}><Copy className="h-4 w-4 mr-2" />{t('media.copyUrl')}</Button>
             <Button variant="outline" size="sm" asChild><a href={media.url} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4 mr-2" />{t('media.openInNewTab')}</a></Button>
           </div>
+
+          {/* Quick Media Info — fills the empty space below the image
+              with a compact, useful summary of the file's properties.
+              Uses the same card style as the rest of the CMS. */}
+          <div className="rounded-lg border bg-card p-4 space-y-3">
+            <h3 className="text-sm font-semibold">{t('media.details')}</h3>
+            <Separator />
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+              <div>
+                <p className="text-xs text-muted-foreground">{t('media.filename')}</p>
+                <p className="text-sm font-medium truncate" title={media.originalName}>{media.originalName}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">{t('media.type')}</p>
+                <p className="text-sm font-medium">{getMimeCategory(media.mimeType)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">{t('media.size')}</p>
+                <p className="text-sm font-medium">{formatFileSize(media.size)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">{t('media.dimensions')}</p>
+                <p className="text-sm font-medium">{media.width && media.height ? `${media.width} × ${media.height}px` : t('media.notApplicable')}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">{t('media.uploadDate')}</p>
+                <p className="text-sm font-medium">{formatDate(media.createdAt)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">{t('media.folder')}</p>
+                <p className="text-sm font-medium">{media.folder?.name || t('media.noFolder')}</p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* ==================== Sidebar ==================== */}

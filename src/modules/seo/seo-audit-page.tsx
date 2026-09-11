@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  ClipboardCheck, Loader2, CheckCircle2, RotateCcw, ExternalLink,
+  ClipboardCheck, Loader2, CheckCircle2, RotateCcw, ExternalLink, ArrowLeft,
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import type { PaginatedResponse } from '@/shared/types';
 import { DEFAULT_PAGE_SIZE } from '@/shared/constants';
 import { useT } from '@/lib/i18n';
+import { useNavigationStore } from '@/lib/stores/navigation-store';
 
 // -------------------- Types --------------------
 
@@ -147,6 +148,7 @@ function UrlCell({ url }: { url: string }) {
 
 export function SeoAuditPage() {
   const { t } = useT();
+  const navigate = useNavigationStore((s) => s.navigate);
   const queryClient = useQueryClient();
   const [severityFilter, setSeverityFilter] = useState<string>('all');
   const [showResolved, setShowResolved] = useState(false);
@@ -409,6 +411,10 @@ export function SeoAuditPage() {
 
   return (
     <div className="space-y-4">
+      <Button variant="outline" size="sm" onClick={() => navigate('seo')}>
+        <ArrowLeft className="h-4 w-4 mr-2" />
+        {t('common.back')}
+      </Button>
       <PageHeader
         title={t('seo.auditTitle')}
         description={t('seo.auditDescription')}

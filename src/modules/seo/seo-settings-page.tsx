@@ -2,9 +2,11 @@
 
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { FileText, Shield, GitBranch } from 'lucide-react';
+import { FileText, Shield, GitBranch, ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n';
+import { useNavigationStore } from '@/lib/stores/navigation-store';
+import { Button } from '@/components/ui/button';
 import { getApi } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
 import { SeoSitemapPage } from './seo-sitemap-page';
@@ -39,6 +41,7 @@ interface RedirectCountResponse {
 export function SeoSettingsPage({ initialTab = 'sitemap' }: { initialTab?: SettingsTab }) {
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const { t } = useT();
+  const navigate = useNavigationStore((s) => s.navigate);
   const meta = TAB_META[activeTab];
 
   // Lightweight redirect count for the Redirects tab badge. Shares the
@@ -57,6 +60,10 @@ export function SeoSettingsPage({ initialTab = 'sitemap' }: { initialTab?: Setti
 
   return (
     <div className="space-y-6">
+      <Button variant="outline" size="sm" onClick={() => navigate('seo')}>
+        <ArrowLeft className="h-4 w-4 mr-2" />
+        {t('common.back')}
+      </Button>
       {/* Single dynamic page title — no duplicate "SEO Settings" heading */}
       <div>
         <h1 className="text-xl font-bold tracking-tight text-foreground">{t(meta.titleKey)}</h1>

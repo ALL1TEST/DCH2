@@ -23,6 +23,7 @@ import {
   ChevronUp,
   ChevronDown,
   ExternalLink,
+  ArrowLeft,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -50,6 +51,7 @@ import { getApi, postApi, patchApi, deleteApi } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
 import { useChartTheme } from '@/lib/chart-theme';
 import { useT } from '@/lib/i18n';
+import { useNavigationStore } from '@/lib/stores/navigation-store';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import {
@@ -644,6 +646,7 @@ export function SeoSearchConsolePage() {
 
 function SeoSearchConsolePageInner() {
   const { t } = useT();
+  const navigate = useNavigationStore((s) => s.navigate);
   const queryClient = useQueryClient();
   const [connectUrl, setConnectUrl] = useState('');
   // Performance Chart date range. `rangePreset` is one of the preset day
@@ -772,6 +775,10 @@ function SeoSearchConsolePageInner() {
 
   return (
     <div className="space-y-6">
+      <Button variant="outline" size="sm" onClick={() => navigate('seo')}>
+        <ArrowLeft className="h-4 w-4 mr-2" />
+        {t('common.back')}
+      </Button>
       <PageHeader
         title={t('seo.searchConsole')}
         description={t('seo.scDescription')}

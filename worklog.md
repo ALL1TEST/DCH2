@@ -11050,3 +11050,26 @@ VERIFICATION:
 - ESLint: EXIT 0 (0 errors, 0 warnings on this file).
 - Dev server: HTTP 200.
 - No backend/API/database/routing/SEO Skills modified.
+
+---
+Task ID: 34
+Agent: main (SEO pages Back button)
+Task: Add "Back" button to Sitemap, SEO Audit, Search Console, and SEO Settings pages. Button returns to SEO Overview via client-side navigation.
+
+Files modified (4):
+1. src/modules/seo/seo-sitemap-page.tsx — Added ArrowLeft import, useNavigationStore import, navigate hook, Back button before the page content.
+2. src/modules/seo/seo-audit-page.tsx — Same: ArrowLeft + useNavigationStore + navigate + Back button before PageHeader.
+3. src/modules/seo/seo-search-console-page.tsx — Same: ArrowLeft + useNavigationStore + navigate + Back button before PageHeader.
+4. src/modules/seo/seo-settings-page.tsx — Same: ArrowLeft + useNavigationStore + navigate + Button import + Back button before the page title.
+
+All 4 Back buttons:
+- variant="outline" size="sm" — matches the existing Back button style in content-detail-page.tsx
+- ArrowLeft icon (h-4 w-4 mr-2) — same icon/size as content-detail-page
+- Label: t('common.back') — i18n, same key as content-detail-page
+- onClick: navigate('seo') — client-side navigation to SEO Overview, no page reload
+- Positioned at the top of the page content, before the title/PageHeader
+
+VERIFICATION:
+- ESLint: EXIT 0 (0 errors, 0 warnings on all 4 files).
+- Dev server: HTTP 200.
+- No backend/API/database/routing/SEO Skills modified.

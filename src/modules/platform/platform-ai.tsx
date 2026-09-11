@@ -51,27 +51,29 @@ import React, { useEffect } from 'react';
 import { useNavigationStore } from '@/lib/stores/navigation-store';
 import { ProvidersPage } from '@/modules/ai/providers-page';
 import { ModelsPage } from '@/modules/ai/models-page';
+import { PromptsPage } from '@/modules/ai/prompts-page';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Server,
   Boxes,
+  MessageSquare,
 } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 
-// Simplified AI section — only features relevant to a blogging CMS.
-// Removed: Playground, Jobs, Logs, Marketplace, Usage, Settings.
-// No Prompt Library tab — it is not exposed in the Platform Admin dashboard.
+// AI section tabs — Providers, Models, Prompt Library.
+// Prompt Library reuses the exact same PromptsPage component as the
+// CMS Admin → AI page. Both dashboards share the same /api/ai/prompts
+// backend, so prompts created/edited from either side stay synchronized.
 const AI_SUB_PAGES = [
   { value: 'providers', label: 'Providers', icon: Server },
   { value: 'models', label: 'Models', icon: Boxes },
+  { value: 'prompts', label: 'Prompt Library', icon: MessageSquare },
 ] as const;
 
 type AiSubPage = (typeof AI_SUB_PAGES)[number]['value'];
 
 // Sub-pages that no longer have their own tab — redirect to Providers.
-// 'prompts', 'settings' and legacy pages all fall back.
 const LEGACY_REDIRECT: Record<string, AiSubPage> = {
-  prompts: 'providers',
   playground: 'providers',
   jobs: 'providers',
   logs: 'providers',
@@ -92,6 +94,8 @@ export function PlatformAiModule() {
         return t('platformAi.providers');
       case 'models':
         return t('platformAi.models');
+      case 'prompts':
+        return t('ai.promptLibrary');
     }
   };
 
@@ -141,6 +145,9 @@ export function PlatformAiModule() {
         </TabsContent>
         <TabsContent value="models">
           <ModelsPage />
+        </TabsContent>
+        <TabsContent value="prompts">
+          <PromptsPage />
         </TabsContent>
       </Tabs>
     </div>

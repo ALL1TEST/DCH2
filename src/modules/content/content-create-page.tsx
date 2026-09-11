@@ -1142,7 +1142,7 @@ export function ContentCreatePage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="flex-1 h-7 text-xs gap-1.5 border-amber-400/30 text-amber-600 hover:bg-amber-400/10 dark:text-amber-400"
+                          className="flex-1 h-7 text-xs gap-1.5 border-amber-400/30 text-amber-600 hover:bg-amber-400/10 dark:text-amber-400 dark:border-amber-400/30 dark:hover:bg-amber-400/10"
                           onClick={() => setAiAssistOpen(true)}
                           disabled={!aiToolsEnabled}
                           title={aiToolsEnabled ? t('articles.aiAssistantTitle') : t('articles.aiPlatformNotIncluded')}

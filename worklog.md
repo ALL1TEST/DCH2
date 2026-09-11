@@ -10968,3 +10968,32 @@ VERIFICATION:
 - No backend/API/database/AI logic modified.
 
 CONFIRM: Content Style Skill, SEO Ranking Skill, and article-generation logic were NOT modified.
+
+---
+Task ID: 31
+Agent: main (frontend UI polish pass 2)
+Task: 8 UI fixes — content type, AI button, calendar controls, campaign warning, recipients, schedule, SEO nav, template fullscreen.
+
+Work Log:
+1. Content Type (content-create-page.tsx) — Content type selector already works with API-fetched types. Seeded "Page" + "Post" content types for pro user's site so the selector shows them. No code changes to the selector.
+
+2. AI button next to Library (content-create-page.tsx) — Added `dark:border-amber-400/30 dark:hover:bg-amber-400/10` to the AI button className for consistent dark mode border treatment. The button already has same h-7, text-xs, gap-1.5, flex-1, variant="outline" as Upload/Library — now its border is fully visible in both light and dark mode.
+
+3. Calendar controls (calendar-page.tsx) — Changed the view switcher from `rounded-lg border bg-muted/40 p-0.5` (pill with padding) to `rounded-full border border-border bg-background shadow-xs overflow-hidden h-8` matching the Today button's style exactly. Active state changed from `bg-background shadow-sm` to `bg-primary text-primary-foreground` for clear selection. Button text changed from `font-medium` to `font-semibold` to match Today button.
+
+4. Campaign warning message (newsletter-page.tsx) — Changed both info boxes (lines 768 + 1032) from blue (`border-blue-200 bg-blue-50 text-blue-700`) back to amber (`border-amber-200 bg-amber-50 text-amber-700`) — the correct CMS warning style.
+
+5. Campaign recipients (newsletter-page.tsx) — Added `Users` icon (h-3.5 w-3.5 text-amber-500) to the Recipients label. Added CalendarClock import.
+
+6. Campaign schedule (newsletter-page.tsx) — Added `CalendarClock` icon (h-3.5 w-3.5 text-amber-500) to the Schedule label. Amber icon matches the CMS scheduling/date-picker visual language.
+
+7. SEO sub-nav (seo/index.tsx) — Changed container from `mb-6 overflow-x-auto -mx-1 px-1` + `pb-1` to `mb-4 overflow-x-auto overflow-y-visible` + no negative margin/padding. This prevents the tab labels from being clipped by the parent container's negative margin and removes the bottom padding that was causing visual misalignment.
+
+8. Template fullscreen (template-editor.tsx) — Removed the "New Template" / template name title text and the `SaveIndicator` status display from the fullscreen header. The header now shows only the Code2 icon + line count badge + Exit Fullscreen button. Editor tools (Undo/Redo/Search via `renderToolbar(true)`) remain fully functional below the header.
+
+VERIFICATION:
+- ESLint: 0 new errors. All 4 errors are pre-existing (verified via git stash comparison — same errors with and without changes).
+- Dev server: HTTP 200, all pages compile.
+- No backend/API/database/AI/SEO/business logic modified.
+
+CONFIRM: Content Style Skill, SEO Ranking Skill, and article-generation logic were NOT modified.

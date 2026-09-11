@@ -14,6 +14,7 @@ import {
   Eye,
   RotateCcw,
   Ban,
+  CalendarClock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -765,7 +766,7 @@ export function NewsletterPage() {
                         {t('newsletter.loadingTemplates')}
                       </div>
                     ) : emailTemplates.length === 0 ? (
-                      <div className="rounded-md border border-blue-200 bg-blue-50 dark:border-blue-800/40 dark:bg-blue-900/10 px-3 py-2.5 text-sm text-blue-700 dark:text-blue-400">
+                      <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800/40 dark:bg-amber-900/10 px-3 py-2.5 text-sm text-amber-700 dark:text-amber-400">
                         {t('newsletter.noTemplatesHint')}
                       </div>
                     ) : (
@@ -812,7 +813,10 @@ export function NewsletterPage() {
 
                   {/* Recipients */}
                   <div className="space-y-1.5">
-                    <Label>{t('newsletter.recipients')} <span className="text-destructive">*</span></Label>
+                    <Label className="flex items-center gap-1.5">
+                      <Users className="h-3.5 w-3.5 text-amber-500" />
+                      {t('newsletter.recipients')} <span className="text-destructive">*</span>
+                    </Label>
                     <div className="flex items-center gap-4">
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
@@ -872,7 +876,10 @@ export function NewsletterPage() {
 
                   {/* Schedule (optional) */}
                   <div className="space-y-1.5">
-                    <Label htmlFor="camp-schedule">{t('newsletter.schedule')} <span className="text-muted-foreground font-normal">{t('newsletter.optional')}</span></Label>
+                    <Label htmlFor="camp-schedule" className="flex items-center gap-1.5">
+                      <CalendarClock className="h-3.5 w-3.5 text-amber-500" />
+                      {t('newsletter.schedule')} <span className="text-muted-foreground font-normal">{t('newsletter.optional')}</span>
+                    </Label>
                     <Input
                       id="camp-schedule"
                       type="datetime-local"
@@ -1029,7 +1036,7 @@ export function NewsletterPage() {
                   {t('newsletter.loadingTemplates')}
                 </div>
               ) : emailTemplates.length === 0 ? (
-                <div className="rounded-md border border-blue-200 bg-blue-50 dark:border-blue-800/40 dark:bg-blue-900/10 px-3 py-2.5 text-sm text-blue-700 dark:text-blue-400">
+                <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800/40 dark:bg-amber-900/10 px-3 py-2.5 text-sm text-amber-700 dark:text-amber-400">
                   {t('newsletter.noTemplates')}
                 </div>
               ) : (

@@ -36,8 +36,8 @@ function SeoSubNav() {
   const { t } = useT();
 
   return (
-    <div className="mb-6 overflow-x-auto -mx-1 px-1">
-      <div className="flex items-center gap-1 min-w-max pb-1">
+    <div className="mb-4 overflow-x-auto overflow-y-visible">
+      <div className="flex items-center gap-1 min-w-max">
         {SEO_TABS.map((tab) => {
           // Compound Settings routes ("settings/robots", "settings/sitemap",
           // "settings/redirects") keep the "Settings" tab highlighted.

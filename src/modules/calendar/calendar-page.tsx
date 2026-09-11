@@ -665,8 +665,8 @@ function CalendarHeader({
 
         <Separator orientation="vertical" className="hidden sm:block h-6 mx-1" />
 
-        {/* View switcher */}
-        <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5">
+        {/* View switcher — matches the Today button pill style */}
+        <div className="flex items-center rounded-full border border-border bg-background shadow-xs overflow-hidden h-8">
           {VIEW_OPTIONS.map((opt) => {
             const Icon = opt.icon;
             const active = view === opt.value;
@@ -676,10 +676,10 @@ function CalendarHeader({
                 type="button"
                 onClick={() => onViewChange(opt.value)}
                 className={cn(
-                  'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+                  'inline-flex items-center gap-1.5 h-full px-3 text-xs font-semibold transition-colors',
                   active
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground',
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/60',
                 )}
                 aria-pressed={active}
               >

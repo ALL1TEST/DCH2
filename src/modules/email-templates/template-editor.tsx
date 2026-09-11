@@ -1203,19 +1203,16 @@ export function TemplateEditor({ templateId, isNew = false, scope = 'client', on
             transition={{ duration: 0.2 }}
             className="fixed inset-0 z-[100] flex flex-col bg-background"
           >
-            {/* Fullscreen Header */}
+            {/* Fullscreen Header — clean, no redundant title/status text.
+                Only shows editor tools (Undo/Redo/Search) + Exit Fullscreen. */}
             <div className="flex h-12 items-center justify-between border-b px-4">
               <div className="flex items-center gap-2">
                 <Code2 className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">
-                  {isNew ? t('emailTemplates.newTemplate') : `${template?.name} — ${t('emailTemplates.htmlEditor')}`}
-                </span>
                 <Badge variant="outline" className="text-[10px]">
                   {lineCount} {t('emailTemplates.lines')}
                 </Badge>
               </div>
               <div className="flex items-center gap-2">
-                <SaveIndicator state={displaySaveState} />
                 <Button
                   variant="outline"
                   size="sm"

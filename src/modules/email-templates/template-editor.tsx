@@ -1203,16 +1203,118 @@ export function TemplateEditor({ templateId, isNew = false, scope = 'client', on
             transition={{ duration: 0.2 }}
             className="fixed inset-0 z-[100] flex flex-col bg-background"
           >
-            {/* Fullscreen Header — clean, no redundant title/status text.
-                Only shows editor tools (Undo/Redo/Search) + Exit Fullscreen. */}
-            <div className="flex h-12 items-center justify-between border-b px-4">
-              <div className="flex items-center gap-2">
+            {/* Fullscreen Header — single row with line counter, editor
+                tools, and Exit Fullscreen all on the same horizontal line. */}
+            <div className="flex h-12 items-center gap-2 border-b px-3 bg-muted/30">
+              {/* Left: line counter */}
+              <div className="flex items-center gap-1.5 shrink-0">
                 <Code2 className="h-4 w-4 text-muted-foreground" />
                 <Badge variant="outline" className="text-[10px]">
                   {lineCount} {t('emailTemplates.lines')}
                 </Badge>
               </div>
-              <div className="flex items-center gap-2">
+
+              <Separator orientation="vertical" className="h-5 mx-1" />
+
+              {/* Center: editor tools (inline, not a separate row) */}
+              <div className="flex items-center gap-0.5">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => {
+                        fullscreenTextareaRef.current?.focus();
+                        document.execCommand('undo');
+                      }}
+                    >
+                      <Undo2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{t('emailTemplates.undo')}</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => {
+                        fullscreenTextareaRef.current?.focus();
+                        document.execCommand('redo');
+                      }}
+                    >
+                      <Redo2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{t('emailTemplates.redo')}</TooltipContent>
+                </Tooltip>
+
+                <Separator orientation="vertical" className="mx-1 h-5" />
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={showSearch ? 'secondary' : 'ghost'}
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => setShowSearch(!showSearch)}
+                    >
+                      <Search className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{t('emailTemplates.searchReplace')}</TooltipContent>
+                </Tooltip>
+
+                <DropdownMenu>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                        >
+                          <Variable className="h-3.5 w-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent>{t('emailTemplates.insertVariable')}</TooltipContent>
+                  </Tooltip>
+                  <DropdownMenuContent align="start" className="w-64 max-h-80 overflow-y-auto">
+                    <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground px-2 py-1.5">
+                      {t('emailTemplates.insertVariable')}
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {variableGroups.map((group, gIdx) => (
+                      <div key={group.labelKey}>
+                        {gIdx > 0 && <DropdownMenuSeparator />}
+                        <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                          {group.icon}
+                          <span>{t(group.labelKey)}</span>
+                        </div>
+                        {group.variables.map((v) => (
+                          <DropdownMenuItem
+                            key={v.key}
+                            onClick={() => insertVariable(v.key)}
+                            className="flex items-center justify-between cursor-pointer py-1 px-2 text-xs"
+                          >
+                            <code className="font-mono text-[11px] text-primary">{`{{${v.key}}}`}</code>
+                            <span className="text-[10px] text-muted-foreground truncate max-w-[100px]">
+                              {t(v.descriptionKey)}
+                            </span>
+                          </DropdownMenuItem>
+                        ))}
+                      </div>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              {/* Right: Exit Fullscreen */}
+              <div className="ml-auto flex items-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -1223,9 +1325,6 @@ export function TemplateEditor({ templateId, isNew = false, scope = 'client', on
                 </Button>
               </div>
             </div>
-
-            {/* Fullscreen Tools Bar */}
-            {renderToolbar(true)}
 
             {/* Search/Replace Bar in Fullscreen */}
             <AnimatePresence>

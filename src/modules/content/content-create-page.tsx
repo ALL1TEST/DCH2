@@ -1119,36 +1119,36 @@ export function ContentCreatePage() {
                           <span className="text-slate-400 text-sm">{t('articles.noImage')}</span>
                         </div>
                       )}
-                      <div className="flex gap-1.5">
+                      <div className="flex gap-1.5 w-full min-w-0">
                         <Button
                           variant="outline"
                           size="sm"
-                          className="flex-1 h-7 text-xs gap-1.5"
+                          className="flex-1 min-w-0 h-7 text-xs gap-1"
                           onClick={handleFileUpload}
                           disabled={uploadMutation.isPending}
                         >
-                          {uploadMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
-                          {t('media.upload')}
+                          {uploadMutation.isPending ? <Loader2 className="h-3 w-3 shrink-0" /> : <Upload className="h-3 w-3 shrink-0" />}
+                          <span className="truncate">{t('media.upload')}</span>
                         </Button>
                         <Button
                           variant="outline"
                           size="sm"
-                          className="flex-1 h-7 text-xs gap-1.5"
+                          className="flex-1 min-w-0 h-7 text-xs gap-1"
                           onClick={() => setMediaLibraryOpen(true)}
                         >
-                          <ImageIcon className="h-3 w-3" />
-                          {t('articles.library')}
+                          <ImageIcon className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{t('articles.library')}</span>
                         </Button>
                         <Button
                           variant="outline"
                           size="sm"
-                          className="flex-1 h-7 text-xs gap-1.5 border-amber-400/30 text-amber-600 hover:bg-amber-400/10 dark:text-amber-400 dark:border-amber-400/30 dark:hover:bg-amber-400/10"
+                          className="shrink-0 h-7 text-xs gap-1 border-amber-400/40 text-amber-600 hover:bg-amber-400/10 dark:text-amber-400 dark:border-amber-400/40 dark:hover:bg-amber-400/10"
                           onClick={() => setAiAssistOpen(true)}
                           disabled={!aiToolsEnabled}
                           title={aiToolsEnabled ? t('articles.aiAssistantTitle') : t('articles.aiPlatformNotIncluded')}
                         >
-                          <Sparkles className="h-3 w-3" />
-                          AI
+                          <Sparkles className="h-3 w-3 shrink-0" />
+                          <span className="truncate">AI</span>
                         </Button>
                       </div>
                     </div>

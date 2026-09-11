@@ -10997,3 +10997,37 @@ VERIFICATION:
 - No backend/API/database/AI/SEO/business logic modified.
 
 CONFIRM: Content Style Skill, SEO Ranking Skill, and article-generation logic were NOT modified.
+
+---
+Task ID: 32
+Agent: main (frontend UI polish pass 3 — AI button + radio + schedule)
+Task: Fix Featured Image AI button clipping, radio button amber color, schedule icon style, warning message verification.
+
+Work Log:
+1. Featured Image AI button (content-create-page.tsx + content-edit-page.tsx):
+   - Root cause: the flex container `<div className="flex gap-1.5">` had no `w-full min-w-0`, so when the accordion collapsed or sidebar narrowed, the container didn't constrain to the panel width — the AI button overflowed/clipped.
+   - Fix: added `w-full min-w-0` to the container. Changed Upload/Library from `flex-1` to `flex-1 min-w-0` (allows shrinking). Changed AI button from `flex-1` to `shrink-0` (never shrinks, always fully visible). Added `shrink-0` to all icons. Changed text labels to `<span className="truncate">` so they truncate gracefully instead of pushing the border out. Changed `gap-1.5` to `gap-1` for tighter fit.
+   - AI button border opacity increased from `/30` to `/40` for better visibility. Added `dark:` variants for consistent border in dark mode.
+   - Applied to both content-create-page.tsx and content-edit-page.tsx.
+
+2. Recipients radio (newsletter-page.tsx):
+   - Removed the `Users` icon I incorrectly added to the Recipients label in the previous task (user explicitly said do NOT add an icon).
+   - Added `accent-amber-500` CSS class to both radio inputs — this changes the native radio button's selected indicator color from blue to amber/yellow. Native radio behavior preserved.
+
+3. Schedule icon (newsletter-page.tsx):
+   - The `CalendarClock` icon (added in previous task) is the correct CMS scheduling/date icon — same lucide-react family, same h-3.5 w-3.5 size, amber color, matching the calendar date-picker visual language. No change needed — verified correct.
+
+4. Warning message (newsletter-page.tsx):
+   - Verified both info boxes (lines 769 + 1036) use `border-amber-200 bg-amber-50 text-amber-700` — correct CMS warning style. No change needed.
+
+VERIFICATION:
+- ESLint: 0 new errors. All 5 problems (3 errors, 2 warnings) are pre-existing (verified via git stash — identical count with and without changes).
+- Dev server: HTTP 200, all pages compile.
+- No backend/API/database/AI/SEO/business logic modified.
+
+Files modified:
+1. src/modules/content/content-create-page.tsx
+2. src/modules/content/content-edit-page.tsx
+3. src/modules/newsletter/newsletter-page.tsx
+
+CONFIRM: Content Style Skill, SEO Ranking Skill, and article-generation logic were NOT modified.

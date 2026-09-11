@@ -813,10 +813,7 @@ export function NewsletterPage() {
 
                   {/* Recipients */}
                   <div className="space-y-1.5">
-                    <Label className="flex items-center gap-1.5">
-                      <Users className="h-3.5 w-3.5 text-amber-500" />
-                      {t('newsletter.recipients')} <span className="text-destructive">*</span>
-                    </Label>
+                    <Label>{t('newsletter.recipients')} <span className="text-destructive">*</span></Label>
                     <div className="flex items-center gap-4">
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
@@ -824,7 +821,7 @@ export function NewsletterPage() {
                           name="audience"
                           checked={campaignForm.audience === 'all'}
                           onChange={() => setCampaignForm((f) => ({ ...f, audience: 'all' }))}
-                          className="h-4 w-4"
+                          className="h-4 w-4 accent-amber-500"
                         />
                         <span className="text-sm">{t('newsletter.allSubscribed')}</span>
                       </label>
@@ -834,7 +831,7 @@ export function NewsletterPage() {
                           name="audience"
                           checked={campaignForm.audience === 'selected'}
                           onChange={() => setCampaignForm((f) => ({ ...f, audience: 'selected' }))}
-                          className="h-4 w-4"
+                          className="h-4 w-4 accent-amber-500"
                         />
                         <span className="text-sm">{t('newsletter.selectSpecific')}</span>
                       </label>

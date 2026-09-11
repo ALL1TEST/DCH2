@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { ColumnDef } from '@tanstack/react-table';
 import {
-  DataTable, useDataTable, PageHeader,
+  DataTable, useDataTable,
 } from '@/components/patterns';
 import { getApi, postApi, patchApi } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
@@ -411,18 +411,17 @@ export function SeoAuditPage() {
 
   return (
     <div className="space-y-4">
-      <Button variant="ghost" size="icon" onClick={() => navigate('seo')}><ArrowLeft className="h-4 w-4" /></Button>
-      <PageHeader
-        title={t('seo.auditTitle')}
-        description={t('seo.auditDescription')}
-        breadcrumbs={false}
-        action={(
-          <Button size="sm" onClick={() => auditMutation.mutate()} disabled={auditMutation.isPending}>
-            {auditMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <ClipboardCheck className="h-4 w-4 mr-2" />}
-            {t('seo.runAudit')}
-          </Button>
-        )}
-      />
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={() => navigate('seo')}><ArrowLeft className="h-4 w-4" /></Button>
+        <div className="flex-1">
+          <h1 className="text-xl font-bold tracking-tight text-foreground">{t('seo.auditTitle')}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t('seo.auditDescription')}</p>
+        </div>
+        <Button size="sm" onClick={() => auditMutation.mutate()} disabled={auditMutation.isPending}>
+          {auditMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <ClipboardCheck className="h-4 w-4 mr-2" />}
+          {t('seo.runAudit')}
+        </Button>
+      </div>
 
       <div className="grid grid-cols-3 gap-3">
         <Card

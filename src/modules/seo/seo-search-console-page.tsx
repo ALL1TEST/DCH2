@@ -46,7 +46,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
-import { PageHeader } from '@/components/patterns';
 import { getApi, postApi, patchApi, deleteApi } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
 import { useChartTheme } from '@/lib/chart-theme';
@@ -775,12 +774,13 @@ function SeoSearchConsolePageInner() {
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" size="icon" onClick={() => navigate('seo')}><ArrowLeft className="h-4 w-4" /></Button>
-      <PageHeader
-        title={t('seo.searchConsole')}
-        description={t('seo.scDescription')}
-        breadcrumbs={false}
-      />
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={() => navigate('seo')}><ArrowLeft className="h-4 w-4" /></Button>
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">{t('seo.searchConsole')}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t('seo.scDescription')}</p>
+        </div>
+      </div>
 
       {/* Error state */}
       {error && (

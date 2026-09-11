@@ -60,11 +60,12 @@ export function SeoSettingsPage({ initialTab = 'sitemap' }: { initialTab?: Setti
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" size="icon" onClick={() => navigate('seo')}><ArrowLeft className="h-4 w-4" /></Button>
-      {/* Single dynamic page title — no duplicate "SEO Settings" heading */}
-      <div>
-        <h1 className="text-xl font-bold tracking-tight text-foreground">{t(meta.titleKey)}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{t(meta.descriptionKey)}</p>
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={() => navigate('seo')}><ArrowLeft className="h-4 w-4" /></Button>
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">{t(meta.titleKey)}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t(meta.descriptionKey)}</p>
+        </div>
       </div>
 
       {/* Single tab bar */}

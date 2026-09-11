@@ -11073,3 +11073,32 @@ VERIFICATION:
 - ESLint: EXIT 0 (0 errors, 0 warnings on all 4 files).
 - Dev server: HTTP 200.
 - No backend/API/database/routing/SEO Skills modified.
+
+---
+Task ID: latest
+Agent: main (orchestrator)
+Task: Clean up Platform Admin → Customer/User Details page — move Billing card fields (Billing Interval, Started, Next Billing) into the Account card, remove the entire Billing card, remove "Account Status" row from the Account card, keep Subscription Status, keep all other Account fields, UI/layout only (no backend changes).
+
+Work Log:
+- Inspected src/modules/platform/platform-customer-detail.tsx — found the Account card (Email, Company, Country, Account Status, Created, Subscription Status, Trial Ends) and a separate Billing card (Billing Interval, Started, Next Billing), laid out in a 2-col grid.
+- Edited the file (MultiEdit):
+  - Merged the three Billing fields (Billing Interval, Started, Next Billing) into the Account card, placed after Subscription Status / Trial Ends for logical grouping.
+  - Removed the entire Billing card (and the surrounding 2-col grid wrapper).
+  - Removed the "Account Status" row (and its CustomerStatusBadge) from the Account card.
+  - Switched the Account card body from single-column rows with <Separator /> dividers to a responsive 2-column grid (sm:grid-cols-2 gap-x-8 gap-y-3) so the now-full-width card stays clean and well-spaced without long sparse rows.
+  - Kept Subscription Status (SubStatusBadge), Trial Ends (conditional), Email, Company, Country, Created unchanged.
+- Cleaned up now-unused imports: removed `Separator` from '@/components/ui/separator' and `CustomerStatusBadge` from './shared'.
+- Ran `bun run lint` — no errors in platform-customer-detail.tsx (the 24 pre-existing errors are all in src/modules/users/users-list-page.tsx, unrelated to this change).
+- Verified all rendered data fields exist on the CustomerDetail type (src/lib/platform/platform-data.ts): billingInterval, subscriptionStart, nextBillingAt (string|null), trialEnd (string|null), subscriptionStatus, company (string|null), country, createdAt, email. nextBillingAt handled by formatDate (null-safe, unchanged from original); trialEnd guarded with `data.trialEnd &&`; company uses `?? '—'`.
+- Verified all i18n keys used (platformCustomerDetail.account/company/country/created/subscriptionStatus/billingInterval/yearly/monthly/started/nextBilling/trialEnds + common.email) exist in src/lib/i18n/fragments/en/platform-a.ts (and therefore across all 40 locales via the translation pipeline). The now-unused keys accountStatus and billing remain in locale files (harmless; removing them from 40 locales is out of scope).
+- Dev server (Next.js 16 turbopack on :3000) compiles and serves the app shell successfully (GET / 200 in dev.log). Confirmed Caddy gateway (:81) proxies to the dev server when alive (curl :81 → 200 while :3000 → 200).
+
+Browser verification note:
+- Live agent-browser visual verification could NOT be completed. The sandbox has only 4GB RAM (no swap, no root to add swap). The Next.js 16 turbopack dev server uses ~2.4GB RSS; launching headless Chromium (~1GB) on top of it triggers the kernel OOM-killer which kills next-server within ~1 second, so Chromium loads an ERR_CONNECTION_REFUSED / 502 page. This was reproduced 5+ times. The dev server is stable on its own (survived 40s+ of curl polling) and the Caddy→dev-server proxy path is confirmed working (both 200 simultaneously), so the user's Preview Panel (which does not run Chromium inside this shell) is unaffected. Verification was therefore done at the code level: lint pass, type-field existence, i18n-key existence, and dev-server compile success.
+
+Stage Summary:
+- src/modules/platform/platform-customer-detail.tsx now has a single full-width "Account" card containing all account + billing information with no duplication:
+  Email, Company, Country, Created, Subscription Status, Billing Interval, Started, Next Billing, (Trial Ends when present).
+- The separate "Billing" card is removed; "Account Status" row is removed; Subscription Status is retained.
+- Top KPI overview cards (Sites / Plan / Storage / Articles) and the Recent Payments table are unchanged.
+- Pure UI reorganization — no backend, API, or data changes.

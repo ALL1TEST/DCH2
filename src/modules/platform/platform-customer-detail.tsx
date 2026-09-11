@@ -13,7 +13,6 @@ import { getApi, patchApi } from '@/lib/api-client';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import { useNavigationStore } from '@/lib/stores/navigation-store';
 import { useT } from '@/lib/i18n';
 import {
@@ -23,7 +22,6 @@ import {
   ErrorState,
   EmptyState,
   PlanBadge,
-  CustomerStatusBadge,
   SubStatusBadge,
   PaymentStatusBadge,
   formatCurrency,
@@ -109,72 +107,52 @@ export function PlatformCustomerDetailModule() {
         <PlatformKpi label={t('platformCustomerDetail.articles')} value={data.sites.reduce((a, s) => a + s.articles, 0)} sublabel={t('platformCustomerDetail.acrossAllSites')} icon={<FileText className="h-4 w-4" />} color="emerald" />
       </div>
 
-      {/* Account + Subscription (merged into one section) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader><CardTitle className="text-base">{t('platformCustomerDetail.account')}</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
+      {/* Account + billing (merged) */}
+      <Card>
+        <CardHeader><CardTitle className="text-base">{t('platformCustomerDetail.account')}</CardTitle></CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">{t('common.email')}</span>
               <span className="font-medium truncate ml-2">{data.email}</span>
             </div>
-            <Separator />
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">{t('platformCustomerDetail.company')}</span>
               <span className="text-foreground">{data.company ?? '—'}</span>
             </div>
-            <Separator />
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">{t('platformCustomerDetail.country')}</span>
               <span className="text-foreground">{data.country}</span>
             </div>
-            <Separator />
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">{t('platformCustomerDetail.accountStatus')}</span>
-              <CustomerStatusBadge status={data.status} />
-            </div>
-            <Separator />
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">{t('platformCustomerDetail.created')}</span>
               <span className="text-foreground">{formatDate(data.createdAt)}</span>
             </div>
-            <Separator />
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">{t('platformCustomerDetail.subscriptionStatus')}</span>
               <SubStatusBadge status={data.subscriptionStatus} />
             </div>
-            {data.trialEnd && (
-              <>
-                <Separator />
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">{t('platformCustomerDetail.trialEnds')}</span>
-                  <span className="text-foreground">{formatDate(data.trialEnd)}</span>
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle className="text-base">{t('platformCustomerDetail.billing')}</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">{t('platformCustomerDetail.billingInterval')}</span>
               <span className="text-foreground capitalize">{data.billingInterval === 'yearly' ? t('platformCustomerDetail.yearly') : t('platformCustomerDetail.monthly')}</span>
             </div>
-            <Separator />
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">{t('platformCustomerDetail.started')}</span>
               <span className="text-foreground">{formatDate(data.subscriptionStart)}</span>
             </div>
-            <Separator />
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">{t('platformCustomerDetail.nextBilling')}</span>
               <span className="text-foreground">{formatDate(data.nextBillingAt)}</span>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+            {data.trialEnd && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">{t('platformCustomerDetail.trialEnds')}</span>
+                <span className="text-foreground">{formatDate(data.trialEnd)}</span>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Recent payments */}
       <Card>

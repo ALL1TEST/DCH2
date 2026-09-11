@@ -1412,6 +1412,22 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
   }, [editor, editor?.storage.characterCount?.characters()]);
 
   // ---- Format helpers ----
+  const handleUndo = useCallback(() => {
+    if (!editor) return;
+    const res = editor.chain().focus().undo().run();
+    if (!res) {
+      document.execCommand('undo');
+    }
+  }, [editor]);
+
+  const handleRedo = useCallback(() => {
+    if (!editor) return;
+    const res = editor.chain().focus().redo().run();
+    if (!res) {
+      document.execCommand('redo');
+    }
+  }, [editor]);
+
   const handleCopy = useCallback(() => {
     if (!editor) return;
     const { from, to } = editor.state.selection;
@@ -2075,10 +2091,10 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
         <TSep />
 
         {/* History */}
-        <Tb tooltip="Undo (Ctrl+Z)" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()}>
+        <Tb tooltip="Undo (Ctrl+Z)" onClick={handleUndo}>
           <Undo2 className="h-4 w-4" />
         </Tb>
-        <Tb tooltip="Redo (Ctrl+Y)" onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()}>
+        <Tb tooltip="Redo (Ctrl+Y)" onClick={handleRedo}>
           <Redo2 className="h-4 w-4" />
         </Tb>
 

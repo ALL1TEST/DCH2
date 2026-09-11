@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useState, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -24,6 +24,7 @@ import {
   Loader2,
   BookOpen,
   CalendarDays,
+  Square,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -313,18 +314,26 @@ function ScheduleDialog({
   onOpenChange,
   onSchedule,
   isPending,
+  initialDate,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSchedule: (date: string, time: string) => void;
   isPending: boolean;
+  initialDate?: string;
 }) {
   const { t } = useT();
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
-  const defaultDate = tomorrow.toISOString().split('T')[0];
+  const defaultDate = initialDate || tomorrow.toISOString().split('T')[0];
   const [date, setDate] = useState(defaultDate);
   const [time, setTime] = useState('10:00');
+
+  useEffect(() => {
+    if (initialDate) {
+      setDate(initialDate);
+    }
+  }, [initialDate]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -469,6 +478,59 @@ export function ContentCreatePage() {
     setSelectedText('');
   }, []);
 
+  const [targetScheduleDate, setTargetScheduleDate] = useState<string>('');
+
+  const {
+    register, handleSubmit, control, watch, setValue, getValues, formState: { errors },
+  } = useForm<ContentFormValues>({
+    resolver: zodResolver(contentFormSchema),
+    defaultValues: { title: '', excerpt: '', content: '', status: 'DRAFT', contentTypeId: '', categoryId: '', tagIds: [], seoTitle: '', seoDescription: '' },
+  });
+
+  const selectedTagIds = watch('tagIds');
+  const watchedTitle = watch('title');
+  const watchedExcerpt = watch('excerpt');
+  const watchedSeoTitle = watch('seoTitle');
+  const watchedSeoDescription = watch('seoDescription');
+
+  // Preload AI prompt and title if navigated from AI Ideas
+  useEffect(() => {
+    const navStore = useNavigationStore.getState();
+    const promptFromStore = navStore.initialAiPrompt;
+    const promptFromStorage =
+      typeof window !== 'undefined' ? window.sessionStorage.getItem('pending_ai_prompt') : null;
+    const prompt = promptFromStore || promptFromStorage;
+
+    const titleFromStore = navStore.initialArticleTitle;
+    const titleFromStorage =
+      typeof window !== 'undefined' ? window.sessionStorage.getItem('pending_ai_title') : null;
+    const title = titleFromStore || titleFromStorage;
+
+    const targetDateFromStorage =
+      typeof window !== 'undefined' ? window.sessionStorage.getItem('pending_ai_target_date') : null;
+    if (targetDateFromStorage) {
+      const datePart = targetDateFromStorage.split('T')[0];
+      setTargetScheduleDate(datePart);
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.removeItem('pending_ai_target_date');
+      }
+    }
+
+    if (prompt) {
+      setAiInput(prompt);
+      navStore.setInitialAiPrompt(null, null);
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.removeItem('pending_ai_prompt');
+        window.sessionStorage.removeItem('pending_ai_title');
+      }
+    }
+
+    if (title && !getValues('title')) {
+      setValue('title', title, { shouldValidate: true });
+      setSlugValue(slugify(title));
+    }
+  }, [setValue, getValues]);
+
   // Dialog states
   const [previewOpen, setPreviewOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
@@ -497,19 +559,6 @@ export function ContentCreatePage() {
     if (!tagSearch) return allTags;
     return allTags.filter((t) => t.name.toLowerCase().includes(tagSearch.toLowerCase()));
   }, [allTags, tagSearch]);
-
-  const {
-    register, handleSubmit, control, watch, setValue, getValues, formState: { errors },
-  } = useForm<ContentFormValues>({
-    resolver: zodResolver(contentFormSchema),
-    defaultValues: { title: '', excerpt: '', content: '', status: 'DRAFT', contentTypeId: '', categoryId: '', tagIds: [], seoTitle: '', seoDescription: '' },
-  });
-
-  const selectedTagIds = watch('tagIds');
-  const watchedTitle = watch('title');
-  const watchedExcerpt = watch('excerpt');
-  const watchedSeoTitle = watch('seoTitle');
-  const watchedSeoDescription = watch('seoDescription');
 
   // Auto-slug
   React.useEffect(() => {
@@ -580,17 +629,42 @@ export function ContentCreatePage() {
     onError: (err: Error) => toast.error(err.message || t('articles.uploadFailedToast')),
   });
 
+  // AbortController ref for interrupting ongoing AI generation
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const handleStopAi = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
   // AI content generation mutation (full article — used when no text is selected)
   const aiGenerateMutation = useMutation({
-    mutationFn: (prompt: string) =>
-      postApi<{ drafts?: Array<{ content: string; wordCount: number }> }>('/api/content/ai-generate', {
-        title: watchedTitle || t('articles.untitled'),
-        brief: prompt,
-        writingStyle: 'Professional',
-        targetLength: 'Medium (800-1200 words)',
-        numberOfDrafts: 1,
-      }),
+    mutationFn: (prompt: string) => {
+      abortControllerRef.current = new AbortController();
+      return postApi<{ drafts?: Array<{ content: string; wordCount: number }> }>(
+        '/api/content/ai-generate',
+        {
+          title: watchedTitle || t('articles.untitled'),
+          brief: prompt,
+          writingStyle: 'Professional',
+          targetLength: 'Medium (800-1200 words)',
+          numberOfDrafts: 1,
+        },
+        { signal: abortControllerRef.current.signal },
+      );
+    },
     onSuccess: (result) => {
+      abortControllerRef.current = null;
       // postApi unwraps the ApiResponse envelope → result IS the data object.
       const draft = result?.drafts?.[0];
       if (draft) {
@@ -598,14 +672,32 @@ export function ContentCreatePage() {
         toast.success(t('articles.aiGeneratedToast'));
       }
     },
-    onError: (err: Error) => toast.error(err.message || t('articles.aiGenerationFailedToast')),
+    onError: (err: Error) => {
+      abortControllerRef.current = null;
+      if (
+        err.name === 'AbortError' ||
+        err.message?.toLowerCase().includes('cancel') ||
+        err.message?.toLowerCase().includes('abort')
+      ) {
+        toast.info(t('articles.generationStopped') || 'Generation stopped');
+        return;
+      }
+      toast.error(err.message || t('articles.aiGenerationFailedToast'));
+    },
   });
 
   // AI edit selected text mutation (used when text is selected)
   const aiEditSelectionMutation = useMutation({
-    mutationFn: ({ text, action, context }: { text: string; action: string; context?: string }) =>
-      postApi<{ editedText: string }>('/api/content/ai-edit-selection', { text, action, context }),
+    mutationFn: ({ text, action, context }: { text: string; action: string; context?: string }) => {
+      abortControllerRef.current = new AbortController();
+      return postApi<{ editedText: string }>(
+        '/api/content/ai-edit-selection',
+        { text, action, context },
+        { signal: abortControllerRef.current.signal },
+      );
+    },
     onSuccess: (result) => {
+      abortControllerRef.current = null;
       // postApi unwraps the ApiResponse envelope → result IS the data object.
       const editedText = result?.editedText;
       if (editedText) {
@@ -613,8 +705,21 @@ export function ContentCreatePage() {
         toast.success(t('articles.textUpdatedToast'));
       }
     },
-    onError: (err: Error) => toast.error(err.message || t('articles.aiEditFailedToast')),
+    onError: (err: Error) => {
+      abortControllerRef.current = null;
+      if (
+        err.name === 'AbortError' ||
+        err.message?.toLowerCase().includes('cancel') ||
+        err.message?.toLowerCase().includes('abort')
+      ) {
+        toast.info(t('articles.generationStopped') || 'Generation stopped');
+        return;
+      }
+      toast.error(err.message || t('articles.aiEditFailedToast'));
+    },
   });
+
+  const isAiGenerating = aiGenerateMutation.isPending || aiEditSelectionMutation.isPending;
 
   // Selection-aware action handler
   // Captures the selection in onMouseDown (before editor loses focus),
@@ -919,31 +1024,46 @@ export function ContentCreatePage() {
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
+                          if (isAiGenerating) return;
                           if (aiInput.trim()) {
                             handleAiSubmit(aiInput.trim());
                             setAiInput('');
                           }
                         }
                       }}
-                      placeholder={savedSelectedText ? t('articles.editSelectedTextPlaceholder') : t('articles.askAiPlaceholder')}
-                      rows={1}
-                      className="flex-1 resize-none bg-transparent text-sm leading-normal placeholder:text-muted-foreground/60 focus:outline-none w-full py-0.5"
+                      placeholder={
+                        isAiGenerating
+                          ? t('articles.generatingPlaceholder')
+                          : savedSelectedText
+                          ? t('articles.editSelectedTextPlaceholder')
+                          : t('articles.askAiPlaceholder')
+                      }
+                      disabled={isAiGenerating}
+                      rows={aiInput.includes('\n') ? 3 : 1}
+                      className="flex-1 resize-none bg-transparent text-sm leading-normal placeholder:text-muted-foreground/60 focus:outline-none w-full py-0.5 max-h-32 overflow-y-auto disabled:opacity-60"
                     />
                   </div>
                   <button
                     type="button"
-                    onMouseDown={captureSelectionOnMouseDown}
+                    onMouseDown={isAiGenerating ? undefined : captureSelectionOnMouseDown}
                     onClick={() => {
-                      if (aiInput.trim()) {
+                      if (isAiGenerating) {
+                        handleStopAi();
+                      } else if (aiInput.trim()) {
                         handleAiSubmit(aiInput.trim());
                         setAiInput('');
                       }
                     }}
-                    className="size-7 rounded-full flex items-center justify-center shrink-0 transition-all text-muted-foreground hover:text-foreground"
-                    title={t('articles.sendToAi')}
+                    className={
+                      isAiGenerating
+                        ? 'size-7 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center shrink-0 shadow-sm transition-all active:scale-95'
+                        : 'size-7 rounded-full flex items-center justify-center shrink-0 transition-all text-muted-foreground hover:text-foreground'
+                    }
+                    title={isAiGenerating ? t('articles.stopGeneration') : t('articles.sendToAi')}
+                    aria-label={isAiGenerating ? t('articles.stopGeneration') : t('articles.sendToAi')}
                   >
-                    {aiGenerateMutation.isPending || aiEditSelectionMutation.isPending ? (
-                      <Loader2 className="size-3.5 animate-spin" />
+                    {isAiGenerating ? (
+                      <Square className="size-3 fill-white text-white" />
                     ) : (
                       <Send className="size-3.5" />
                     )}
@@ -1186,6 +1306,7 @@ export function ContentCreatePage() {
         onOpenChange={setScheduleOpen}
         onSchedule={handleSchedule}
         isPending={isSubmitting}
+        initialDate={targetScheduleDate}
       />
 
       {/* Media Library Dialog */}

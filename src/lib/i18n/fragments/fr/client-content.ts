@@ -190,6 +190,11 @@ export const clientContentFr: Record<string, string> = {
   'calendar.excerpt': 'Extrait',
   'calendar.subject': 'Objet',
   'calendar.template': 'Modèle',
+  'calendar.removeIdea': 'Retirer du calendrier',
+  'calendar.primaryKeyword': 'Mot-clé principal',
+  'calendar.descriptionLabel': 'Description',
+  'calendar.seoOpportunity': 'Opportunité SEO',
+  'calendar.createArticle': 'Créer un article',
 
   // ---- Médias (media-list-page.tsx) ----
   'media.filter': 'Filtrer',
@@ -293,4 +298,7 @@ export const clientContentFr: Record<string, string> = {
   'media.generateFailed': 'Échec de la génération des images',
   'media.updated': 'Mis à jour',
   'media.updateFailed': 'Échec de la mise à jour',
+  'articles.stopGeneration': 'Arrêter la génération',
+  'articles.generationStopped': 'Génération arrêtée',
+  'articles.generatingPlaceholder': 'Génération du contenu en cours…',
 };

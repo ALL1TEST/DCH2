@@ -7,7 +7,7 @@ import type { ChatMessage } from '@/lib/ai/ai-service';
 import { z } from 'zod/v4';
 import { requireFeature } from '@/lib/platform/platform-auth';
 import { checkAiLimit, aiLimitExceededResponse } from '@/lib/platform/usage-limits';
-import { resolvePlatformPrompt, platformOwnedProviderFilter } from '@/lib/ai/platform-ai';
+import { resolvePlatformPrompt, resolveAiProviderForUser, getOperationMaxTokens } from '@/lib/ai/platform-ai';
 
 function reqId() {
   return 'req_' + crypto.randomUUID().slice(0, 8);
@@ -117,42 +117,27 @@ Write the full article content now. Use proper HTML formatting for headings, par
     // ---- Resolve the platform's configured provider ----
     // Read global AI settings (managed by Platform Admin) for the
     // default provider/model/temperature/maxTokens.
-    const aiSettings = await db.aiSettings.findUnique({ where: { scope: 'global' } });
-    const owned = await platformOwnedProviderFilter();
-
-    // Resolution order (PLATFORM-OWNED providers only):
-    //   1. AiSettings.defaultProviderId
-    //   2. Any platform-owned provider flagged default
-    //   3. Any active platform-owned provider
-    const findProvider = (extra: Record<string, unknown>) =>
-      db.aiProvider.findFirst({
-        where: { ...extra, ...owned },
-        include: { models: true },
-      });
-
-    let activeProvider = aiSettings?.defaultProviderId
-      ? await findProvider({ id: aiSettings.defaultProviderId, isActive: true, apiKeyEncrypted: { not: null } })
-      : null;
-    if (!activeProvider) {
-      activeProvider = await findProvider({ isActive: true, isDefault: true, apiKeyEncrypted: { not: null } });
-    }
-    if (!activeProvider) {
-      activeProvider = await findProvider({ isActive: true, apiKeyEncrypted: { not: null } });
-    }
+    const activeProvider = await resolveAiProviderForUser(auth.user.id);
+    const userSettings = await db.aiSettings.findUnique({ where: { scope: `user:${auth.user.id}` } });
+    const globalSettings = await db.aiSettings.findUnique({ where: { scope: 'global' } });
+    const userModelMatches = userSettings?.defaultModelId && activeProvider?.models.some((m) => (m.id === userSettings.defaultModelId || m.modelId === userSettings.defaultModelId) && m.isActive);
+    const aiSettings = userModelMatches ? userSettings : globalSettings;
 
     const drafts: Array<{ content: string; wordCount: number }> = [];
 
     if (activeProvider) {
       // Resolve model: use AiSettings.defaultModelId if set and belongs to the provider
       const defaultModel = aiSettings?.defaultModelId
-        ? activeProvider.models.find((m) => m.id === aiSettings.defaultModelId && m.isActive)
+        ? activeProvider.models.find((m) => (m.id === aiSettings.defaultModelId || m.modelId === aiSettings.defaultModelId) && m.isActive && m.type?.toUpperCase() === 'TEXT')
         : null;
-      const modelId = defaultModel?.modelId ?? activeProvider.models.find((m) => m.isActive)?.modelId;
+      const modelId = defaultModel?.id ?? defaultModel?.modelId
+        ?? activeProvider.models.find((m) => m.isActive && (m.isDefaultText || m.isDefault) && m.type?.toUpperCase() === 'TEXT')?.id
+        ?? activeProvider.models.find((m) => m.isActive && m.type?.toUpperCase() === 'TEXT')?.id;
 
-      // Use platform-configured temperature/maxTokens (a Platform Admin
-      // prompt override wins, then request defaults, then settings).
+      // Use global AI settings for temperature (or prompt override if defined)
       const genTemperature = platformPrompt?.temperature ?? aiSettings?.defaultTemperature ?? 0.7;
-      const genMaxTokens = platformPrompt?.maxTokens ?? aiSettings?.defaultMaxTokens ?? 8000;
+      // Operation-specific max output tokens: larger limit for full article generation
+      const genMaxTokens = getOperationMaxTokens('article', platformPrompt?.maxTokens);
 
       for (let i = 0; i < numberOfDrafts; i++) {
         const result = await executeChat({
@@ -172,9 +157,17 @@ Write the full article content now. Use proper HTML formatting for headings, par
       }
     } else {
       // ---- Platform SDK fallback (z-ai-web-dev-sdk) ----
-      // The SDK is AI provided and paid for by the platform; it is the
-      // platform's built-in engine when no provider is configured.
-      // Usage is logged to AiLog so the plan limits see it.
+      const { getEffectivePlanIdAsync } = await import('@/lib/platform/entitlements');
+      const { getPlanConfigSync } = await import('@/lib/platform/plan-config');
+      const { planId } = await getEffectivePlanIdAsync(auth.user);
+      const planEnts = planId === 'internal' ? ['ai_platform'] : getPlanConfigSync(planId).entitlements;
+      if (!planEnts.includes('ai_platform') && planId !== 'internal') {
+        return err(
+          "No AI provider connected, and your plan does not include Platform AI. Connect your own AI provider (Client's Own AI API) or upgrade your plan.",
+          403,
+          'FEATURE_NOT_AVAILABLE',
+        );
+      }
       const ZAI = (await import('z-ai-web-dev-sdk')).default;
       const zai = await ZAI.create();
       for (let i = 0; i < numberOfDrafts; i++) {

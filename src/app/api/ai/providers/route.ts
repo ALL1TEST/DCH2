@@ -74,9 +74,17 @@ export async function GET(request: NextRequest) {
     const connectionStatus = sp.get('connectionStatus')?.trim();
 
     const where: Record<string, unknown> = {};
-    // Non-staff callers (Client's Own AI API) only ever see their own
-    // provider connections — the platform's providers are never exposed.
-    if (!staff) where.createdById = featureAuth.user.id;
+    // Strict isolation between Platform AI and Client's Own AI API:
+    // - Platform staff in Platform Admin see ONLY Platform AI providers.
+    // - Clients with "Client's Own AI API" see ONLY their own providers.
+    // Client providers NEVER leak into the Platform Admin dashboard!
+    if (staff) {
+      const { getPlatformStaffUserIds } = await import('@/lib/ai/platform-ai');
+      const staffIds = await getPlatformStaffUserIds();
+      where.createdById = { in: staffIds.length > 0 ? staffIds : ['__none__'] };
+    } else {
+      where.createdById = featureAuth.user.id;
+    }
     if (search) where.name = { contains: search };
     if (kind) where.kind = kind;
     if (isActive !== null && isActive !== undefined && isActive !== '') where.isActive = isActive === 'true';
@@ -194,9 +202,21 @@ export async function POST(request: NextRequest) {
     if (!creator) creator = await db.user.findFirst({ select: { id: true } });
     if (!creator) return err('No user exists to attribute the provider to', 500, 'NO_USER');
 
-    // If isDefault, unset all others first
+    // If isDefault, unset all others in the same scope (platform vs client)
     if (d.isDefault) {
-      await db.aiProvider.updateMany({ where: { isDefault: true }, data: { isDefault: false } });
+      if (isPlatformStaff(featureAuth.user)) {
+        const { getPlatformStaffUserIds } = await import('@/lib/ai/platform-ai');
+        const staffIds = await getPlatformStaffUserIds();
+        await db.aiProvider.updateMany({
+          where: { isDefault: true, createdById: { in: staffIds.length > 0 ? staffIds : ['__none__'] } },
+          data: { isDefault: false },
+        });
+      } else {
+        await db.aiProvider.updateMany({
+          where: { isDefault: true, createdById: creator.id },
+          data: { isDefault: false },
+        });
+      }
     }
 
     const item = await db.aiProvider.create({

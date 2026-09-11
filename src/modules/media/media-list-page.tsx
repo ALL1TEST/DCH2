@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore } from '@/lib/stores/navigation-store';
+import { useSiteStore } from '@/lib/stores/site-store';
 import {
   Upload, LayoutGrid, List, Search, FolderPlus, X, Loader2, Check, Minus,
   MoreHorizontal, Maximize2, Download, Trash2, ArrowRightLeft,
@@ -345,7 +346,27 @@ export function MediaListPage() {
   const navigate = useNavigationStore((s) => s.navigate);
 
   // ---- Folder navigation state (full path) ----
-  const [folderPath, setFolderPath] = useState<FolderCrumb[]>([]);
+  const [folderPath, setFolderPath] = useState<FolderCrumb[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const saved = sessionStorage.getItem('cms_media_folder_path');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('cms_media_folder_path', JSON.stringify(folderPath));
+    } catch {
+      // ignore
+    }
+  }, [folderPath]);
 
   // Derived current folder
   const currentFolderId = folderPath.length > 0 ? folderPath[folderPath.length - 1].id : null;
@@ -356,14 +377,26 @@ export function MediaListPage() {
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
+  const isAllSites = useSiteStore((s) => s.isAllSites());
+  const isSiteInitialized = useSiteStore((s) => s.isInitialized);
+
   // Dialogs
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
 
   useEffect(() => {
-    if (currentSubPage === 'upload') {
+    if (isSiteInitialized && isAllSites) {
+      if (uploadDialogOpen) setUploadDialogOpen(false);
+      if (currentSubPage === 'upload') {
+        navigate('media');
+      }
+    }
+  }, [isSiteInitialized, isAllSites, uploadDialogOpen, currentSubPage, navigate]);
+
+  useEffect(() => {
+    if (!isAllSites && currentSubPage === 'upload') {
       setUploadDialogOpen(true);
     }
-  }, [currentSubPage]);
+  }, [currentSubPage, isAllSites]);
   const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [newFolderParentId, setNewFolderParentId] = useState<string | null>(null);
@@ -410,7 +443,9 @@ export function MediaListPage() {
   const { data: mediaItems, isLoading } = useQuery({
     queryKey: queryKeys.media.list(queryParams),
     queryFn: () => getApi<MediaItemRow[]>('/api/media', queryParams),
-    staleTime: 0,
+    staleTime: 30_000,
+    placeholderData: (prev) => prev,
+    refetchOnWindowFocus: false,
   });
 
   // FIX #1: Include parentId in query key so TanStack Query re-fetches when folder changes
@@ -422,7 +457,9 @@ export function MediaListPage() {
   const { data: folders } = useQuery({
     queryKey: folderQueryKey,
     queryFn: () => getApi<MediaFolderItem[]>('/api/media-folders', { parentId: currentFolderId ?? '' }),
-    staleTime: 0,
+    staleTime: 30_000,
+    placeholderData: (prev) => prev,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch ALL folders (for AI Generate / Move dropdowns) - only the root level with children
@@ -650,7 +687,7 @@ export function MediaListPage() {
       setAiPrompt('');
       toast.success(t('media.imagesGenerated'));
     },
-    onError: () => toast.error(t('media.generateFailed')),
+    onError: (err: any) => toast.error(err?.message || t('media.generateFailed')),
   });
 
   const updateMediaMutation = useMutation({
@@ -794,7 +831,14 @@ export function MediaListPage() {
     setDeleteFolderTarget(folder);
   }, []);
 
-  const openAiDialog = useCallback(() => {    setAiFolderId(currentFolderId ?? 'root');    setAiPrompt('');    setAiAspectRatio('1:1');    setAiCount(1);    setAiDialogOpen(true);  }, [currentFolderId]);
+  const openAiDialog = useCallback(() => {
+    if (isAllSites) return;
+    setAiFolderId(currentFolderId ?? 'root');
+    setAiPrompt('');
+    setAiAspectRatio('1:1');
+    setAiCount(1);
+    setAiDialogOpen(true);
+  }, [currentFolderId, isAllSites]);
 
   // ==================== Render ====================
 
@@ -829,31 +873,37 @@ export function MediaListPage() {
           {activeFilter !== 'all' && (
             <span className="px-3 py-1 bg-amber-400 text-black text-xs font-semibold rounded-full">{activeFilterLabel && t(activeFilterLabel)}</span>
           )}
-          <button
-            onClick={() => { setNewFolderParentId(currentFolderId); setNewFolderName(''); setNewFolderDialogOpen(true); }}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground border border-border rounded-lg transition-colors"
-          >
-            <FolderPlus className="h-3.5 w-3.5" />
-            {t('media.newFolder')}
-          </button>
+          {!isAllSites && (
+            <button
+              onClick={() => { setNewFolderParentId(currentFolderId); setNewFolderName(''); setNewFolderDialogOpen(true); }}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground border border-border rounded-lg transition-colors"
+            >
+              <FolderPlus className="h-3.5 w-3.5" />
+              {t('media.newFolder')}
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-muted-foreground">{items.length} {items.length !== 1 ? t('media.filesPlural') : t('media.fileSingular')}</span>
           {/* FIX #8: AI Generate button - amber/gold color */}
-          <button
-            onClick={openAiDialog}
-            className="flex items-center gap-2 px-4 py-2 bg-amber-400 text-black text-sm font-semibold rounded-lg hover:bg-amber-500 transition-colors shadow-sm"
-          >
-            <Sparkles className="h-4 w-4" />
-            {t('media.aiGenerate')}
-          </button>
-          <button
-            onClick={() => setUploadDialogOpen(true)}
-            className="flex items-center gap-2 px-5 py-2 bg-black text-white text-sm font-medium rounded-lg hover:bg-neutral-800 transition-colors shadow-sm"
-          >
-            <Upload className="h-4 w-4" />
-            {t('media.upload')}
-          </button>
+          {!isAllSites && (
+            <>
+              <button
+                onClick={openAiDialog}
+                className="flex items-center gap-2 px-4 py-2 bg-amber-400 text-black text-sm font-semibold rounded-lg hover:bg-amber-500 transition-colors shadow-sm"
+              >
+                <Sparkles className="h-4 w-4" />
+                {t('media.aiGenerate')}
+              </button>
+              <button
+                onClick={() => setUploadDialogOpen(true)}
+                className="flex items-center gap-2 px-5 py-2 bg-black text-white text-sm font-medium rounded-lg hover:bg-neutral-800 transition-colors shadow-sm"
+              >
+                <Upload className="h-4 w-4" />
+                {t('media.upload')}
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -914,7 +964,7 @@ export function MediaListPage() {
 
       {/* Content Area */}
       <div className="flex-1 overflow-y-auto bg-muted/30">
-        {isLoading ? (
+        {isLoading && !mediaItems ? (
           <div className={cn('p-6', viewMode === 'grid' ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4' : 'space-y-2')}>
             {Array.from({ length: 12 }).map((_, i) => (
               <div key={i} className={viewMode === 'grid' ? 'space-y-2' : 'flex items-center gap-4'}>

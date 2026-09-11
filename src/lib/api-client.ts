@@ -168,10 +168,21 @@ class ApiClient {
       reqInit = await interceptor(reqInit, url);
     }
 
-    // Execute with timeout
+    const isAiRoute = path.startsWith('/api/content/ai') || path.startsWith('/api/ai') || path.includes('/generate');
+    const effectiveTimeout = timeout !== this.defaultTimeout ? timeout : (isAiRoute ? 85_000 : this.defaultTimeout);
+
+    // Execute with timeout and support user-provided AbortSignal
     let response: Response;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout);
+
+    if (init.signal) {
+      if (init.signal.aborted) {
+        controller.abort();
+      } else {
+        init.signal.addEventListener('abort', () => controller.abort(), { once: true });
+      }
+    }
 
     try {
       response = await fetch(url, {
@@ -182,7 +193,12 @@ class ApiClient {
       clearTimeout(timeoutId);
 
       if (err instanceof DOMException && err.name === 'AbortError') {
-        throw new ApiNetworkError(`Request timeout after ${timeout}ms`, requestId, true);
+        if (init.signal?.aborted) {
+          const cancelErr = new Error('Request cancelled by user');
+          cancelErr.name = 'AbortError';
+          throw cancelErr;
+        }
+        throw new ApiNetworkError(`Request timeout after ${effectiveTimeout}ms`, requestId, true);
       }
       throw new ApiNetworkError(
         err instanceof Error ? err.message : 'Network request failed',

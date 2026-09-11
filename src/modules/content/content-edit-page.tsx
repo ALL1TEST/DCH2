@@ -26,6 +26,7 @@ import {
   Trash2,
   AlignLeft,
   List,
+  Square,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -619,17 +620,42 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
     onError: (err: Error) => toast.error(err.message || t('articles.uploadFailedToast')),
   });
 
+  // AbortController ref for interrupting ongoing AI generation
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const handleStopAi = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
   // AI content generation (full article)
   const aiGenerateMutation = useMutation({
-    mutationFn: (prompt: string) =>
-      postApi<{ drafts?: Array<{ content: string; wordCount: number }> }>('/api/content/ai-generate', {
-        title: watchedTitle || t('articles.untitled'),
-        brief: prompt,
-        writingStyle: 'Professional',
-        targetLength: 'Medium (800-1200 words)',
-        numberOfDrafts: 1,
-      }),
+    mutationFn: (prompt: string) => {
+      abortControllerRef.current = new AbortController();
+      return postApi<{ drafts?: Array<{ content: string; wordCount: number }> }>(
+        '/api/content/ai-generate',
+        {
+          title: watchedTitle || t('articles.untitled'),
+          brief: prompt,
+          writingStyle: 'Professional',
+          targetLength: 'Medium (800-1200 words)',
+          numberOfDrafts: 1,
+        },
+        { signal: abortControllerRef.current.signal },
+      );
+    },
     onSuccess: (result) => {
+      abortControllerRef.current = null;
       // postApi unwraps the ApiResponse envelope → result IS the data object.
       const draft = result?.drafts?.[0];
       if (draft) {
@@ -637,14 +663,32 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
         toast.success(t('articles.aiGeneratedToast'));
       }
     },
-    onError: (err: Error) => toast.error(err.message || t('articles.aiGenerationFailedToast')),
+    onError: (err: Error) => {
+      abortControllerRef.current = null;
+      if (
+        err.name === 'AbortError' ||
+        err.message?.toLowerCase().includes('cancel') ||
+        err.message?.toLowerCase().includes('abort')
+      ) {
+        toast.info(t('articles.generationStopped') || 'Generation stopped');
+        return;
+      }
+      toast.error(err.message || t('articles.aiGenerationFailedToast'));
+    },
   });
 
   // AI edit selected text
   const aiEditSelectionMutation = useMutation({
-    mutationFn: ({ text, action, context }: { text: string; action: string; context?: string }) =>
-      postApi<{ editedText: string }>('/api/content/ai-edit-selection', { text, action, context }),
+    mutationFn: ({ text, action, context }: { text: string; action: string; context?: string }) => {
+      abortControllerRef.current = new AbortController();
+      return postApi<{ editedText: string }>(
+        '/api/content/ai-edit-selection',
+        { text, action, context },
+        { signal: abortControllerRef.current.signal },
+      );
+    },
     onSuccess: (result) => {
+      abortControllerRef.current = null;
       // postApi unwraps the ApiResponse envelope → result IS the data object.
       const editedText = result?.editedText;
       if (editedText) {
@@ -652,8 +696,21 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
         toast.success(t('articles.textUpdatedToast'));
       }
     },
-    onError: (err: Error) => toast.error(err.message || t('articles.aiEditFailedToast')),
+    onError: (err: Error) => {
+      abortControllerRef.current = null;
+      if (
+        err.name === 'AbortError' ||
+        err.message?.toLowerCase().includes('cancel') ||
+        err.message?.toLowerCase().includes('abort')
+      ) {
+        toast.info(t('articles.generationStopped') || 'Generation stopped');
+        return;
+      }
+      toast.error(err.message || t('articles.aiEditFailedToast'));
+    },
   });
+
+  const isAiGenerating = aiGenerateMutation.isPending || aiEditSelectionMutation.isPending;
 
   // Selection-aware action handler
   const captureAndHandleQuickAction = useCallback((action: string) => {
@@ -935,31 +992,46 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
+                          if (isAiGenerating) return;
                           if (aiInput.trim()) {
                             handleAiSubmit(aiInput.trim());
                             setAiInput('');
                           }
                         }
                       }}
-                      placeholder={savedSelectedText ? t('articles.editSelectedTextPlaceholder') : t('articles.askAiPlaceholder')}
+                      placeholder={
+                        isAiGenerating
+                          ? t('articles.generatingPlaceholder')
+                          : savedSelectedText
+                          ? t('articles.editSelectedTextPlaceholder')
+                          : t('articles.askAiPlaceholder')
+                      }
+                      disabled={isAiGenerating}
                       rows={1}
-                      className="flex-1 resize-none bg-transparent text-sm leading-normal placeholder:text-muted-foreground/60 focus:outline-none w-full py-0.5"
+                      className="flex-1 resize-none bg-transparent text-sm leading-normal placeholder:text-muted-foreground/60 focus:outline-none w-full py-0.5 disabled:opacity-60"
                     />
                   </div>
                   <button
                     type="button"
-                    onMouseDown={captureSelectionOnMouseDown}
+                    onMouseDown={isAiGenerating ? undefined : captureSelectionOnMouseDown}
                     onClick={() => {
-                      if (aiInput.trim()) {
+                      if (isAiGenerating) {
+                        handleStopAi();
+                      } else if (aiInput.trim()) {
                         handleAiSubmit(aiInput.trim());
                         setAiInput('');
                       }
                     }}
-                    className="size-7 rounded-full flex items-center justify-center shrink-0 transition-all text-muted-foreground hover:text-foreground"
-                    title={t('articles.sendToAi')}
+                    className={
+                      isAiGenerating
+                        ? 'size-7 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center shrink-0 shadow-sm transition-all active:scale-95'
+                        : 'size-7 rounded-full flex items-center justify-center shrink-0 transition-all text-muted-foreground hover:text-foreground'
+                    }
+                    title={isAiGenerating ? t('articles.stopGeneration') : t('articles.sendToAi')}
+                    aria-label={isAiGenerating ? t('articles.stopGeneration') : t('articles.sendToAi')}
                   >
-                    {aiGenerateMutation.isPending || aiEditSelectionMutation.isPending ? (
-                      <Loader2 className="size-3.5 animate-spin" />
+                    {isAiGenerating ? (
+                      <Square className="size-3 fill-white text-white" />
                     ) : (
                       <Send className="size-3.5" />
                     )}

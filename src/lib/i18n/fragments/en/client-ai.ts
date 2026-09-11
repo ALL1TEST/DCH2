@@ -128,6 +128,7 @@ export const clientAiEn: Record<string, string> = {
   'ai.searchModels': 'Search models...',
   'ai.modelName': 'Model Name',
   'ai.modelId': 'Model ID',
+  'ai.capabilities': 'Capabilities',
   'ai.textType': 'Text',
   'ai.imageType': 'Image',
   'ai.unknownProvider': 'Unknown provider',

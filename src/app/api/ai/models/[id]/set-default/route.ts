@@ -4,6 +4,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import type { ApiResponse, ApiError } from '@/shared/types';
 import { requireFeatureAllowStaff, isPlatformStaff } from '@/lib/platform/platform-auth';
+import {
+  canProviderSupportImageGeneration,
+  isModelForbiddenForImageGeneration,
+  parseCapabilities,
+} from '@/lib/ai/providers';
 
 function reqId() {
   return 'req_' + crypto.randomUUID().slice(0, 8);
@@ -18,54 +23,100 @@ function err(message: string, status = 400, code = 'VALIDATION_ERROR') {
 }
 
 // =====================================================================
-// POST — set as default model for its TYPE (TEXT or IMAGE).
-// Clears any other default of the same type across all providers/models,
-// so there is exactly one default TEXT model and one default IMAGE model
-// system-wide.
+// POST — set as default model for its capability (TEXT or IMAGE).
 // =====================================================================
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const id = reqId();
 
-  // Client's Own AI API entitlement gate — selecting the default
-  // model of a connected provider is provider-connection management.
-  // Platform staff always pass.
   const featureAuth = await requireFeatureAllowStaff(request, 'ai_client');
   if ('response' in featureAuth) return featureAuth.response;
 
   try {
     const { id: modelId } = await params;
 
-    const model = await db.aiModel.findUnique({ where: { id: modelId } });
+    const model = await db.aiModel.findUnique({
+      where: { id: modelId },
+      include: { provider: true },
+    });
     if (!model) return err('Model not found', 404, 'NOT_FOUND');
 
-    // Row-level ownership: non-staff callers may only manage models of
-    // their own provider connections.
-    const ownerCheck = await db.aiProvider.findUnique({ where: { id: model.providerId }, select: { createdById: true } });
-    if (!isPlatformStaff(featureAuth.user) && ownerCheck?.createdById !== featureAuth.user.id) {
-      return err('You can only manage models of your own AI provider connections.', 403, 'FORBIDDEN');
+    const staff = isPlatformStaff(featureAuth.user);
+    const unsetWhere: Record<string, unknown> = { id: { not: modelId } };
+
+    if (staff) {
+      const { getPlatformStaffUserIds } = await import('@/lib/ai/platform-ai');
+      const staffIds = await getPlatformStaffUserIds();
+      if (!model.provider || !staffIds.includes(model.provider.createdById)) {
+        return err('You can only manage models of Platform AI providers as platform default.', 403, 'FORBIDDEN');
+      }
+      unsetWhere.provider = { createdById: { in: staffIds.length > 0 ? staffIds : ['__none__'] } };
+    } else {
+      if (model.provider?.createdById !== featureAuth.user.id) {
+        return err('You can only manage models of your own AI provider connections.', 403, 'FORBIDDEN');
+      }
+      unsetWhere.provider = { createdById: featureAuth.user.id };
     }
 
     if (!model.isActive) {
       return err('Cannot set an inactive model as default. Please activate it first.', 400, 'INACTIVE');
     }
 
-    const modelType = model.type?.toUpperCase() === 'IMAGE' ? 'IMAGE' : 'TEXT';
+    let reqBody: any = null;
+    try {
+      reqBody = await request.json();
+    } catch {}
+    const requestedCap = reqBody?.capability || request.nextUrl.searchParams.get('capability');
 
-    // Atomically: clear other defaults of the same TYPE, then set this one.
-    // The default flag is scoped per owner for non-staff callers so a
-    // client's default never unsets the platform's (or another client's).
-    const unsetWhere: Record<string, unknown> = { type: modelType, isDefault: true, id: { not: modelId } };
-    if (!isPlatformStaff(featureAuth.user)) unsetWhere.provider = { createdById: featureAuth.user.id };
+    const caps = parseCapabilities(model.capabilities ?? (model.type === 'IMAGE' ? ['IMAGE_GENERATION'] : ['TEXT_GENERATION']));
+
+    const isImageTarget = requestedCap === 'IMAGE_GENERATION' || requestedCap === 'IMAGE'
+      || (!requestedCap && !caps.includes('TEXT_GENERATION') && caps.includes('IMAGE_GENERATION'));
+
+    if (isImageTarget) {
+      if (!caps.includes('IMAGE_GENERATION')) {
+        return err('This model does not support image generation.', 400, 'UNSUPPORTED_CAPABILITY');
+      }
+      if (!canProviderSupportImageGeneration(model.provider.kind)) {
+        return err('This provider does not support image generation.', 400, 'UNSUPPORTED_CAPABILITY');
+      }
+      const forbidden = isModelForbiddenForImageGeneration(model.provider.kind, model.modelId);
+      if (forbidden.forbidden) {
+        return err(forbidden.reason || 'This model does not support image generation.', 400, 'FORBIDDEN_CAPABILITY');
+      }
+    } else {
+      if (!caps.includes('TEXT_GENERATION')) {
+        return err('This model does not support text generation.', 400, 'UNSUPPORTED_CAPABILITY');
+      }
+    }
+
+    const scope = staff ? 'global' : `user:${featureAuth.user.id}`;
+
+    const settingsUpdate = isImageTarget
+      ? { imageModelId: modelId, imageProviderId: model.providerId }
+      : { defaultModelId: modelId, defaultProviderId: model.providerId };
+
+    const modelClearData = isImageTarget ? { isDefaultImage: false } : { isDefaultText: false };
+    const modelSetData = isImageTarget
+      ? { isDefaultImage: true, isDefault: true }
+      : { isDefaultText: true, isDefault: true };
+
     await db.$transaction([
       db.aiModel.updateMany({
-        where: unsetWhere,
-        data: { isDefault: false },
+        where: isImageTarget
+          ? { ...unsetWhere, isDefaultImage: true }
+          : { ...unsetWhere, isDefaultText: true },
+        data: modelClearData,
       }),
-      db.aiModel.update({ where: { id: modelId }, data: { isDefault: true } }),
+      db.aiModel.update({ where: { id: modelId }, data: modelSetData }),
+      db.aiSettings.upsert({
+        where: { scope },
+        update: settingsUpdate,
+        create: { scope, ...settingsUpdate },
+      }),
     ]);
 
-    return ok({ isDefault: true, type: modelType });
+    return ok({ isDefault: true, target: isImageTarget ? 'IMAGE_GENERATION' : 'TEXT_GENERATION' });
   } catch (error) {
     console.error(`[AI/MODELS:SET_DEFAULT] ${id} —`, error);
     return err('Failed to set default model', 500, 'INTERNAL_ERROR');

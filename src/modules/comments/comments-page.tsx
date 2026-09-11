@@ -79,7 +79,7 @@ import {
 // This is for UI/UX preview only and does NOT touch the production
 // database. The real `/api/comments` routes are unchanged; flip
 // this flag to `false` to fall back to live API data.
-const USE_DEMO_DATA = true;
+const USE_DEMO_DATA = false;
 
 // -------------------- Types --------------------
 

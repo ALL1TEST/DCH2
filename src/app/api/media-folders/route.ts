@@ -103,7 +103,13 @@ export async function POST(request: NextRequest) {
     }
 
     const d = parsed.data;
-    const siteId = request.nextUrl.searchParams.get('siteId');
+    const { getSiteFromRequest, getActivePlanSiteId } = await import('@/lib/site-context');
+    const { getAuthUser } = await import('@/lib/platform/platform-auth');
+    const authUser = await getAuthUser(request);
+    let siteId = await getSiteFromRequest(request);
+    if (!siteId && authUser) {
+      siteId = await getActivePlanSiteId(authUser);
+    }
 
     const item = await db.mediaFolder.create({
       data: {

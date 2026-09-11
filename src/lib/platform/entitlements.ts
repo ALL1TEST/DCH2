@@ -262,6 +262,11 @@ export async function hasFeature(
         if (site.planScope === 'internal') return true;
         const sitePlanEntitlements = getPlanEntitlements(site.planScope);
         if (sitePlanEntitlements.includes(feature)) return true;
+        if (feature === 'ai_platform' || feature === 'ai_client' || feature === 'ai_content') {
+          if (sitePlanEntitlements.includes('ai_platform') || sitePlanEntitlements.includes('ai_client') || sitePlanEntitlements.includes('ai_content')) {
+            return true;
+          }
+        }
       }
     } catch {
       // fallback to account plan
@@ -285,7 +290,11 @@ export async function hasFeature(
 
   // 5. Plan entitlements.
   const planEntitlements = getPlanEntitlements(planId);
-  return planEntitlements.includes(feature);
+  if (planEntitlements.includes(feature)) return true;
+  if (feature === 'ai_platform' || feature === 'ai_client' || feature === 'ai_content') {
+    return planEntitlements.includes('ai_platform') || planEntitlements.includes('ai_client') || planEntitlements.includes('ai_content');
+  }
+  return false;
 }
 
 /** Sync variant: only checks owner bypass + plan entitlements (NOT overrides
@@ -296,7 +305,12 @@ export function hasFeatureSyncQuick(user: EntitlementUser, feature: string): boo
   if (hasBillingBypass(user)) return true;
   const planId = getEffectivePlanId(user);
   if (planId === 'internal') return true;
-  return getPlanEntitlements(planId).includes(feature);
+  const ents = getPlanEntitlements(planId);
+  if (ents.includes(feature)) return true;
+  if (feature === 'ai_platform' || feature === 'ai_client' || feature === 'ai_content') {
+    return ents.includes('ai_platform') || ents.includes('ai_client') || ents.includes('ai_content');
+  }
+  return false;
 }
 
 /** Throw a 403-shaped error for use in API route guards. */

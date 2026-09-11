@@ -39,6 +39,12 @@ export default function AdminApp() {
   const isPlatformStaff = user?.role === 'PLATFORM_ADMIN' || user?.role === 'OWNER';
   const isInternalAccount = user?.role === 'INTERNAL';
   const isAllSites = useSiteStore((s) => s.isAllSites());
+  const isSiteInitialized = useSiteStore((s) => s.isInitialized);
+
+  // Synchronously sync hash on client mount
+  useEffect(() => {
+    useNavigationStore.getState().readFromHash();
+  }, []);
 
   // Synchronously compute effectiveModule so there is NEVER an intermediate
   // render showing the wrong page, layout shift/decalage, or flashing "Access Denied" during role switch
@@ -60,7 +66,7 @@ export default function AdminApp() {
     effectiveModule = 'dashboard';
   } else if (user && !isPlatformStaff && !isInternalAccount && currentModule === 'analytics') {
     effectiveModule = 'dashboard';
-  } else if (user && !isPlatformStaff && isAllSites && FORBIDDEN_IN_ALL_SITES.has(currentModule)) {
+  } else if (user && !isPlatformStaff && isSiteInitialized && isAllSites && FORBIDDEN_IN_ALL_SITES.has(currentModule)) {
     effectiveModule = isInternalAccount ? 'internal-dashboard' : 'dashboard';
   }
 

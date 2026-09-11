@@ -13,6 +13,9 @@ import { useNavigationStore } from '@/lib/stores/navigation-store';
 import { useT } from '@/lib/i18n';
 import { cn, formatRelativeTime } from '@/lib/utils';
 import { toast } from 'sonner';
+import { queryKeys } from '@/lib/query-keys';
+import { useSiteStore } from '@/lib/stores/site-store';
+import { useSubscriptionStore } from '@/lib/stores/subscription-store';
 
 interface AutomationRow {
   id: string;
@@ -34,17 +37,37 @@ export function AutomationListPage({ showRunsOnly = false }: { showRunsOnly?: bo
   const queryClient = useQueryClient();
   const [deleteTarget, setDeleteTarget] = useState<AutomationRow | null>(null);
 
+  const isAllSites = useSiteStore((s) => s.isAllSites());
+  const activeSiteDbId = useSiteStore((s) => s.activeSiteDbId);
+  const currentPlanId = useSubscriptionStore((s) => s.currentPlanId);
+
   const { data, isLoading } = useQuery({
-    queryKey: ['automations'],
-    queryFn: () => getApi<{ data: AutomationRow[] }>('/api/automations?pageSize=100'),
-    staleTime: 10_000,
+    queryKey: ['automations', isAllSites ? 'all' : activeSiteDbId, currentPlanId],
+    queryFn: () =>
+      getApi<AutomationRow[] | { data: AutomationRow[] }>('/api/automations', {
+        pageSize: 100,
+        ...(!isAllSites && activeSiteDbId ? { siteId: activeSiteDbId } : {}),
+      }),
+    staleTime: 0,
+    refetchOnMount: 'always',
+    placeholderData: (prev) => prev,
   });
 
-  const automations = (data as any)?.data ?? [];
+  const automations: AutomationRow[] = Array.isArray(data)
+    ? data
+    : Array.isArray((data as any)?.data)
+    ? (data as any).data
+    : [];
 
   const runMutation = useMutation({
     mutationFn: (id: string) => postApi(`/api/automations/${id}/run`),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['automations'] }); toast.success(t('automation.started')); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['automations'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.content.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all });
+      queryClient.invalidateQueries({ queryKey: ['calendar'] });
+      toast.success(t('automation.started'));
+    },
     onError: (err: Error) => toast.error(err.message || t('automation.failedToStart')),
   });
 
@@ -88,7 +111,7 @@ export function AutomationListPage({ showRunsOnly = false }: { showRunsOnly?: bo
       {/* Stat Cards */}
       {!showRunsOnly && (
         <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-          {isLoading ? (
+          {isLoading && !automations.length ? (
             Array.from({ length: 5 }).map((_, i) => (
               <Card key={i} className="p-4"><Skeleton className="h-16 w-full" /></Card>
             ))
@@ -126,7 +149,7 @@ export function AutomationListPage({ showRunsOnly = false }: { showRunsOnly?: bo
                 </tr>
               </thead>
               <tbody>
-                {isLoading ? (
+                {isLoading && !automations.length ? (
                   Array.from({ length: 3 }).map((_, i) => (
                     <tr key={i} className="border-b">
                       {Array.from({ length: 7 }).map((_, j) => <td key={j} className="px-4 py-3"><Skeleton className="h-5 w-20" /></td>)}

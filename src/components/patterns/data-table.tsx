@@ -865,7 +865,13 @@ export function DataTable<TData, TValue>({
                 key={row.id}
                 data-state={selectedIds.includes(row.id) ? 'selected' : undefined}
                 className={cn(onRowClick && 'cursor-pointer')}
-                onClick={() => onRowClick?.(row.original)}
+                onClick={(e) => {
+                  const target = e.target as HTMLElement | null;
+                  if (target?.closest('button, a, input, select, textarea, [role="button"], [role="checkbox"], [role="menuitem"], [data-radix-collection-item]')) {
+                    return;
+                  }
+                  onRowClick?.(row.original);
+                }}
               >
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id}>

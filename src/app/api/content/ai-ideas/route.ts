@@ -15,7 +15,7 @@ import { z } from 'zod/v4';
 import { requireFeature } from '@/lib/platform/platform-auth';
 import { hasFeature } from '@/lib/platform/entitlements';
 import { checkAiLimit, aiLimitExceededResponse } from '@/lib/platform/usage-limits';
-import { resolvePlatformPrompt, platformOwnedProviderFilter } from '@/lib/ai/platform-ai';
+import { resolvePlatformPrompt, resolveAiProviderForUser, getOperationMaxTokens } from '@/lib/ai/platform-ai';
 
 function reqId() {
   return 'req_' + crypto.randomUUID().slice(0, 8);
@@ -35,53 +35,46 @@ const schema = z.object({
   existingTitles: z.array(z.string()).optional().default([]),
 });
 
-// Build a strict system prompt that asks the model to return rich idea data
 function buildSystemPrompt(count: number, existingTitles: string[]): string {
   const avoidBlock =
     existingTitles.length > 0
-      ? `\nIMPORTANT: Avoid returning ideas that are duplicates or near-duplicates of these existing titles (different phrasing of the same topic is also a duplicate):\n${existingTitles
+      ? `\nAvoid returning ideas that are duplicates of these existing titles:\n${existingTitles
+          .slice(0, 15)
           .map((t) => `  - ${t}`)
           .join('\n')}\n`
       : '';
 
-  return `You are an expert SEO content strategist. Generate ${count} compelling, distinct article ideas for a website.
-
+  return `You are an expert SEO content strategist. Generate ${count} concise, distinct article ideas for a website.
 ${avoidBlock}
-
 For each idea, you MUST provide ALL of these fields:
-1. "title" — a compelling, click-worthy article title (max ~80 chars)
-2. "seoOpportunity" — integer 0-100, your estimate of the SEO opportunity for this topic (higher = better opportunity). Consider search demand, ranking feasibility, and topical authority potential.
-3. "topicRelevance" — integer 0-100, how relevant this topic is to the website's stated niche (higher = more central to the niche)
-4. "competition" — one of: "Low" | "Medium" | "High" (SERP competition)
-5. "contentPotential" — one of: "High" | "Medium" | "Low" (how much valuable, in-depth content this topic can sustain)
-6. "searchIntent" — one of: "Informational" | "Commercial" | "Transactional" | "Navigational"
-7. "primaryKeyword" — the single most important target keyword/phrase for this article (lowercase, no quotes)
-8. "keywords" — array of 3-5 closely related keywords/keyphrases
-9. "description" — 1-2 sentence description of what the article would cover and why it matters
-10. "suggestedAngle" — a short description of the recommended article angle/approach (e.g. "Step-by-step tutorial with examples", "Comparison table + analysis", "Data-driven listicle")
-11. "tags" — array of 3-5 relevant tags (single words or short phrases, lowercase)
+1. "title" — compelling, click-worthy article title (max ~80 chars)
+2. "seoOpportunity" — integer 0-100 (opportunity score)
+3. "topicRelevance" — integer 0-100 (topical relevance to niche)
+4. "competition" — "Low" | "Medium" | "High"
+5. "contentPotential" — "High" | "Medium" | "Low"
+6. "searchIntent" — "Informational" | "Commercial" | "Transactional" | "Navigational"
+7. "primaryKeyword" — single target keyword phrase (lowercase)
+8. "keywords" — array of 2-4 related keywords
+9. "description" — 1 concise sentence describing what the article would cover
+10. "suggestedAngle" — short recommended angle (e.g. "Practical guide", "Comparison", "Checklist")
+11. "tags" — array of 2-4 lowercase tags
 
-IMPORTANT:
-- Do NOT generate any "monthlyVolume" or "search volume" field. Use only seoOpportunity / topicRelevance / competition as AI-internal scoring.
-- Do NOT include "seoScore" or "difficulty" fields. Use seoOpportunity and competition instead.
-- Each idea must be genuinely distinct from the others in the same response.
-- Respond with valid JSON only. No markdown fences, no commentary.
-
+IMPORTANT: Keep descriptions concise (1 sentence max). Return valid JSON only.
 You MUST respond with valid JSON in this exact shape:
 {
   "ideas": [
     {
       "title": "Article Title Here",
-      "seoOpportunity": 78,
-      "topicRelevance": 92,
+      "seoOpportunity": 85,
+      "topicRelevance": 90,
       "competition": "Medium",
       "contentPotential": "High",
       "searchIntent": "Informational",
       "primaryKeyword": "primary keyword phrase",
-      "keywords": ["keyword1", "keyword2", "keyword3"],
-      "description": "A brief 1-2 sentence description of what this article would cover.",
-      "suggestedAngle": "Recommended article approach",
-      "tags": ["tag1", "tag2", "tag3"]
+      "keywords": ["keyword1", "keyword2"],
+      "description": "A concise 1-sentence description of what this article covers.",
+      "suggestedAngle": "Practical guide",
+      "tags": ["tag1", "tag2"]
     }
   ]
 }
@@ -92,21 +85,45 @@ Return ONLY valid JSON. Do NOT include any text outside the JSON object.`;
 function buildUserPrompt(niche: string, keywords: string, count: number): string {
   const nichePart = niche ? ` for a website in the ${niche} niche` : ' for a general-purpose content website';
   const kwPart = keywords ? ` — focusing on these target keywords/topics: ${keywords}` : '';
-  return `Generate ${count} SEO article ideas${nichePart}${kwPart}. For each idea include seoOpportunity, topicRelevance, competition, contentPotential, searchIntent, primaryKeyword, keywords, description, suggestedAngle, and tags. Respond with JSON only.`;
+  return `Generate ${count} SEO article ideas${nichePart}${kwPart}. Keep descriptions to 1 concise sentence each. Respond with valid JSON only.`;
 }
 
-// Tolerant JSON parser — strips markdown fences and trims trailing commas
+// Tolerant JSON parser — strips markdown fences and handles arrays, objects, and trailing commas
 function parseIdeasJson(raw: string): unknown {
   let cleaned = raw.trim();
   // Strip ```json ... ``` or ``` ... ``` fences
-  cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
-  // Find the first { ... last } to be safe
+  cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+
+  // Direct parse first
+  try {
+    return JSON.parse(cleaned);
+  } catch {}
+
+  // Find boundaries of JSON object or array
   const firstBrace = cleaned.indexOf('{');
   const lastBrace = cleaned.lastIndexOf('}');
-  if (firstBrace >= 0 && lastBrace > firstBrace) {
-    cleaned = cleaned.slice(firstBrace, lastBrace + 1);
+  const firstBracket = cleaned.indexOf('[');
+  const lastBracket = cleaned.lastIndexOf(']');
+
+  if (firstBracket >= 0 && lastBracket > firstBracket && (firstBrace < 0 || firstBracket < firstBrace)) {
+    try {
+      return JSON.parse(cleaned.slice(firstBracket, lastBracket + 1));
+    } catch {}
   }
-  return JSON.parse(cleaned);
+
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    try {
+      return JSON.parse(cleaned.slice(firstBrace, lastBrace + 1));
+    } catch {}
+  }
+
+  // Tolerant trailing commas cleanup
+  const cleanedCommas = cleaned.replace(/,\s*([}\]])/g, '$1');
+  try {
+    return JSON.parse(cleanedCommas);
+  } catch {}
+
+  throw new Error('AI response format invalid');
 }
 
 // Normalize a raw idea object into the expected shape (string + number coercion, defaults)
@@ -248,85 +265,59 @@ export async function POST(request: NextRequest) {
       { role: 'user', content: userPrompt },
     ];
 
-    // ---- Path 1: DB-configured PLATFORM-OWNED provider via executeChat ----
-    // Platform AI generation runs only on providers created by
-    // platform staff; a client's own providers are never used.
-    const owned = await platformOwnedProviderFilter();
-    const provider = await db.aiProvider.findFirst({
-      where: { isActive: true, isDefault: true, apiKeyEncrypted: { not: null }, ...owned },
-      include: { models: true },
-    });
-    const activeProvider =
-      provider ??
-      (await db.aiProvider.findFirst({
-        where: { isActive: true, apiKeyEncrypted: { not: null }, ...owned },
-        include: { models: true },
-      }));
+    // Load persisted AI Settings (user-scoped first if it matches activeProvider, then global)
+    const activeProvider = await resolveAiProviderForUser(auth.user.id);
+    if (!activeProvider) {
+      return err(
+        'No AI provider is connected. Please configure and connect a provider in AI Settings.',
+        400,
+        'NO_PROVIDER_CONFIGURED',
+      );
+    }
+
+    const userSettings = await db.aiSettings.findUnique({ where: { scope: `user:${auth.user.id}` } });
+    const globalSettings = await db.aiSettings.findUnique({ where: { scope: 'global' } });
+    const userModelMatches = userSettings?.defaultModelId && activeProvider.models.some((m) => (m.id === userSettings.defaultModelId || m.modelId === userSettings.defaultModelId) && m.isActive);
+    const effectiveSettings = userModelMatches ? userSettings : globalSettings;
+
+    // Resolve default text model from settings or provider defaults
+    const configuredModelDbId = effectiveSettings?.defaultModelId;
+    const targetModel = configuredModelDbId
+      ? activeProvider.models.find((m) => (m.id === configuredModelDbId || m.modelId === configuredModelDbId) && m.isActive && m.type?.toUpperCase() === 'TEXT')
+      : null;
+    const defaultModel = targetModel
+      ?? activeProvider.models.find((m) => m.isActive && m.isDefault && m.type?.toUpperCase() === 'TEXT')
+      ?? activeProvider.models.find((m) => m.isActive && m.type?.toUpperCase() === 'TEXT');
+
+    if (!defaultModel) {
+      return err(
+        `Provider "${activeProvider.name}" has no active text models configured. Please configure an active model in AI Models.`,
+        400,
+        'NO_MODEL_CONFIGURED',
+      );
+    }
+
+    // Operation-specific max output tokens: small/appropriate limit for idea batch generation
+    const maxTokens = getOperationMaxTokens('ideas', platformPrompt?.maxTokens);
 
     let rawContent: string | null = null;
     let inputTokens: number | undefined;
     let outputTokens: number | undefined;
     let costUsd: number | undefined;
 
-    if (activeProvider) {
-      const result = await executeChat({
-        providerId: activeProvider.id,
-        messages,
-        temperature: platformPrompt?.temperature ?? 0.8,
-        maxTokens: platformPrompt?.maxTokens ?? 4000,
-        jsonMode: true,
-        // Attribute the usage to the user for the Platform AI monthly
-        // usage tracker (AiLog).
-        userId: auth.user.id,
-      });
-      rawContent = result.content;
-      inputTokens = result.inputTokens;
-      outputTokens = result.outputTokens;
-      costUsd = result.costUsd;
-    } else {
-      // ---- Path 2: Fallback to z-ai-web-dev-sdk (Platform AI) ----
-      // The SDK is AI provided and paid for by the platform — only
-      // plans that include Platform AI may use it. A Client's Own
-      // AI API-only plan must connect its own provider instead.
-      if (!(await hasFeature(auth.user, 'ai_platform'))) {
-        return err(
-          "No AI provider connected, and your plan does not include Platform AI. Connect your own AI provider (Client's Own AI API) or upgrade your plan.",
-          403,
-          'FEATURE_NOT_AVAILABLE',
-        );
-      }
-      const ZAI = (await import('z-ai-web-dev-sdk')).default;
-      const zai = await ZAI.create();
-      const response = await zai.chat.completions.create({
-        messages,
-        thinking: { type: 'disabled' },
-      });
-      rawContent = response?.choices?.[0]?.message?.content ?? null;
-      // The platform pays for the SDK call — count it in the Platform AI
-      // monthly usage tracker (AiLog) so the plan limits see it.
-      await db.aiLog
-        .create({
-          data: {
-            providerId: null,
-            providerName: 'Platform SDK (fallback)',
-            modelId: null,
-            question: userPrompt,
-            response: rawContent,
-            inputTokens: response?.usage?.promptTokens ?? 0,
-            outputTokens: response?.usage?.completionTokens ?? 0,
-            totalTokens:
-              (response?.usage?.promptTokens ?? 0) + (response?.usage?.completionTokens ?? 0),
-            costUsd: 0,
-            durationMs: null,
-            status: 'success',
-            siteId: null,
-            userId: auth.user.id,
-          },
-        })
-        .catch(() => {
-          /* usage logging failure shouldn't mask the result */
-        });
-    }
+    const result = await executeChat({
+      providerId: activeProvider.id,
+      modelId: defaultModel.id,
+      messages,
+      temperature: platformPrompt?.temperature ?? effectiveSettings?.defaultTemperature ?? 0.7,
+      maxTokens,
+      jsonMode: true,
+      userId: auth.user.id,
+    });
+    rawContent = result.content;
+    inputTokens = result.inputTokens;
+    outputTokens = result.outputTokens;
+    costUsd = result.costUsd;
 
     if (!rawContent) {
       return err('AI returned an empty response. Please try again.', 500, 'AI_EMPTY');
@@ -337,7 +328,7 @@ export async function POST(request: NextRequest) {
     try {
       parsedIdeas = parseIdeasJson(rawContent);
     } catch {
-      return err('Failed to parse AI response. Please try again.', 500, 'PARSE_ERROR');
+      return err('AI response format invalid. The model output could not be parsed as ideas JSON.', 502, 'PARSE_ERROR');
     }
 
     const ideasRaw =
@@ -348,7 +339,7 @@ export async function POST(request: NextRequest) {
           : null;
 
     if (!Array.isArray(ideasRaw)) {
-      return err('AI did not return an ideas array. Please try again.', 500, 'PARSE_ERROR');
+      return err('AI did not return an ideas array. Please try again.', 502, 'PARSE_ERROR');
     }
 
     const ideas: ArticleIdeaDTO[] = ideasRaw
@@ -366,6 +357,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Failed to generate ideas';
     console.error(`[CONTENT/AI-IDEAS] ${id} —`, error);
-    return err(msg, 500, 'AI_ERROR');
+    const isTimeout = msg.toLowerCase().includes('timed out') || msg.toLowerCase().includes('timeout');
+    return err(msg, isTimeout ? 504 : 500, isTimeout ? 'TIMEOUT_ERROR' : 'AI_ERROR');
   }
 }

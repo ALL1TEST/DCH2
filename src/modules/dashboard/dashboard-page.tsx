@@ -41,10 +41,49 @@ import {
   Area,
   AreaChart,
 } from 'recharts';
-import {
-  getDashboardData,
-  type DashboardScope,
-} from './mock-dashboard-data';
+import { useQuery } from '@tanstack/react-query';
+import { getApi } from '@/lib/api-client';
+import { queryKeys } from '@/lib/query-keys';
+import type { PaginatedResponse } from '@/shared/types';
+
+export interface PendingActionItemData {
+  id: string;
+  type: 'CRITICAL' | 'WARNING' | 'INFO';
+  siteName?: string;
+  message: string;
+  time: string;
+  action: string;
+  module?: string;
+  itemId?: string;
+  subPage?: string;
+}
+
+export interface AnalyticsSummaryData {
+  totalPageViews: number;
+  uniqueVisitors: number;
+  avgTimeOnPage: number;
+  bounceRate: number;
+  totalContent: number;
+  publishedContent: number;
+  totalUsers: number;
+  totalMedia: number;
+  totalComments: number;
+  recentViews: number;
+  contentByStatus: Array<{ status: string; count: number }>;
+  totalSites: number;
+  activeSites: number;
+  siteBreakdown: Array<{ id: string; name: string; slug: string; status: string; _count: { contentItems: number; media: number; comments: number } }>;
+  healthScore: number;
+  aiArticlesToday: number;
+  aiWordsToday: number;
+  pendingActions: {
+    critical: number;
+    warning: number;
+    info: number;
+  };
+  pendingActionsList: PendingActionItemData[];
+  traffic: Array<{ date: string; visitors: number; sessions: number; pageViews: number }>;
+}
 
 // -------------------- Status Chart Colors --------------------
 const STATUS_CHART_COLORS: Record<string, string> = {
@@ -113,7 +152,7 @@ function KpiCard({
 function PendingActionItem({
   action,
 }: {
-  action: ReturnType<typeof getDashboardData>['pendingActions'][number];
+  action: PendingActionItemData;
 }) {
   const { t } = useT();
   const navigate = useNavigationStore((s) => s.navigate);
@@ -224,22 +263,46 @@ export function DashboardWidgets() {
   const sites = useSiteStore((s) => s.sites);
   const isInitialized = useSiteStore((s) => s.isInitialized);
 
-  // Single source of truth: derive ALL dashboard data from the mock service.
-  const scope: DashboardScope = isAllSites
-    ? 'all'
-    : activeSite
-      ? { type: 'site', siteId: activeSite.id }
-      : 'all';
+  // Fetch real live analytics from DB
+  const siteScopeParam = isAllSites ? 'all' : (activeSite?.id ?? 'all');
+  const { data: analyticsRes, isLoading: analyticsLoading } = useQuery({
+    queryKey: queryKeys.analytics.list({ siteId: siteScopeParam }),
+    queryFn: () => getApi<{ data: AnalyticsSummaryData }>('/api/analytics'),
+    staleTime: 15_000,
+  });
 
-  const data = React.useMemo(
-    () => getDashboardData(sites, scope),
-    [sites, scope],
-  );
+  // Fetch real recent content items from DB
+  const { data: contentRes, isLoading: contentLoading } = useQuery({
+    queryKey: queryKeys.content.list({ pageSize: 8, siteId: siteScopeParam }),
+    queryFn: () => getApi<PaginatedResponse<any>>('/api/content', { pageSize: 8 }),
+    staleTime: 15_000,
+  });
 
-  // Show skeletons only while sites are still loading for the first time.
-  const isLoading = !isInitialized && sites.length === 0;
+  const rawData = (analyticsRes as any)?.data ?? (analyticsRes as any);
+  const recentContentItems: any[] = Array.isArray(contentRes)
+    ? contentRes
+    : Array.isArray((contentRes as any)?.data)
+    ? (contentRes as any).data
+    : [];
 
-  // Chart data derived from the single source.
+  const data = {
+    totalContent: rawData?.totalContent ?? 0,
+    publishedContent: rawData?.publishedContent ?? 0,
+    uniqueVisitors7d: rawData?.uniqueVisitors ?? 0,
+    aiArticlesToday: rawData?.aiArticlesToday ?? 0,
+    aiWordsToday: rawData?.aiWordsToday ?? 0,
+    healthScore: rawData?.healthScore ?? 100,
+    totalSites: rawData?.totalSites ?? sites.length,
+    activeSites: rawData?.activeSites ?? sites.filter((s) => s.status === 'ACTIVE').length,
+    pendingActions: rawData?.pendingActionsList ?? [],
+    pendingActionsSummary: rawData?.pendingActions ?? { critical: 0, warning: 0, info: 0 },
+    traffic: rawData?.traffic ?? [],
+    contentByStatus: rawData?.contentByStatus ?? [],
+  };
+
+  const isLoading = (analyticsLoading || contentLoading) && !rawData;
+
+  // Chart data derived from real DB counts
   const statusChartData = React.useMemo(
     () =>
       data.contentByStatus.map((s) => ({
@@ -248,15 +311,6 @@ export function DashboardWidgets() {
         status: s.status,
       })),
     [data.contentByStatus],
-  );
-
-  // Recent content — the most recent articles from the SAME mock dataset.
-  const recentContentItems = React.useMemo(
-    () =>
-      [...data.content]
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-        .slice(0, 8),
-    [data.content],
   );
 
   return (

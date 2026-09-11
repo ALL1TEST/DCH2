@@ -112,6 +112,7 @@ export const clientAiFr: Record<string, string> = {
   "ai.searchModels": "Rechercher des modèles...",
   "ai.modelName": "Nom du modèle",
   "ai.modelId": "ID du modèle",
+  "ai.capabilities": "Capacités",
   "ai.textType": "Texte",
   "ai.imageType": "Image",
   "ai.unknownProvider": "Fournisseur inconnu",

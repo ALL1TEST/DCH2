@@ -10,6 +10,10 @@ import { requireFeature } from '@/lib/platform/platform-auth';
 import { checkAiLimit, aiLimitExceededResponse } from '@/lib/platform/usage-limits';
 import { resolvePlatformPrompt } from '@/lib/ai/platform-ai';
 
+import { isPlatformStaff } from '@/lib/platform/platform-auth';
+import { canProviderSupportImageGeneration, isModelForbiddenForImageGeneration, parseCapabilities } from '@/lib/ai/providers';
+import { executeImageGeneration } from '@/lib/ai/ai-service';
+
 function reqId() {
   return 'req_' + nanoid(8);
 }
@@ -28,10 +32,7 @@ const ASPECT_MAP: Record<string, string> = {
 };
 
 export async function POST(request: NextRequest) {
-  // Platform AI entitlement gate — this route runs EXCLUSIVELY on the
-  // platform SDK (z-ai-web-dev-sdk), i.e. AI provided and paid for by
-  // the platform. A Client's Own AI API-only plan gets no platform AI
-  // access here (403); the plan must include Platform AI.
+  // Platform AI entitlement gate
   const auth = await requireFeature(request, 'ai_platform');
   if ('response' in auth) return auth.response;
   const id = reqId();
@@ -53,46 +54,72 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // The uploader is the authenticated user (the Media.uploadedBy FK
-    // requires a real User id — a literal 'system' default previously
-    // violated the constraint for direct API calls).
     const uploaderId = uploadedById && uploadedById !== 'system' ? uploadedById : auth.user.id;
-
     const size = ASPECT_MAP[aspectRatio] || '1024x1024';
     const clampedCount = Math.min(Math.max(count, 1), 4);
 
-    // Platform AI usage limit — images are counted per generated image,
-    // enforced server-side before generating (the platform pays for the
-    // SDK call). Client's Own AI API plans and owner bypass are never
-    // counted.
     const aiLimit = await checkAiLimit(auth.user, { images: clampedCount });
     if (aiLimit && !aiLimit.ok) return aiLimitExceededResponse(aiLimit);
 
-    // Internally select the Platform Admin prompt bound to the "images"
-    // slot (a prompt wrapper/enhancer) when one exists — the client's
-    // raw prompt is injected as the {{prompt}} variable. The client
-    // never sees the prompt template.
     const platformPrompt = await resolvePlatformPrompt('images', { prompt: prompt.trim() });
     const effectivePrompt = platformPrompt?.userPrompt?.trim() || prompt.trim();
-
-    // Dynamically import z-ai-web-dev-sdk — use the SDK's own env-based
-    // resolution (ZAI.create()), the same as every other platform-SDK
-    // route (ai-ideas, ai-generate, ai-edit-selection). A hard-coded
-    // baseUrl here previously caused ECONNREFUSED when the gateway
-    // moved.
-    const ZAI = (await import('z-ai-web-dev-sdk')).default;
-    const zai = await ZAI.create();
 
     const siteFilter = await getSiteWhere(request);
     const siteId = (siteFilter.siteId as string) || request.nextUrl.searchParams.get('siteId') || undefined;
 
+    // Check configured Image Provider / Model from AI settings
+    const userScope = isPlatformStaff(auth.user) ? 'global' : `user:${auth.user.id}`;
+    const settings = (await db.aiSettings.findUnique({ where: { scope: userScope } }))
+      ?? (await db.aiSettings.findUnique({ where: { scope: 'global' } }));
+
+    if (settings?.imageModelId) {
+      const model = await db.aiModel.findUnique({
+        where: { id: settings.imageModelId },
+        include: { provider: true },
+      });
+      if (model) {
+        const caps = parseCapabilities(model.capabilities ?? (model.type === 'IMAGE' ? ['IMAGE_GENERATION'] : ['TEXT_GENERATION']));
+        if (!caps.includes('IMAGE_GENERATION')) {
+          return NextResponse.json(
+            { error: { code: 'MODEL_NOT_SUPPORTED', message: 'This model does not support image generation.' }, meta: { requestId: id } },
+            { status: 400 },
+          );
+        }
+        if (model.provider && !canProviderSupportImageGeneration(model.provider.kind)) {
+          return NextResponse.json(
+            { error: { code: 'UNSUPPORTED_PROVIDER', message: 'This provider does not support image generation.' }, meta: { requestId: id } },
+            { status: 400 },
+          );
+        }
+        const forbidden = isModelForbiddenForImageGeneration(model.provider?.kind ?? '', model.modelId);
+        if (forbidden.forbidden) {
+          return NextResponse.json(
+            { error: { code: 'FORBIDDEN_MODEL', message: forbidden.reason || 'This model does not support image generation.' }, meta: { requestId: id } },
+            { status: 400 },
+          );
+        }
+      }
+    }
+
     const results = [];
 
-    for (let i = 0; i < clampedCount; i++) {
-      const res = await zai.images.generations.create({ prompt: effectivePrompt, size });
+    if (settings?.imageProviderId && settings?.imageModelId) {
+      // Use configured AI Provider and Model
+      const imgRes = await executeImageGeneration({
+        providerId: settings.imageProviderId,
+        modelId: settings.imageModelId,
+        prompt: effectivePrompt,
+        size: (size as any) || '1024x1024',
+        n: clampedCount,
+        responseFormat: 'b64_json',
+        siteId,
+        userId: auth.user.id,
+      });
 
-      for (const img of res.data || []) {
-        const base64Url = `data:image/png;base64,${img.base64}`;
+      for (const img of imgRes.images) {
+        const base64Url = img.b64_json
+          ? (img.b64_json.startsWith('data:') ? img.b64_json : `data:image/png;base64,${img.b64_json}`)
+          : (img.url || '');
         const filename = `ai_${nanoid(8)}_${Date.now()}.png`;
 
         const item = await db.media.create({
@@ -100,7 +127,7 @@ export async function POST(request: NextRequest) {
             filename,
             originalName: `AI: ${prompt.trim().slice(0, 60)}`,
             mimeType: 'image/png',
-            size: Math.round((img.base64.length * 3) / 4),
+            size: Math.round((base64Url.length * 3) / 4),
             url: base64Url,
             folderId: folderId === '' ? null : folderId || null,
             siteId,
@@ -112,46 +139,73 @@ export async function POST(request: NextRequest) {
 
         results.push(item);
       }
-    }
+    } else {
+      // Fall back to platform z-ai-web-dev-sdk
+      const ZAI = (await import('z-ai-web-dev-sdk')).default;
+      const zai = await ZAI.create();
 
-    // The platform pays for the SDK call — count it in the Platform AI
-    // monthly usage tracker (AiLog), using the same "[IMAGE] " marker +
-    // imagesGenerated JSON convention as the ai-service image path.
-    if (results.length > 0) {
-      await db.aiLog
-        .create({
-          data: {
-            providerId: null,
-            providerName: 'Platform SDK (media)',
-            modelId: null,
-            question: `[IMAGE] ${prompt.trim()}`,
-            response: JSON.stringify({
-              imagesGenerated: results.length,
-              size,
-              format: 'b64_json',
-              model: 'z-ai-web-dev-sdk',
-            }),
-            inputTokens: 0,
-            outputTokens: 0,
-            totalTokens: 0,
-            costUsd: 0,
-            durationMs: null,
-            status: 'success',
-            siteId: siteId ?? null,
-            userId: auth.user.id,
-          },
-        })
-        .catch(() => {
-          /* usage logging failure shouldn't mask the result */
-        });
+      for (let i = 0; i < clampedCount; i++) {
+        const res = await zai.images.generations.create({ prompt: effectivePrompt, size });
+
+        for (const img of res.data || []) {
+          const base64Url = `data:image/png;base64,${img.base64}`;
+          const filename = `ai_${nanoid(8)}_${Date.now()}.png`;
+
+          const item = await db.media.create({
+            data: {
+              filename,
+              originalName: `AI: ${prompt.trim().slice(0, 60)}`,
+              mimeType: 'image/png',
+              size: Math.round((img.base64.length * 3) / 4),
+              url: base64Url,
+              folderId: folderId === '' ? null : folderId || null,
+              siteId,
+              uploadedById: uploaderId,
+              processingStatus: 'READY',
+            },
+            include: mediaIncludes,
+          });
+
+          results.push(item);
+        }
+      }
+
+      if (results.length > 0) {
+        await db.aiLog
+          .create({
+            data: {
+              providerId: null,
+              providerName: 'Platform SDK (media)',
+              modelId: null,
+              question: `[IMAGE] ${prompt.trim()}`,
+              response: JSON.stringify({
+                imagesGenerated: results.length,
+                size,
+                format: 'b64_json',
+                model: 'z-ai-web-dev-sdk',
+              }),
+              inputTokens: 0,
+              outputTokens: 0,
+              totalTokens: 0,
+              costUsd: 0,
+              durationMs: null,
+              status: 'success',
+              siteId: siteId ?? null,
+              userId: auth.user.id,
+            },
+          })
+          .catch(() => {});
+      }
     }
 
     return NextResponse.json({ data: results, meta: { requestId: id } }, { status: 201 });
   } catch (error) {
+    const msg = error instanceof Error ? error.message : 'Failed to generate images';
     console.error(`[MEDIA:GENERATE] ${id} —`, error);
+    const isClientError = /does not support|not found|disabled|invalid/i.test(msg);
     return NextResponse.json(
-      { error: { code: 'INTERNAL_ERROR', message: 'Failed to generate images' }, meta: { requestId: id } },
-      { status: 500 },
+      { error: { code: 'IMAGE_GENERATION_ERROR', message: msg }, meta: { requestId: id } },
+      { status: isClientError ? 400 : 500 },
     );
   }
 }

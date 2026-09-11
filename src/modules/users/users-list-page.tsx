@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore } from '@/lib/stores/navigation-store';
+import { useSiteStore } from '@/lib/stores/site-store';
 import { toast } from 'sonner';
 import {
   UserPlus,
@@ -381,12 +382,23 @@ export function UsersListPage() {
   const [deleteTarget, setDeleteTarget] = useState<UserRow | null>(null);
   const [suspendTarget, setSuspendTarget] = useState<UserRow | null>(null);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const isAllSites = useSiteStore((s) => s.isAllSites());
+  const isSiteInitialized = useSiteStore((s) => s.isInitialized);
 
   useEffect(() => {
-    if (currentSubPage === 'create' || currentSubPage === 'new') {
+    if (isSiteInitialized && isAllSites) {
+      if (inviteDialogOpen) setInviteDialogOpen(false);
+      if (currentSubPage === 'create' || currentSubPage === 'new') {
+        navigate('users');
+      }
+    }
+  }, [isSiteInitialized, isAllSites, inviteDialogOpen, currentSubPage, navigate]);
+
+  useEffect(() => {
+    if (!isAllSites && (currentSubPage === 'create' || currentSubPage === 'new')) {
       setInviteDialogOpen(true);
     }
-  }, [currentSubPage]);
+  }, [currentSubPage, isAllSites]);
 
   // Build query params
   const queryParams = useMemo(
@@ -615,47 +627,52 @@ export function UsersListPage() {
         id: 'actions',
         size: 60,
         render: (row) => (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <MoreHorizontal className="h-4 w-4" />
-                <span className="sr-only">{t('common.actions')}</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => openEditDialog(row)}>
-                <Pencil className="h-4 w-4 mr-2" />
-                {t('common.edit')}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setSuspendTarget(row)}>
-                {row.status === 'SUSPENDED' ? (
-                  <>
-                    <UserCheck className="h-4 w-4 mr-2" />
-                    {t('users.activate')}
-                  </>
-                ) : (
-                  <>
-                    <UserX className="h-4 w-4 mr-2" />
-                    {t('users.suspend')}
-                  </>
-                )}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                variant="destructive"
-                onClick={() => setDeleteTarget(row)}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                {t('common.delete')}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div onClick={(e) => e.stopPropagation()}>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                  <span className="sr-only">{t('common.actions')}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openEditDialog(row); }}>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  {t('common.edit')}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSuspendTarget(row); }}>
+                  {row.status === 'SUSPENDED' ? (
+                    <>
+                      <UserCheck className="h-4 w-4 mr-2" />
+                      {t('users.activate')}
+                    </>
+                  ) : (
+                    <>
+                      <UserX className="h-4 w-4 mr-2" />
+                      {t('users.suspend')}
+                    </>
+                  )}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDeleteTarget(row);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  {t('common.delete')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         ),
       }),
     ],
@@ -719,10 +736,12 @@ export function UsersListPage() {
         description={t('users.pageDescription')}
         breadcrumbs={false}
         action={
-          <Button size="sm" onClick={() => setInviteDialogOpen(true)}>
-            <UserPlus className="h-4 w-4 mr-2" />
-            {t('users.inviteUser')}
-          </Button>
+          !isAllSites ? (
+            <Button size="sm" onClick={() => setInviteDialogOpen(true)}>
+              <UserPlus className="h-4 w-4 mr-2" />
+              {t('users.inviteUser')}
+            </Button>
+          ) : undefined
         }
       />
 

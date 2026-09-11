@@ -43,7 +43,10 @@ export async function GET(request: NextRequest) {
     const type = sp.get('type') || undefined;
 
     const siteFilter = await getSiteWhere(request);
-    const where: Record<string, unknown> = { ...siteFilter };
+    const where: Record<string, unknown> = {
+      ...siteFilter,
+      createdBy: { not: 'platform-scan' },
+    };
     if (userId) where.userId = userId;
     if (isRead !== undefined) where.isRead = isRead === 'true';
     if (type) where.type = type;

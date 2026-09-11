@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { nanoid } from 'nanoid';
+import { getSiteWhere } from '@/lib/site-context';
 
 // ---------- helpers ---------------------------------------------------
 
@@ -23,7 +24,12 @@ export async function GET(request: NextRequest) {
     const sp = new URL(request.url).searchParams;
     const userId = sp.get('userId') || undefined;
 
-    const where: Record<string, unknown> = { isRead: false };
+    const siteFilter = await getSiteWhere(request);
+    const where: Record<string, unknown> = {
+      isRead: false,
+      ...siteFilter,
+      createdBy: { not: 'platform-scan' },
+    };
     if (userId) where.userId = userId;
 
     const count = await db.notification.count({ where });

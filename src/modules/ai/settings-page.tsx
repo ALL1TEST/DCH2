@@ -21,6 +21,7 @@ import {
   Save, Loader2, Type, Image as ImageIcon,
 } from 'lucide-react';
 import { useT } from '@/lib/i18n';
+import { parseCapabilities } from '@/lib/ai/providers';
 
 // -------------------- Types --------------------
 
@@ -37,6 +38,7 @@ interface AiModel {
   modelId: string;
   providerId: string;
   type: string; // 'TEXT' | 'IMAGE'
+  capabilities?: string | null;
   isActive: boolean;
 }
 
@@ -97,40 +99,92 @@ function SettingsPageInner() {
   const settings: AiSettings = { ...(settingsData ?? defaultSettings), ...localEdits } as AiSettings;
 
   // Fetch all providers (we want active ones for the dropdowns, but keep all for display)
-  const { data: providersData } = useQuery({
+  const { data: providersData, isLoading: providersLoading } = useQuery({
     queryKey: queryKeys.aiProviders.list({ isActive: true }),
     queryFn: () => getApi<PaginatedResponse<AiProvider>>('/api/ai/providers', { isActive: true, pageSize: 100 }),
   });
   const activeProviders = providersData?.data ?? [];
 
   // Fetch all active models — we filter client-side by provider + type
-  const { data: allModelsData } = useQuery({
+  const { data: allModelsData, isLoading: modelsLoading } = useQuery({
     queryKey: queryKeys.aiModels.list({ isActive: true, pageSize: 200 }),
     queryFn: () => getApi<PaginatedResponse<AiModel>>('/api/ai/models', { pageSize: 200, isActive: true }),
   });
   const allModels = allModelsData?.data ?? [];
 
-  // Filter models for the Text AI dropdown: same provider + type=TEXT
-  const textModels = allModels.filter(
-    (m) => (!settings.defaultProviderId || m.providerId === settings.defaultProviderId) && m.type?.toUpperCase() === 'TEXT',
-  );
+  // Filter models for the Text AI dropdown: same provider + supports TEXT_GENERATION
+  const textModels = allModels.filter((m) => {
+    if (settings.defaultProviderId && m.providerId !== settings.defaultProviderId) return false;
+    const caps = parseCapabilities(m.capabilities ?? (m.type?.toUpperCase() === 'IMAGE' ? ['IMAGE_GENERATION'] : ['TEXT_GENERATION']));
+    return caps.includes('TEXT_GENERATION');
+  });
 
-  // Image providers: any provider that has at least one IMAGE model.
+  // Image providers: any provider that has at least one model supporting IMAGE_GENERATION
   const imageProviderIds = new Set(
-    allModels.filter((m) => m.type?.toUpperCase() === 'IMAGE').map((m) => m.providerId),
+    allModels
+      .filter((m) => {
+        const caps = parseCapabilities(m.capabilities ?? (m.type?.toUpperCase() === 'IMAGE' ? ['IMAGE_GENERATION'] : ['TEXT_GENERATION']));
+        return caps.includes('IMAGE_GENERATION');
+      })
+      .map((m) => m.providerId),
   );
   const imageProviders = activeProviders.filter((p) => imageProviderIds.has(p.id));
 
-  // Image models: same provider + type=IMAGE
-  const imageModels = allModels.filter(
-    (m) => (!settings.imageProviderId || m.providerId === settings.imageProviderId) && m.type?.toUpperCase() === 'IMAGE',
-  );
+  // Image models: same provider + supports IMAGE_GENERATION
+  const imageModels = allModels.filter((m) => {
+    if (settings.imageProviderId && m.providerId !== settings.imageProviderId) return false;
+    const caps = parseCapabilities(m.capabilities ?? (m.type?.toUpperCase() === 'IMAGE' ? ['IMAGE_GENERATION'] : ['TEXT_GENERATION']));
+    return caps.includes('IMAGE_GENERATION');
+  });
+
+  // Provider change handlers: preserve model if it belongs to the new provider; reset otherwise
+  const handleTextProviderChange = (newProviderId: string) => {
+    updateField('defaultProviderId', newProviderId);
+    const currentModel = allModels.find((m) => m.id === settings.defaultModelId);
+    if (!currentModel || currentModel.providerId !== newProviderId) {
+      updateField('defaultModelId', '');
+    }
+  };
+
+  const handleImageProviderChange = (newProviderId: string) => {
+    updateField('imageProviderId', newProviderId);
+    const currentModel = allModels.find((m) => m.id === settings.imageModelId);
+    if (!currentModel || currentModel.providerId !== newProviderId) {
+      updateField('imageModelId', '');
+    }
+  };
 
   // Save settings
   const saveMutation = useMutation({
-    mutationFn: (body: AiSettings) => postApi('/api/ai/settings', { ...body, scope: 'global' }),
-    onSuccess: () => {
+    mutationFn: (body: AiSettings) => {
+      const payload = {
+        defaultProviderId: body.defaultProviderId || null,
+        defaultModelId: body.defaultModelId || null,
+        defaultTemperature: body.defaultTemperature ?? 0.7,
+        defaultMaxTokens: body.defaultMaxTokens ?? 2048,
+        imageProviderId: body.imageProviderId || null,
+        imageModelId: body.imageModelId || null,
+        embeddingModelId: body.embeddingModelId || null,
+        monthlyBudgetUsd: body.monthlyBudgetUsd ?? null,
+        warningThreshold: body.warningThreshold ?? null,
+        stopOnBudget: body.stopOnBudget ?? false,
+        requestsPerMinute: body.requestsPerMinute ?? null,
+        tokensPerDay: body.tokensPerDay ?? null,
+        streamingEnabled: body.streamingEnabled ?? true,
+        jsonModeEnabled: body.jsonModeEnabled ?? false,
+        functionCallingEnabled: body.functionCallingEnabled ?? false,
+        config: body.config || null,
+        scope: 'global',
+      };
+      return postApi<AiSettings>('/api/ai/settings', payload);
+    },
+    onSuccess: (savedData) => {
+      if (savedData) {
+        queryClient.setQueryData(queryKeys.aiSettings.list({ scope: 'global' }), savedData);
+      }
       queryClient.invalidateQueries({ queryKey: queryKeys.aiSettings.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiProviders.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiModels.all });
       setLocalEdits({});
       toast.success(t('ai.settingsSaved'));
     },
@@ -141,7 +195,7 @@ function SettingsPageInner() {
     saveMutation.mutate(settings);
   };
 
-  if (settingsLoading) {
+  if (settingsLoading || providersLoading || modelsLoading) {
     return <div className="space-y-6">{[1, 2].map((i) => <Card key={i}><CardContent className="p-6"><Skeleton className="h-40 w-full" /></CardContent></Card>)}</div>;
   }
 
@@ -172,10 +226,7 @@ function SettingsPageInner() {
               <Label>{t('ai.defaultProvider')}</Label>
               <Select
                 value={settings.defaultProviderId ?? ''}
-                onValueChange={(v) => {
-                  updateField('defaultProviderId', v);
-                  updateField('defaultModelId', ''); // reset model when provider changes
-                }}
+                onValueChange={handleTextProviderChange}
               >
                 <SelectTrigger><SelectValue placeholder={t('ai.selectProvider')} /></SelectTrigger>
                 <SelectContent>
@@ -195,9 +246,19 @@ function SettingsPageInner() {
               <Select
                 value={settings.defaultModelId ?? ''}
                 onValueChange={(v) => updateField('defaultModelId', v)}
-                disabled={!settings.defaultProviderId}
+                disabled={!settings.defaultProviderId || textModels.length === 0}
               >
-                <SelectTrigger><SelectValue placeholder={settings.defaultProviderId ? t('ai.selectModel') : t('ai.selectProviderFirst')} /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={
+                      !settings.defaultProviderId
+                        ? t('ai.selectProviderFirst')
+                        : textModels.length === 0
+                        ? t('ai.noActiveTextModels')
+                        : t('ai.selectModel')
+                    }
+                  />
+                </SelectTrigger>
                 <SelectContent>
                   {textModels.map((m) => (
                     <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
@@ -214,21 +275,9 @@ function SettingsPageInner() {
           <div className="grid gap-1">
             <div className="flex justify-between text-sm">
               <Label>{t('ai.defaultTemperature')}</Label>
-              <span className="text-muted-foreground">{settings.defaultTemperature.toFixed(1)}</span>
+              <span className="text-muted-foreground">{(settings.defaultTemperature ?? 0.7).toFixed(1)}</span>
             </div>
             <Slider min={0} max={2} step={0.1} value={[settings.defaultTemperature ?? 0.7]} onValueChange={([v]) => updateField('defaultTemperature', v)} />
-          </div>
-
-          {/* Max Tokens */}
-          <div className="grid gap-2">
-            <Label htmlFor="max-tokens">{t('ai.defaultMaxTokens')}</Label>
-            <Input
-              id="max-tokens"
-              type="number"
-              min={1}
-              value={settings.defaultMaxTokens ?? 2048}
-              onChange={(e) => updateField('defaultMaxTokens', e.target.value ? parseInt(e.target.value) : 2048)}
-            />
           </div>
         </CardContent>
       </Card>
@@ -248,10 +297,7 @@ function SettingsPageInner() {
               <Label>{t('ai.defaultImageProvider')}</Label>
               <Select
                 value={settings.imageProviderId ?? ''}
-                onValueChange={(v) => {
-                  updateField('imageProviderId', v);
-                  updateField('imageModelId', ''); // reset model when provider changes
-                }}
+                onValueChange={handleImageProviderChange}
               >
                 <SelectTrigger><SelectValue placeholder={t('ai.selectProvider')} /></SelectTrigger>
                 <SelectContent>
@@ -271,9 +317,19 @@ function SettingsPageInner() {
               <Select
                 value={settings.imageModelId ?? ''}
                 onValueChange={(v) => updateField('imageModelId', v)}
-                disabled={!settings.imageProviderId}
+                disabled={!settings.imageProviderId || imageModels.length === 0}
               >
-                <SelectTrigger><SelectValue placeholder={settings.imageProviderId ? t('ai.selectModel') : t('ai.selectProviderFirst')} /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={
+                      !settings.imageProviderId
+                        ? t('ai.selectProviderFirst')
+                        : imageModels.length === 0
+                        ? t('ai.noActiveImageModels')
+                        : t('ai.selectModel')
+                    }
+                  />
+                </SelectTrigger>
                 <SelectContent>
                   {imageModels.map((m) => (
                     <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>

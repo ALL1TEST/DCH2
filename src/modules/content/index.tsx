@@ -1,7 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigationStore } from '@/lib/stores/navigation-store';
+import { useSiteStore } from '@/lib/stores/site-store';
 import { ContentListPage } from './content-list-page';
 import { ContentCreatePage } from './content-create-page';
 import { ContentEditPage } from './content-edit-page';
@@ -19,9 +20,18 @@ import { ContentDetailPage } from './content-detail-page';
 export function ContentModule() {
   const currentSubPage = useNavigationStore((s) => s.currentSubPage);
   const currentItemId = useNavigationStore((s) => s.currentItemId);
+  const navigate = useNavigationStore((s) => s.navigate);
+  const isAllSites = useSiteStore((s) => s.isAllSites());
+  const isSiteInitialized = useSiteStore((s) => s.isInitialized);
 
-  // Create page
-  if (currentSubPage === 'new' || currentSubPage === 'create') {
+  useEffect(() => {
+    if (isSiteInitialized && isAllSites && (currentSubPage === 'new' || currentSubPage === 'create')) {
+      navigate('content');
+    }
+  }, [isSiteInitialized, isAllSites, currentSubPage, navigate]);
+
+  // Create page (disallowed in All Sites mode)
+  if (!isAllSites && (currentSubPage === 'new' || currentSubPage === 'create')) {
     return <ContentCreatePage />;
   }
 

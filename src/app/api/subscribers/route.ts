@@ -123,7 +123,8 @@ export async function POST(request: NextRequest) {
     const siteId = request.nextUrl.searchParams.get('siteId');
 
     // Check for existing subscriber with same email
-    const existing = await db.newsletterSubscriber.findFirst({ where: { ...getSiteWhere(request), email: d.email } });
+    const siteFilter = await getSiteWhere(request);
+    const existing = await db.newsletterSubscriber.findFirst({ where: { ...siteFilter, email: d.email } });
     if (existing) {
       return NextResponse.json(
         { error: { code: 'CONFLICT', message: 'A subscriber with this email already exists' }, meta: { requestId: id } },

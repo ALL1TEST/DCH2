@@ -18,7 +18,7 @@
 // existing Articles + Newsletter Campaigns endpoints.
 // ============================================================
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   addDays,
@@ -46,9 +46,12 @@ import {
   Mail,
   Pencil,
   Plus,
+  Sparkles,
+  Trash2,
   Calendar as CalendarIcon,
   type LucideIcon,
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -71,8 +74,11 @@ import {
 import { StatusBadge, EmptyState } from '@/components/patterns';
 import { getApi } from '@/lib/api-client';
 import { useNavigationStore } from '@/lib/stores/navigation-store';
+import { useSiteStore } from '@/lib/stores/site-store';
+import { useSubscriptionStore } from '@/lib/stores/subscription-store';
 import { useT } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
+import { ArticleIdea, SAVED_IDEAS_STORAGE_KEY } from '@/modules/content/content-list-page';
 import type { PaginatedResponse, PostStatus, CampaignStatus } from '@/shared/types';
 
 // -------------------- Types --------------------
@@ -91,7 +97,7 @@ type FilterKey =
 interface CalendarEvent {
   id: string;
   title: string;
-  type: 'article' | 'campaign';
+  type: 'article' | 'campaign' | 'idea';
   status: string;
   date: Date;
   raw: any;
@@ -161,6 +167,9 @@ function eventColorClasses(type: CalendarEvent['type']) {
   if (type === 'article') {
     return 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700';
   }
+  if (type === 'idea') {
+    return 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-700';
+  }
   return 'bg-violet-100 text-violet-800 border-violet-300 hover:bg-violet-200 dark:bg-violet-900/30 dark:text-violet-300 dark:border-violet-700';
 }
 
@@ -171,13 +180,15 @@ function EventTypeIcon({
   type: CalendarEvent['type'];
   className?: string;
 }) {
-  const Icon = type === 'article' ? FileText : Mail;
+  const Icon = type === 'article' ? FileText : type === 'idea' ? Sparkles : Mail;
   return <Icon className={className} />;
 }
 
 // Returns an i18n key — resolve with t() at the call sites.
 function eventTypeLabel(type: CalendarEvent['type']) {
-  return type === 'article' ? 'calendar.eventTypeArticle' : 'calendar.eventTypeCampaign';
+  if (type === 'article') return 'calendar.eventTypeArticle';
+  if (type === 'idea') return 'articles.aiIdeas';
+  return 'calendar.eventTypeCampaign';
 }
 
 // -------------------- Data mapping --------------------
@@ -186,7 +197,7 @@ function mapArticles(rows: ArticleRow[] | undefined): CalendarEvent[] {
   if (!rows) return [];
   const events: CalendarEvent[] = [];
   for (const a of rows) {
-    const iso = a.scheduledAt ?? a.publishedAt;
+    const iso = a.scheduledAt ?? a.publishedAt ?? (a.status === 'DRAFT' ? a.createdAt : undefined);
     if (!iso) continue;
     const date = parseISO(iso);
     if (Number.isNaN(date.getTime())) continue;
@@ -221,6 +232,28 @@ function mapCampaigns(rows: CampaignRow[] | undefined): CalendarEvent[] {
   return events;
 }
 
+function mapIdeas(rows: ArticleIdea[] | undefined): CalendarEvent[] {
+  if (!rows || !Array.isArray(rows)) return [];
+  const events: CalendarEvent[] = [];
+  for (const idea of rows) {
+    if (!idea.targetDate) continue;
+    const date = parseISO(idea.targetDate);
+    if (Number.isNaN(date.getTime())) continue;
+    if (date.getHours() === 0) {
+      date.setHours(10, 0, 0, 0);
+    }
+    events.push({
+      id: `idea-${idea.title}`,
+      title: idea.title,
+      type: 'idea',
+      status: 'SCHEDULED',
+      date,
+      raw: idea,
+    });
+  }
+  return events;
+}
+
 // -------------------- Filter logic --------------------
 
 function eventMatchesFilter(ev: CalendarEvent, filter: FilterKey): boolean {
@@ -228,14 +261,15 @@ function eventMatchesFilter(ev: CalendarEvent, filter: FilterKey): boolean {
     case 'all':
       return true;
     case 'articles':
-      return ev.type === 'article';
+      return ev.type === 'article' || ev.type === 'idea';
     case 'campaigns':
       return ev.type === 'campaign';
     case 'drafts':
       return ev.status === 'DRAFT';
     case 'scheduled':
-      // Campaigns with SCHEDULED status, or articles whose date came from scheduledAt
+      // Campaigns with SCHEDULED status, or articles/ideas whose date came from scheduledAt/targetDate
       if (ev.type === 'campaign') return ev.status === 'SCHEDULED';
+      if (ev.type === 'idea') return true;
       return Boolean(ev.raw?.scheduledAt);
     case 'published':
       return ev.status === 'PUBLISHED' || ev.status === 'SENT';
@@ -260,25 +294,85 @@ export function CalendarPage() {
   const [filter, setFilter] = useState<FilterKey>('all');
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
 
+  const isAllSites = useSiteStore((s) => s.isAllSites());
+  const activeSiteDbId = useSiteStore((s) => s.activeSiteDbId);
+  const currentPlanId = useSubscriptionStore((s) => s.currentPlanId);
+
   // -------- Data fetching --------
 
   const { data: articlesData, isLoading: articlesLoading } = useQuery({
-    queryKey: ['calendar', 'articles'],
+    queryKey: ['calendar', 'articles', isAllSites ? 'all' : activeSiteDbId, currentPlanId],
     queryFn: () =>
       getApi<PaginatedResponse<ArticleRow>>('/api/content', {
         pageSize: 100,
-        sort: 'publishedAt',
-        order: 'asc',
+        sort: 'createdAt',
+        order: 'desc',
+        ...(!isAllSites && activeSiteDbId ? { siteId: activeSiteDbId } : {}),
       }),
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const { data: campaignsData, isLoading: campaignsLoading } = useQuery({
-    queryKey: ['calendar', 'campaigns'],
+    queryKey: ['calendar', 'campaigns', isAllSites ? 'all' : activeSiteDbId, currentPlanId],
     queryFn: () =>
-      getApi<CampaignRow[]>('/api/campaigns', { pageSize: 100 }),
-    staleTime: 30_000,
+      getApi<CampaignRow[]>('/api/campaigns', {
+        pageSize: 100,
+        ...(!isAllSites && activeSiteDbId ? { siteId: activeSiteDbId } : {}),
+      }),
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
+
+  // Saved ideas from localStorage — strictly isolated by current plan & active site
+  const [savedIdeas, setSavedIdeas] = useState<ArticleIdea[]>([]);
+
+  const loadIdeas = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = window.localStorage.getItem(SAVED_IDEAS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const planKey = (currentPlanId || 'free').toLowerCase();
+          const scoped = (parsed as ArticleIdea[]).filter((idea) => {
+            // Plan isolation:
+            if (idea.planId) {
+              if (idea.planId.toLowerCase() !== planKey) return false;
+            } else {
+              // Legacy un-scoped idea from previous session:
+              // Belongs to 'max' where it was created, do NOT leak into 'pro', 'plus', 'free'
+              if (planKey !== 'max') return false;
+            }
+
+            // Site isolation:
+            // If on a specific site, and idea has siteId, it must match active site
+            if (!isAllSites && activeSiteDbId && idea.siteId) {
+              if (idea.siteId !== activeSiteDbId) return false;
+            }
+
+            return true;
+          });
+
+          setSavedIdeas(scoped);
+          return;
+        }
+      }
+      setSavedIdeas([]);
+    } catch {
+      setSavedIdeas([]);
+    }
+  }, [currentPlanId, activeSiteDbId, isAllSites]);
+
+  useEffect(() => {
+    loadIdeas();
+    window.addEventListener('cms_saved_ideas_updated', loadIdeas);
+    window.addEventListener('storage', loadIdeas);
+    return () => {
+      window.removeEventListener('cms_saved_ideas_updated', loadIdeas);
+      window.removeEventListener('storage', loadIdeas);
+    };
+  }, [loadIdeas]);
 
   const articles = useMemo(
     () => articlesData?.data ?? [],
@@ -290,14 +384,85 @@ export function CalendarPage() {
   );
 
   const allEvents = useMemo<CalendarEvent[]>(() => {
-    return [...mapArticles(articles), ...mapCampaigns(campaigns)].sort(
-      (a, b) => a.date.getTime() - b.date.getTime(),
-    );
-  }, [articles, campaigns]);
+    return [
+      ...mapArticles(articles),
+      ...mapCampaigns(campaigns),
+      ...mapIdeas(savedIdeas),
+    ].sort((a, b) => a.date.getTime() - b.date.getTime());
+  }, [articles, campaigns, savedIdeas]);
+
+  const currentPeriodEvents = useMemo(() => {
+    if (view === 'month') {
+      const monthStart = startOfMonth(referenceDate);
+      const monthEnd = endOfMonth(referenceDate);
+      const gridStart = startOfWeek(monthStart, { weekStartsOn: 0 });
+      const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
+      return allEvents.filter((ev) => ev.date >= gridStart && ev.date <= gridEnd);
+    }
+    if (view === 'week') {
+      const ws = startOfWeek(referenceDate, { weekStartsOn: 0 });
+      const we = endOfWeek(referenceDate, { weekStartsOn: 0 });
+      return allEvents.filter((ev) => ev.date >= ws && ev.date <= we);
+    }
+    if (view === 'day') {
+      return allEvents.filter((ev) => isSameDay(ev.date, referenceDate));
+    }
+    return allEvents;
+  }, [allEvents, view, referenceDate]);
 
   const filteredEvents = useMemo(
     () => allEvents.filter((ev) => eventMatchesFilter(ev, filter)),
     [allEvents, filter],
+  );
+
+  const handleRemoveIdeaFromCalendar = useCallback((ideaTitle: string) => {
+    try {
+      const raw = window.localStorage.getItem(SAVED_IDEAS_STORAGE_KEY);
+      if (!raw) return;
+      const stored: ArticleIdea[] = JSON.parse(raw) as ArticleIdea[];
+      const updated = stored.map((item) => {
+        if (item.title.toLowerCase() === ideaTitle.toLowerCase()) {
+          const { targetDate: _td, ...rest } = item;
+          return rest as ArticleIdea;
+        }
+        return item;
+      });
+      window.localStorage.setItem(SAVED_IDEAS_STORAGE_KEY, JSON.stringify(updated));
+      loadIdeas();
+      window.dispatchEvent(new Event('cms_saved_ideas_updated'));
+      toast.success(t('calendar.ideaRemoved') || 'Idea removed from calendar');
+      setSelectedEvent(null);
+    } catch {
+      // ignore
+    }
+  }, [t, loadIdeas]);
+
+  const handleCreateFromIdea = useCallback(
+    (idea: ArticleIdea) => {
+      const rawKeywords = [
+        idea.primaryKeyword,
+        ...(idea.keywords || []),
+        ...(idea.tags || []),
+      ].filter(Boolean);
+      const uniqueKeywords = Array.from(new Set(rawKeywords));
+
+      const promptText =
+        uniqueKeywords.length > 0
+          ? `${idea.title}\n\nKeywords: ${uniqueKeywords.join(', ')}`
+          : idea.title;
+
+      useNavigationStore.getState().setInitialAiPrompt(promptText, idea.title);
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem('pending_ai_prompt', promptText);
+        window.sessionStorage.setItem('pending_ai_title', idea.title);
+        if (idea.targetDate) {
+          window.sessionStorage.setItem('pending_ai_target_date', idea.targetDate);
+        }
+      }
+
+      navigate('content', null, 'create');
+    },
+    [navigate],
   );
 
   const isLoading = articlesLoading || campaignsLoading;
@@ -341,12 +506,14 @@ export function CalendarPage() {
   // -------- Schedule Content actions --------
 
   const handleNewArticle = useCallback(() => {
+    if (isAllSites) return;
     navigate('content', null, 'create');
-  }, [navigate]);
+  }, [navigate, isAllSites]);
 
   const handleNewCampaign = useCallback(() => {
+    if (isAllSites) return;
     navigate('newsletter', null, 'campaigns');
-  }, [navigate]);
+  }, [navigate, isAllSites]);
 
   // -------- Event selection --------
 
@@ -373,7 +540,7 @@ export function CalendarPage() {
       />
 
       {/* Filter bar */}
-      <FilterBar value={filter} onChange={setFilter} counts={allEvents} />
+      <FilterBar value={filter} onChange={setFilter} counts={currentPeriodEvents} />
 
       {/* Calendar body */}
       <div className="rounded-xl border border-border bg-card shadow-sm">
@@ -412,6 +579,8 @@ export function CalendarPage() {
         event={selectedEvent}
         onClose={handleCloseModal}
         onNavigate={navigate}
+        onCreateArticleFromIdea={handleCreateFromIdea}
+        onRemoveIdeaFromCalendar={handleRemoveIdeaFromCalendar}
       />
     </div>
   );
@@ -443,6 +612,7 @@ function CalendarHeader({
   onNewCampaign,
 }: CalendarHeaderProps) {
   const { t } = useT();
+  const isAllSites = useSiteStore((s) => s.isAllSites());
 
   return (
     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -458,25 +628,40 @@ function CalendarHeader({
 
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-2">
-        {/* Today */}
-        <Button variant="outline" size="sm" onClick={onToday}>
-          {t('calendar.today')}
-        </Button>
+        {/* Navigation Controls: Today + [ < | Period | > ] Capsule */}
+        <div className="flex items-center gap-2">
+          {/* Today Button Pill */}
+          <button
+            type="button"
+            onClick={onToday}
+            className="inline-flex items-center justify-center rounded-full border border-border bg-background px-4 h-8 text-xs font-semibold text-foreground hover:bg-muted/60 transition-colors shadow-xs"
+          >
+            {t('calendar.today')}
+          </button>
 
-        {/* Prev / Next */}
-        <div className="flex items-center">
-          <Button variant="outline" size="icon" className="h-8 w-8" onClick={onPrev} aria-label={t('calendar.previous')}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="icon" className="h-8 w-8 -ml-px rounded-l-none" onClick={onNext} aria-label={t('calendar.next')}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+          {/* Connected Segmented Capsule: < | Period Label | > */}
+          <div className="inline-flex items-center rounded-full border border-border bg-background shadow-xs overflow-hidden h-8">
+            <button
+              type="button"
+              onClick={onPrev}
+              aria-label={t('calendar.previous')}
+              className="h-full px-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors flex items-center justify-center border-r border-border"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="px-4 text-xs font-semibold text-foreground select-none whitespace-nowrap min-w-[130px] text-center">
+              {periodLabel}
+            </span>
+            <button
+              type="button"
+              onClick={onNext}
+              aria-label={t('calendar.next')}
+              className="h-full px-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors flex items-center justify-center border-l border-border"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
         </div>
-
-        {/* Current period */}
-        <span className="text-sm font-semibold text-foreground min-w-[140px] text-center px-2">
-          {periodLabel}
-        </span>
 
         <Separator orientation="vertical" className="hidden sm:block h-6 mx-1" />
 
@@ -506,24 +691,26 @@ function CalendarHeader({
         </div>
 
         {/* Schedule Content dropdown — placed right after the view switcher */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button size="sm" className="bg-amber-500 text-white hover:bg-amber-600">
-              <Plus className="h-4 w-4" />
-              {t('calendar.scheduleContent')}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem onClick={onNewArticle}>
-              <FileText className="mr-2 h-4 w-4" />
-              {t('calendar.newArticle')}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={onNewCampaign}>
-              <Mail className="mr-2 h-4 w-4" />
-              {t('calendar.newCampaign')}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {!isAllSites && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" className="bg-amber-500 text-white hover:bg-amber-600">
+                <Plus className="h-4 w-4" />
+                {t('calendar.scheduleContent')}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={onNewArticle}>
+                <FileText className="mr-2 h-4 w-4" />
+                {t('calendar.newArticle')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onNewCampaign}>
+                <Mail className="mr-2 h-4 w-4" />
+                {t('calendar.newCampaign')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
     </div>
   );
@@ -1005,13 +1192,22 @@ interface EventDetailsModalProps {
   event: CalendarEvent | null;
   onClose: () => void;
   onNavigate: (mod: string, itemId?: string | null, subPage?: string | null) => void;
+  onCreateArticleFromIdea?: (idea: ArticleIdea) => void;
+  onRemoveIdeaFromCalendar?: (ideaTitle: string) => void;
 }
 
-function EventDetailsModal({ event, onClose, onNavigate }: EventDetailsModalProps) {
+function EventDetailsModal({
+  event,
+  onClose,
+  onNavigate,
+  onCreateArticleFromIdea,
+  onRemoveIdeaFromCalendar,
+}: EventDetailsModalProps) {
   const { t } = useT();
 
   const isArticle = event?.type === 'article';
   const isCampaign = event?.type === 'campaign';
+  const isIdea = event?.type === 'idea';
 
   const handleView = useCallback(() => {
     if (!event) return;
@@ -1037,15 +1233,15 @@ function EventDetailsModal({ event, onClose, onNavigate }: EventDetailsModalProp
 
   return (
     <Dialog open={!!event} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+      <DialogContent className="sm:max-w-lg bg-card border border-border shadow-xl rounded-xl">
+        <DialogHeader className="pr-8 space-y-1.5">
+          <DialogTitle className="flex items-start gap-2.5 text-base font-semibold leading-snug">
             {event && (
-              <EventTypeIcon type={event.type} className="h-5 w-5 text-muted-foreground" />
+              <EventTypeIcon type={event.type} className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
             )}
-            <span className="truncate">{event?.title ?? t('calendar.eventDetails')}</span>
+            <span className="text-foreground">{event?.title ?? t('calendar.eventDetails')}</span>
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs text-muted-foreground">
             {t('calendar.eventDetailsDescription')}
           </DialogDescription>
         </DialogHeader>
@@ -1056,7 +1252,7 @@ function EventDetailsModal({ event, onClose, onNavigate }: EventDetailsModalProp
             <div className="flex flex-wrap items-center gap-2">
               <Badge
                 variant="outline"
-                className={cn('border-transparent', eventColorClasses(event.type))}
+                className={cn('font-medium px-2.5 py-0.5 text-xs', eventColorClasses(event.type))}
               >
                 {t(eventTypeLabel(event.type))}
               </Badge>
@@ -1064,54 +1260,99 @@ function EventDetailsModal({ event, onClose, onNavigate }: EventDetailsModalProp
             </div>
 
             {/* Scheduled date / time */}
-            <div className="rounded-lg border border-border bg-muted/30 p-3">
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                {t('calendar.scheduledLabel')}
+            <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-1">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {t('calendar.scheduledLabel') || 'Scheduled'}
               </div>
-              <div className="mt-1 text-sm font-medium text-foreground">
+              <div className="text-sm font-semibold text-foreground">
                 {format(event.date, 'EEEE, MMMM d, yyyy')}
               </div>
-              <div className="text-sm text-muted-foreground">
+              <div className="text-xs text-muted-foreground">
                 {format(event.date, 'h:mm a')}
               </div>
             </div>
 
             {/* Type-specific info */}
             {isArticle && event.raw && (
-              <div className="space-y-1.5 text-sm">
-                <DetailRow label={t('calendar.slug')} value={event.raw.slug ?? '—'} />
+              <div className="space-y-2.5 text-sm">
+                <DetailRow label={t('calendar.slug') || 'Slug'} value={event.raw.slug ?? '—'} />
                 {event.raw.excerpt && (
-                  <DetailRow label={t('calendar.excerpt')} value={event.raw.excerpt} />
+                  <DetailRow label={t('calendar.excerpt') || 'Excerpt'} value={event.raw.excerpt} />
                 )}
               </div>
             )}
             {isCampaign && event.raw && (
-              <div className="space-y-1.5 text-sm">
-                <DetailRow label={t('calendar.subject')} value={event.raw.subject ?? '—'} />
+              <div className="space-y-2.5 text-sm">
+                <DetailRow label={t('calendar.subject') || 'Subject'} value={event.raw.subject ?? '—'} />
                 <DetailRow
-                  label={t('calendar.template')}
+                  label={t('calendar.template') || 'Template'}
                   value={event.raw.template?.name ?? '—'}
                 />
+              </div>
+            )}
+            {isIdea && event.raw && (
+              <div className="space-y-3 text-sm">
+                {event.raw.primaryKeyword && (
+                  <DetailRow label={t('calendar.primaryKeyword') || 'Primary Keyword'} value={event.raw.primaryKeyword} />
+                )}
+                {event.raw.description && (
+                  <DetailRow label={t('calendar.descriptionLabel') || 'Description'} value={event.raw.description} />
+                )}
+                {event.raw.seoOpportunity !== undefined && (
+                  <DetailRow label={t('calendar.seoOpportunity') || 'SEO Opportunity'} value={`${event.raw.seoOpportunity}/100`} />
+                )}
               </div>
             )}
           </div>
         )}
 
-        <DialogFooter className="gap-2 sm:gap-2">
-          <Button variant="outline" onClick={onClose}>
+        <DialogFooter className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-3 border-t border-border">
+          <Button variant="outline" size="sm" onClick={onClose} className="rounded-lg h-9">
             {t('common.close')}
           </Button>
-          <Button variant="outline" onClick={handleView}>
-            <Eye className="h-4 w-4" />
-            {t('common.view')}
-          </Button>
-          <Button
-            onClick={handleEdit}
-            className="bg-amber-500 text-white hover:bg-amber-600"
-          >
-            <Pencil className="h-4 w-4" />
-            {t('common.edit')}
-          </Button>
+          {isIdea ? (
+            <>
+              {onRemoveIdeaFromCalendar && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-lg h-9 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/50 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-700"
+                  onClick={() => onRemoveIdeaFromCalendar(event.title)}
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                  {t('calendar.removeIdea') || 'Remove from Calendar'}
+                </Button>
+              )}
+              {onCreateArticleFromIdea && (
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    onClose();
+                    onCreateArticleFromIdea(event.raw);
+                  }}
+                  className="rounded-lg h-9 bg-amber-500 hover:bg-amber-600 text-white font-medium shadow-xs"
+                >
+                  <Plus className="h-4 w-4 mr-1.5" />
+                  {t('calendar.createArticle') || 'Create Article'}
+                </Button>
+              )}
+            </>
+          ) : (
+            <>
+              <Button variant="outline" size="sm" onClick={handleView} className="rounded-lg h-9">
+                <Eye className="h-3.5 w-3.5 mr-1.5" />
+                {t('common.view')}
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleEdit}
+                className="rounded-lg h-9 bg-amber-500 text-white hover:bg-amber-600 font-medium shadow-xs"
+              >
+                <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                {t('common.edit')}
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -1121,10 +1362,10 @@ function EventDetailsModal({ event, onClose, onNavigate }: EventDetailsModalProp
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         {label}
       </span>
-      <span className="text-sm text-foreground break-words">{value}</span>
+      <span className="text-sm text-foreground leading-relaxed break-words">{value}</span>
     </div>
   );
 }
@@ -1134,15 +1375,6 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 // ============================================================
 
 function CalendarSkeleton({ view }: { view: CalendarView }) {
-  if (view === 'agenda') {
-    return (
-      <div className="space-y-2 p-4">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="h-16 w-full" />
-        ))}
-      </div>
-    );
-  }
   if (view === 'day') {
     return (
       <div className="space-y-2 p-4">

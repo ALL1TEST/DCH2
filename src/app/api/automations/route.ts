@@ -5,6 +5,7 @@ import { nanoid } from 'nanoid';
 import { z } from 'zod/v4';
 import { requireAuth } from '@/lib/platform/platform-auth';
 import { hasFeature, forbiddenResponse } from '@/lib/platform/entitlements';
+import { getSiteWhere, getSiteFromRequest, getActivePlanSiteId } from '@/lib/site-context';
 
 function reqId() { return 'req_' + nanoid(8); }
 
@@ -15,6 +16,7 @@ const createSchema = z.object({
   scheduleConfig: z.string().default('{}'),
   workflowConfig: z.string().default('{}'),
   createdById: z.string().optional(),
+  siteId: z.string().optional().nullable(),
 });
 
 export async function GET(request: NextRequest) {
@@ -33,7 +35,10 @@ export async function GET(request: NextRequest) {
     const search = sp.get('search')?.trim() || '';
     const status = sp.get('status') || undefined;
 
-    const where: Record<string, unknown> = {};
+    const siteFilter = await getSiteWhere(request);
+    const where: Record<string, unknown> = {
+      ...siteFilter,
+    };
     if (search) where.name = { contains: search };
     if (status) where.status = status;
 
@@ -67,6 +72,13 @@ export async function POST(request: NextRequest) {
     let createdById = d.createdById;
     if (!createdById) { const u = await db.user.findFirst({ select: { id: true } }); createdById = u?.id; if (!createdById) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'No user found' }, meta: { requestId: id } }, { status: 400 }); }
 
+    // Resolve siteId from body, request context, or user's active plan site
+    const requestSiteId = await getSiteFromRequest(request);
+    let siteId = d.siteId || requestSiteId;
+    if (!siteId && auth.user) {
+      siteId = await getActivePlanSiteId(auth.user);
+    }
+
     // Calculate nextRunAt for scheduled automations
     let nextRunAt: Date | null = null;
     if (d.triggerType === 'SCHEDULED') {
@@ -77,7 +89,16 @@ export async function POST(request: NextRequest) {
     }
 
     const item = await db.automation.create({
-      data: { name: d.name, description: d.description || '', triggerType: d.triggerType, scheduleConfig: d.scheduleConfig, workflowConfig: d.workflowConfig, createdById, nextRunAt },
+      data: {
+        name: d.name,
+        description: d.description || '',
+        triggerType: d.triggerType,
+        scheduleConfig: d.scheduleConfig,
+        workflowConfig: d.workflowConfig,
+        createdById,
+        siteId: siteId || null,
+        nextRunAt,
+      },
     });
 
     return NextResponse.json({ data: item, meta: { requestId: id } }, { status: 201 });

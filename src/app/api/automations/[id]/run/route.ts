@@ -33,16 +33,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
     });
 
     // Execute the automation workflow (async — don't block the HTTP request)
-    executeAutomation(automationId, run.id).catch(async (err) => {
-      console.error(`[AUTOMATION:RUN] ${id} —`, err);
-      await db.automationRun.update({
-        where: { id: run.id },
-        data: { status: 'FAILED', finishedAt: new Date(), errorMessage: err instanceof Error ? err.message : 'Unknown error', failedStep: 'execution' },
-      });
-      await db.automation.update({
-        where: { id: automationId },
-        data: { failedRuns: { increment: 1 }, status: 'FAILED' },
-      });
+    executeAutomation(automationId, run.id).catch((err) => {
+      console.error(`[AUTOMATION:RUN] ${id} async execution failure:`, err);
     });
 
     return NextResponse.json({ data: { runId: run.id, status: 'RUNNING', message: 'Automation execution started' }, meta: { requestId: id } });

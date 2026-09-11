@@ -505,7 +505,7 @@ export function CommandPalette() {
 
     const filterAllowed = (items: CommandItemDef[]) =>
       items.filter((i) => {
-        if (i.requiredRole === 'ADMIN' && user?.role !== 'ADMIN') {
+        if (i.requiredRole === 'ADMIN' && user?.role !== 'ADMIN' && !isInternalAccount) {
           return false;
         }
         if (!isPlatformStaff && isAllSites && FORBIDDEN_IN_ALL_SITES.has(i.module)) {
@@ -527,11 +527,15 @@ export function CommandPalette() {
       // Internal Account — the FULL CMS module command list (never
       // feature-locked: full platform access, not a customer plan) +
       // the same create Actions as the client experience.
-      result.push({ heading: 'Internal Account', items: INTERNAL_NAV_ITEMS });
-      result.push({ heading: 'Actions', items: filterAllowed(ACTION_ITEMS) });
+      result.push({ heading: 'Navigation', items: filterAllowed(INTERNAL_NAV_ITEMS) });
+      if (!isAllSites) {
+        result.push({ heading: 'Actions', items: filterAllowed(ACTION_ITEMS) });
+      }
     } else {
       result.push({ heading: 'Navigation', items: filterAllowed(NAV_ITEMS) });
-      result.push({ heading: 'Actions', items: filterAllowed(ACTION_ITEMS) });
+      if (!isAllSites) {
+        result.push({ heading: 'Actions', items: filterAllowed(ACTION_ITEMS) });
+      }
     }
 
     return result;

@@ -4,7 +4,16 @@
 
 import { db } from '@/lib/db';
 import { encrypt, decrypt } from '@/lib/encryption';
-import { getProviderConfig, isImageModelId, type ProviderModel } from './providers';
+import {
+  getProviderConfig,
+  isImageModelId,
+  detectModelCapabilities,
+  parseCapabilities,
+  canProviderSupportImageGeneration,
+  isModelForbiddenForImageGeneration,
+  type ProviderModel,
+  type ModelCapability,
+} from './providers';
 import type { Prisma } from '@prisma/client';
 
 // -------------------- Types --------------------
@@ -47,6 +56,18 @@ export interface HealthCheckResult {
   availableModels?: ProviderModel[];
 }
 
+export function buildEndpointUrl(baseUrl: string, endpoint: string): string {
+  const cleanBase = baseUrl.trim().replace(/\/+$/, '');
+  let cleanEndpoint = endpoint.trim();
+  if (!cleanEndpoint.startsWith('/')) {
+    cleanEndpoint = '/' + cleanEndpoint;
+  }
+  if (cleanBase.endsWith('/v1') && cleanEndpoint.startsWith('/v1/')) {
+    cleanEndpoint = cleanEndpoint.slice(3);
+  }
+  return `${cleanBase}${cleanEndpoint}`;
+}
+
 // -------------------- Model Resolution Helper --------------------
 // The frontend sends DB cuids as `modelId` (e.g. "m-openai-gpt5"), but the
 // upstream provider APIs need the actual model string (e.g. "gpt-5").
@@ -60,17 +81,36 @@ interface ResolvedModel {
   inputCostPer1k: number | null;
   outputCostPer1k: number | null;
   type: string;           // 'TEXT' | 'IMAGE'
+  capabilities: ModelCapability[];
 }
 
 async function resolveModel(
   providerId: string,
   modelId: string | undefined,
-  expectedType: 'TEXT' | 'IMAGE',
-  providerModels: Array<{ id: string; modelId: string; providerId: string; isActive: boolean; isDefault: boolean; type: string; inputCostPer1k: number | null; outputCostPer1k: number | null }>,
+  expectedCapability: ModelCapability,
+  providerModels: Array<{
+    id: string;
+    modelId: string;
+    providerId: string;
+    isActive: boolean;
+    isDefault: boolean;
+    isDefaultText?: boolean;
+    isDefaultImage?: boolean;
+    type: string;
+    capabilities?: string | null;
+    inputCostPer1k: number | null;
+    outputCostPer1k: number | null;
+  }>,
+  userId?: string | null,
 ): Promise<ResolvedModel> {
-  // If a modelId is provided, it's a DB cuid — look it up
+  const checkModelCapability = (m: (typeof providerModels)[number]): boolean => {
+    const caps = parseCapabilities(m.capabilities ?? (m.type === 'IMAGE' ? ['IMAGE_GENERATION'] : ['TEXT_GENERATION']));
+    return caps.includes(expectedCapability);
+  };
+
+  // If a modelId is provided, it can be a DB cuid or upstream model identifier string — look it up
   if (modelId) {
-    const model = providerModels.find((m) => m.id === modelId);
+    const model = providerModels.find((m) => m.id === modelId || m.modelId === modelId);
     if (!model) {
       throw new Error('The selected model was not found for this provider. Please select a valid model.');
     }
@@ -80,46 +120,73 @@ async function resolveModel(
     if (!model.isActive) {
       throw new Error('The selected model is inactive. Please activate it or select another model.');
     }
-    if (model.type?.toUpperCase() !== expectedType) {
-      throw new Error(`The selected model is not a ${expectedType.toLowerCase()} model. Please select a ${expectedType.toLowerCase()} model.`);
+    if (!checkModelCapability(model)) {
+      if (expectedCapability === 'IMAGE_GENERATION') {
+        throw new Error('This model does not support image generation.');
+      } else {
+        throw new Error('This model does not support text generation.');
+      }
     }
+    const caps = parseCapabilities(model.capabilities ?? (model.type === 'IMAGE' ? ['IMAGE_GENERATION'] : ['TEXT_GENERATION']));
     return {
       modelId: model.modelId,
       modelDbId: model.id,
       inputCostPer1k: model.inputCostPer1k,
       outputCostPer1k: model.outputCostPer1k,
       type: model.type,
+      capabilities: caps,
     };
   }
 
-  // No modelId provided — fall back to AI Settings defaults
-  const settings = await db.aiSettings.findUnique({ where: { scope: 'global' } });
-  const settingsModelId = expectedType === 'TEXT' ? settings?.defaultModelId : settings?.imageModelId;
+  // No modelId provided — fall back to AI Settings defaults (first user-scoped if it matches provider, then global)
+  const userSettings = userId ? await db.aiSettings.findUnique({ where: { scope: `user:${userId}` } }) : null;
+  const globalSettings = await db.aiSettings.findUnique({ where: { scope: 'global' } });
+  const userModelMatches = userSettings && (
+    (expectedCapability === 'TEXT_GENERATION' && userSettings.defaultModelId && providerModels.some((m) => (m.id === userSettings.defaultModelId || m.modelId === userSettings.defaultModelId) && m.isActive)) ||
+    (expectedCapability === 'IMAGE_GENERATION' && userSettings.imageModelId && providerModels.some((m) => (m.id === userSettings.imageModelId || m.modelId === userSettings.imageModelId) && m.isActive))
+  );
+  const settings = userModelMatches ? userSettings : globalSettings;
+
+  const settingsModelId = expectedCapability === 'TEXT_GENERATION' ? settings?.defaultModelId : settings?.imageModelId;
   if (settingsModelId) {
-    const model = providerModels.find((m) => m.id === settingsModelId && m.isActive && m.type?.toUpperCase() === expectedType);
+    const model = providerModels.find((m) => (m.id === settingsModelId || m.modelId === settingsModelId) && m.isActive && checkModelCapability(m));
     if (model) {
+      const caps = parseCapabilities(model.capabilities ?? (model.type === 'IMAGE' ? ['IMAGE_GENERATION'] : ['TEXT_GENERATION']));
       return {
         modelId: model.modelId,
         modelDbId: model.id,
         inputCostPer1k: model.inputCostPer1k,
         outputCostPer1k: model.outputCostPer1k,
         type: model.type,
+        capabilities: caps,
       };
     }
   }
 
-  // Fall back to the provider's default model of the correct type
-  const defaultModel = providerModels.find((m) => m.isActive && m.isDefault && m.type?.toUpperCase() === expectedType)
-    ?? providerModels.find((m) => m.isActive && m.type?.toUpperCase() === expectedType);
+  // Fall back to the provider's default model of the correct capability
+  const defaultModel = providerModels.find((m) =>
+    m.isActive &&
+    (expectedCapability === 'TEXT_GENERATION' ? (m.isDefaultText ?? m.isDefault) : (m.isDefaultImage ?? false)) &&
+    checkModelCapability(m)
+  ) ?? providerModels.find((m) => m.isActive && m.isDefault && checkModelCapability(m))
+    ?? providerModels.find((m) => m.isActive && checkModelCapability(m));
+
   if (!defaultModel) {
-    throw new Error(`No active ${expectedType.toLowerCase()} model is configured for this provider. Please add or activate a model.`);
+    if (expectedCapability === 'IMAGE_GENERATION') {
+      throw new Error('This model does not support image generation.');
+    } else {
+      throw new Error('No active text generation model is configured for this provider. Please add or activate a model.');
+    }
   }
+
+  const caps = parseCapabilities(defaultModel.capabilities ?? (defaultModel.type === 'IMAGE' ? ['IMAGE_GENERATION'] : ['TEXT_GENERATION']));
   return {
     modelId: defaultModel.modelId,
     modelDbId: defaultModel.id,
     inputCostPer1k: defaultModel.inputCostPer1k,
     outputCostPer1k: defaultModel.outputCostPer1k,
     type: defaultModel.type,
+    capabilities: caps,
   };
 }
 
@@ -136,13 +203,15 @@ export async function executeChat(req: ChatRequest): Promise<ChatResponse> {
   if (!provider.apiKeyEncrypted) throw new Error('API key not configured for this provider.');
 
   // Resolve + validate the model (handles DB cuid → model string, type=TEXT, active, belongs-to-provider)
-  const resolved = await resolveModel(req.providerId, req.modelId, 'TEXT', provider.models);
+  const resolved = await resolveModel(req.providerId, req.modelId, 'TEXT_GENERATION', provider.models, req.userId);
   const modelId = resolved.modelId;
 
-  // Apply AI Settings defaults for temperature/maxTokens if not provided
-  const settings = await db.aiSettings.findUnique({ where: { scope: 'global' } });
-  const temperature = req.temperature ?? settings?.defaultTemperature ?? 0.7;
-  const maxTokens = req.maxTokens ?? settings?.defaultMaxTokens ?? 2048;
+  // Apply AI Settings defaults for temperature/maxTokens if not provided (first user-scoped, then global)
+  const userSettings = req.userId ? await db.aiSettings.findUnique({ where: { scope: `user:${req.userId}` } }) : null;
+  const globalSettings = await db.aiSettings.findUnique({ where: { scope: 'global' } });
+  const effectiveSettings = userSettings ?? globalSettings;
+  const temperature = req.temperature ?? effectiveSettings?.defaultTemperature ?? 0.7;
+  const maxTokens = req.maxTokens ?? effectiveSettings?.defaultMaxTokens ?? 2048;
 
   const apiKey = await decrypt(provider.apiKeyEncrypted);
   const config = getProviderConfig(provider.kind);
@@ -203,7 +272,7 @@ export async function executeChat(req: ChatRequest): Promise<ChatResponse> {
     for (const fb of fallbacks) {
       if (!fb.fallback.isActive || !fb.fallback.apiKeyEncrypted) continue;
       try {
-        const fbResolved = await resolveModel(fb.fallback.id, undefined, 'TEXT', fb.fallback.models);
+        const fbResolved = await resolveModel(fb.fallback.id, undefined, 'TEXT_GENERATION', fb.fallback.models);
         const fbApiKey = await decrypt(fb.fallback.apiKeyEncrypted);
         const fbConfig = getProviderConfig(fb.fallback.kind);
         const fbBaseUrl = fb.fallback.baseUrl || fbConfig.defaultBaseUrl;
@@ -316,13 +385,14 @@ async function callOpenAI(
 ) {
   const url = opts.apiVersion
     ? `${baseUrl}?api-version=${opts.apiVersion}`
-    : `${baseUrl}/chat/completions`;
+    : buildEndpointUrl(baseUrl, '/chat/completions');
 
   const body: Record<string, unknown> = {
     model,
     messages,
     temperature: opts.temperature ?? 0.7,
     max_tokens: opts.maxTokens ?? 2048,
+    stream: false,
   };
   if (opts.topP !== undefined) body.top_p = opts.topP;
   if (opts.frequencyPenalty !== undefined) body.frequency_penalty = opts.frequencyPenalty;
@@ -331,23 +401,97 @@ async function callOpenAI(
     body.response_format = { type: 'json_object' };
   }
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(body),
-  });
+  const controller = new AbortController();
+  const timeoutMs = 75_000;
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (fetchErr: any) {
+    clearTimeout(timeoutId);
+    if (fetchErr?.name === 'AbortError' || controller.signal.aborted) {
+      throw new Error(`Provider request timed out after ${Math.round(timeoutMs / 1000)}s (${model})`);
+    }
+    throw fetchErr;
+  }
+  clearTimeout(timeoutId);
 
   if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`OpenAI API error: ${res.status} — ${err}`);
+    // If the provider returned a 502/504 gateway error (e.g. Cloudflare proxy timeout/crash on upstream error),
+    // probe with stream: true to retrieve the real underlying provider error message or stream content.
+    if (res.status === 502 || res.status === 504) {
+      try {
+        const streamRes = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+            'Accept': 'text/event-stream',
+          },
+          body: JSON.stringify({ ...body, stream: true }),
+        });
+        if (streamRes.ok) {
+          const streamText = await streamRes.text();
+          let streamContent = '';
+          let streamError: string | null = null;
+          for (const line of streamText.split('\n')) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith('data:')) continue;
+            const dataStr = trimmed.slice(5).trim();
+            if (dataStr === '[DONE]') break;
+            try {
+              const parsed = JSON.parse(dataStr);
+              if (parsed.error) {
+                streamError = parsed.error.message || JSON.stringify(parsed.error);
+                break;
+              }
+              streamContent += parsed.choices?.[0]?.delta?.content || '';
+            } catch {}
+          }
+          if (streamError) {
+            throw new Error(`Provider API error: ${streamError}`);
+          }
+          if (streamContent) {
+            return {
+              content: streamContent,
+              inputTokens: 0,
+              outputTokens: 0,
+            };
+          }
+        }
+      } catch (streamErr) {
+        if (streamErr instanceof Error && streamErr.message.startsWith('Provider API error:')) {
+          throw streamErr;
+        }
+      }
+    }
+
+    const errText = await res.text().catch(() => '');
+    let cleanErr = '';
+    try {
+      const errJson = JSON.parse(errText);
+      cleanErr = errJson?.error?.message || errJson?.message || (typeof errJson?.error === 'string' ? errJson.error : '');
+    } catch {}
+    if (!cleanErr) {
+      const titleMatch = errText.match(/<title>(.*?)<\/title>/i);
+      cleanErr = titleMatch ? titleMatch[1].trim() : (errText.slice(0, 300).trim() || res.statusText);
+    }
+    throw new Error(`Provider API error: ${res.status} — ${cleanErr}`);
   }
 
   const data = await res.json();
+  const choice = data.choices?.[0]?.message;
   return {
-    content: data.choices?.[0]?.message?.content || '',
+    content: choice?.content || choice?.reasoning_content || '',
     inputTokens: data.usage?.prompt_tokens || 0,
     outputTokens: data.usage?.completion_tokens || 0,
   };
@@ -445,63 +589,75 @@ export async function healthCheck(providerId: string): Promise<HealthCheckResult
     include: { models: { where: { isActive: true } } },
   });
   if (!provider) throw new Error('Provider not found');
-  if (!provider.apiKeyEncrypted) return { status: 'DISCONNECTED', latencyMs: 0, error: 'No API key configured' };
+  if (!provider.apiKeyEncrypted) {
+    await db.aiProvider.update({
+      where: { id: providerId },
+      data: {
+        connectionStatus: 'DISCONNECTED',
+        latencyMs: null,
+        lastError: 'No API key configured',
+        lastHealthCheckAt: new Date(),
+      },
+    });
+    return { status: 'DISCONNECTED', latencyMs: 0, error: 'No API key configured' };
+  }
 
   const apiKey = await decrypt(provider.apiKeyEncrypted);
   const config = getProviderConfig(provider.kind);
   const baseUrl = provider.baseUrl || config.defaultBaseUrl;
-  // CUSTOM providers have no defaultBaseUrl — they must have one set explicitly.
   if (!baseUrl) {
-    return { status: 'DISCONNECTED', latencyMs: 0, error: 'No Base URL configured for this custom provider. Please edit the provider and set a Base URL.' };
+    const errorMsg = 'No Base URL configured for this provider. Please edit the provider and set a Base URL.';
+    await db.aiProvider.update({
+      where: { id: providerId },
+      data: {
+        connectionStatus: 'DISCONNECTED',
+        latencyMs: null,
+        lastError: errorMsg,
+        lastHealthCheckAt: new Date(),
+      },
+    });
+    return { status: 'DISCONNECTED', latencyMs: 0, error: errorMsg };
   }
 
   const start = Date.now();
   try {
-    let models: ProviderModel[] = [];
-
     if (provider.kind === 'ANTHROPIC') {
       // Anthropic has no /models endpoint — send a minimal chat request to verify the API key.
-      // Use the provider's first active TEXT model, or fall back to a known-good default.
       const testModel = provider.models.find((m) => m.type?.toUpperCase() === 'TEXT')?.modelId
         ?? config.defaultModels.find((m) => !isImageModelId(m.modelId))?.modelId
         ?? 'claude-3-5-haiku-20241022';
-      const res = await fetch(`${baseUrl}/messages`, {
+      const targetUrl = buildEndpointUrl(baseUrl, '/messages');
+      const res = await fetch(targetUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
         body: JSON.stringify({ model: testModel, max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] }),
       });
       if (!res.ok) {
         const errBody = await res.text().catch(() => '');
         throw new Error(`HTTP ${res.status}${errBody ? `: ${errBody.slice(0, 200)}` : ''}`);
       }
-      models = config.defaultModels;
     } else if (provider.kind === 'GEMINI') {
-      const res = await fetch(`${baseUrl}/models?key=${apiKey}`);
+      const targetUrl = `${buildEndpointUrl(baseUrl, '/models')}?key=${encodeURIComponent(apiKey)}`;
+      const res = await fetch(targetUrl, { method: 'GET' });
       if (!res.ok) {
         const errBody = await res.text().catch(() => '');
         throw new Error(`HTTP ${res.status}${errBody ? `: ${errBody.slice(0, 200)}` : ''}`);
       }
-      models = config.defaultModels;
-    } else if (config.modelsEndpoint) {
-      // OpenAI-compatible (OpenAI, Groq, DeepSeek, Custom)
-      const res = await fetch(`${baseUrl}${config.modelsEndpoint}`, {
+    } else {
+      // OpenAI-compatible (OpenAI, Groq, DeepSeek, CodeCraft, Custom)
+      const endpoint = config.modelsEndpoint || '/models';
+      const targetUrl = buildEndpointUrl(baseUrl, endpoint);
+      const res = await fetch(targetUrl, {
+        method: 'GET',
         headers: { 'Authorization': `Bearer ${apiKey}` },
       });
       if (!res.ok) {
         const errBody = await res.text().catch(() => '');
         throw new Error(`HTTP ${res.status}${errBody ? `: ${errBody.slice(0, 200)}` : ''}`);
-      }
-      const data = await res.json();
-      if (data.data && Array.isArray(data.data)) {
-        models = data.data.map((m: { id: string }) => ({
-          modelId: m.id, name: m.id, contextLength: 0,
-          inputCostPer1k: 0, outputCostPer1k: 0,
-          supportsImages: false, supportsVision: false,
-          supportsFunctionCalling: false, supportsJsonMode: false,
-          supportsStreaming: true, supportsTools: false,
-        }));
-      } else {
-        models = config.defaultModels;
       }
     }
 
@@ -517,7 +673,7 @@ export async function healthCheck(providerId: string): Promise<HealthCheckResult
       },
     });
 
-    return { status: 'CONNECTED', latencyMs, availableModels: models };
+    return { status: 'CONNECTED', latencyMs };
   } catch (err) {
     const latencyMs = Date.now() - start;
     const errorMsg = err instanceof Error ? err.message : 'Unknown error';
@@ -525,16 +681,18 @@ export async function healthCheck(providerId: string): Promise<HealthCheckResult
     await db.aiProvider.update({
       where: { id: providerId },
       data: {
-        connectionStatus: 'ERROR',
-        latencyMs,
+        connectionStatus: 'DISCONNECTED',
+        latencyMs: null,
         lastError: errorMsg,
         lastHealthCheckAt: new Date(),
       },
     });
 
-    return { status: 'ERROR', latencyMs, error: errorMsg };
+    return { status: 'DISCONNECTED', latencyMs, error: errorMsg };
   }
 }
+
+export const testConnection = healthCheck;
 
 // -------------------- Sync Models --------------------
 
@@ -546,110 +704,284 @@ export async function syncModels(providerId: string): Promise<number> {
   const apiKey = await decrypt(provider.apiKeyEncrypted);
   const config = getProviderConfig(provider.kind);
   const baseUrl = provider.baseUrl || config.defaultBaseUrl;
-  // CUSTOM providers have no defaultBaseUrl — they must have one set explicitly.
   if (!baseUrl) {
-    throw new Error('No Base URL configured for this custom provider. Please edit the provider and set a Base URL.');
+    throw new Error('No Base URL configured for this provider. Please edit the provider and set a Base URL.');
   }
 
-  let fetchedModels: ProviderModel[] = config.defaultModels;
+  let fetchedModels: ProviderModel[] = [];
 
-  // Try to fetch from API if endpoint exists (Anthropic has no /models endpoint)
-  if (config.modelsEndpoint && provider.kind !== 'ANTHROPIC') {
-    try {
-      const res = await fetch(`${baseUrl}${config.modelsEndpoint}`, {
-        headers: { 'Authorization': `Bearer ${apiKey}` },
+  if (provider.kind === 'ANTHROPIC') {
+    // Anthropic has no /models endpoint — use its known models
+    fetchedModels = [...config.defaultModels];
+  } else if (provider.kind === 'GEMINI') {
+    const targetUrl = `${buildEndpointUrl(baseUrl, '/models')}?key=${encodeURIComponent(apiKey)}`;
+    const res = await fetch(targetUrl, { method: 'GET' });
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      const errMsg = `HTTP ${res.status}${errBody ? `: ${errBody.slice(0, 200)}` : ''}`;
+      await db.aiProvider.update({
+        where: { id: providerId },
+        data: {
+          connectionStatus: 'DISCONNECTED',
+          lastError: errMsg,
+          lastHealthCheckAt: new Date(),
+        },
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.data && Array.isArray(data.data)) {
-          const existingIds = new Set(config.defaultModels.map((m) => m.modelId));
-          const newModels = data.data
-            .filter((m: { id: string }) => !existingIds.has(m.id))
-            .map((m: { id: string }) => ({
-              modelId: m.id, name: m.id, contextLength: 0,
-              inputCostPer1k: 0, outputCostPer1k: 0,
-              supportsImages: false, supportsVision: false,
-              supportsFunctionCalling: false, supportsJsonMode: false,
-              supportsStreaming: true, supportsTools: false,
-            }));
-          fetchedModels = [...config.defaultModels, ...newModels];
-        }
-      }
-    } catch { /* use defaults */ }
+      throw new Error(`Failed to fetch models from Gemini: ${errMsg}`);
+    }
+    const data = await res.json();
+    if (data.models && Array.isArray(data.models)) {
+      fetchedModels = data.models.map((m: { name: string; displayName?: string; supportedGenerationMethods?: string[] }) => {
+        const cleanId = m.name.replace(/^models\//, '');
+        const detectedCaps = detectModelCapabilities('GEMINI', cleanId, {
+          supportedGenerationMethods: m.supportedGenerationMethods || [],
+        });
+        return {
+          modelId: cleanId,
+          name: m.displayName || cleanId,
+          contextLength: 0,
+          inputCostPer1k: 0,
+          outputCostPer1k: 0,
+          supportsImages: false,
+          supportsVision: false,
+          supportsFunctionCalling: false,
+          supportsJsonMode: false,
+          supportsStreaming: true,
+          supportsTools: false,
+          capabilities: detectedCaps,
+        };
+      });
+    }
+  } else {
+    // OpenAI-compatible (OpenAI, Groq, DeepSeek, CodeCraft, Custom)
+    const endpoint = config.modelsEndpoint || '/models';
+    const targetUrl = buildEndpointUrl(baseUrl, endpoint);
+    const res = await fetch(targetUrl, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+    });
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      const errMsg = `HTTP ${res.status}${errBody ? `: ${errBody.slice(0, 200)}` : ''}`;
+      await db.aiProvider.update({
+        where: { id: providerId },
+        data: {
+          connectionStatus: 'DISCONNECTED',
+          lastError: errMsg,
+          lastHealthCheckAt: new Date(),
+        },
+      });
+      throw new Error(`Failed to fetch models from provider: ${errMsg}`);
+    }
+    const data = await res.json();
+    if (data.data && Array.isArray(data.data)) {
+      fetchedModels = data.data.map((m: { id: string }) => {
+        const detectedCaps = detectModelCapabilities(provider.kind, m.id);
+        return {
+          modelId: m.id,
+          name: m.id,
+          contextLength: 0,
+          inputCostPer1k: 0,
+          outputCostPer1k: 0,
+          supportsImages: false,
+          supportsVision: false,
+          supportsFunctionCalling: false,
+          supportsJsonMode: false,
+          supportsStreaming: true,
+          supportsTools: false,
+          capabilities: detectedCaps,
+        };
+      });
+    }
   }
 
-  // Determine the correct type for each model
-  const isImage = (mid: string) => isImageModelId(mid);
+  if (fetchedModels.length === 0) {
+    throw new Error('No models returned by the provider.');
+  }
 
-  // Upsert models + set type correctly.
-  // For existing models (update): only overwrite fields that the upstream API
-  // actually provides meaningful data for. Preserve admin-set cost/name overrides
-  // by only updating from config.defaultModels (which have real cost data) —
-  // API-fetched models with zero cost/context don't overwrite admin edits.
+  // Sync with DB:
+  // 1. Remove obsolete models for this provider not in returned list
+  const returnedModelIds = fetchedModels.map((m) => m.modelId);
+  await db.aiModel.deleteMany({
+    where: {
+      providerId,
+      modelId: { notIn: returnedModelIds },
+    },
+  });
+
+  // 2. Upsert each returned model
+  const existingModels = await db.aiModel.findMany({ where: { providerId } });
+  const existingMap = new Map(existingModels.map((m) => [m.modelId, m]));
+
+  let useRawUpsert = false;
   let count = 0;
   for (const model of fetchedModels) {
-    const modelType = isImage(model.modelId) ? 'IMAGE' : 'TEXT';
-    const isFromDefaults = config.defaultModels.some((m) => m.modelId === model.modelId);
+    const existing = existingMap.get(model.modelId);
 
-    await db.aiModel.upsert({
-      where: { providerId_modelId: { providerId, modelId: model.modelId } },
-      update: {
-        // Only update cost/capability fields from the default config (which has real data).
-        // API-fetched models with zeros don't overwrite admin-set values.
-        ...(isFromDefaults ? {
-          name: model.name,
-          contextLength: model.contextLength,
-          inputCostPer1k: model.inputCostPer1k,
-          outputCostPer1k: model.outputCostPer1k,
-          supportsImages: model.supportsImages,
-          supportsVision: model.supportsVision,
-          supportsFunctionCalling: model.supportsFunctionCalling,
-          supportsJsonMode: model.supportsJsonMode,
-          supportsStreaming: model.supportsStreaming,
-          supportsTools: model.supportsTools,
-        } : {}),
-        // Always update type + lastSyncedAt
-        type: modelType,
-        lastSyncedAt: new Date(),
-      },
-      create: {
-        providerId,
-        modelId: model.modelId,
-        name: model.name,
-        contextLength: model.contextLength,
-        inputCostPer1k: model.inputCostPer1k,
-        outputCostPer1k: model.outputCostPer1k,
-        supportsImages: model.supportsImages,
-        supportsVision: model.supportsVision,
-        supportsFunctionCalling: model.supportsFunctionCalling,
-        supportsJsonMode: model.supportsJsonMode,
-        supportsStreaming: model.supportsStreaming,
-        supportsTools: model.supportsTools,
-        type: modelType,
-        isActive: true,
-        lastSyncedAt: new Date(),
-      },
-    });
+    const isManualOverride = existing?.capabilitySource === 'manual_override';
+    const detectedCaps = model.capabilities ?? detectModelCapabilities(provider.kind, model.modelId);
+    const finalCapabilities = isManualOverride && existing
+      ? parseCapabilities(existing.capabilities)
+      : detectedCaps;
+    const finalCapabilitySource = isManualOverride ? 'manual_override' : 'provider_metadata';
+    const finalType = isManualOverride && existing
+      ? existing.type
+      : (finalCapabilities.includes('IMAGE_GENERATION') && !finalCapabilities.includes('TEXT_GENERATION') ? 'IMAGE' : 'TEXT');
+
+    const defaultConfigMatch = config.defaultModels.find((m) => m.modelId === model.modelId);
+    const modelName = defaultConfigMatch?.name ?? model.name;
+    const contextLength = defaultConfigMatch?.contextLength ?? model.contextLength ?? 0;
+    const inputCostPer1k = defaultConfigMatch?.inputCostPer1k ?? model.inputCostPer1k ?? 0;
+    const outputCostPer1k = defaultConfigMatch?.outputCostPer1k ?? model.outputCostPer1k ?? 0;
+    const supportsImages = defaultConfigMatch?.supportsImages ?? model.supportsImages ?? false;
+    const supportsVision = defaultConfigMatch?.supportsVision ?? model.supportsVision ?? false;
+    const supportsFunctionCalling = defaultConfigMatch?.supportsFunctionCalling ?? model.supportsFunctionCalling ?? false;
+    const supportsJsonMode = defaultConfigMatch?.supportsJsonMode ?? model.supportsJsonMode ?? false;
+    const supportsStreaming = defaultConfigMatch?.supportsStreaming ?? model.supportsStreaming ?? true;
+    const supportsTools = defaultConfigMatch?.supportsTools ?? model.supportsTools ?? false;
+    const capsJson = JSON.stringify(finalCapabilities);
+
+    if (!useRawUpsert) {
+      try {
+        await db.aiModel.upsert({
+          where: { providerId_modelId: { providerId, modelId: model.modelId } },
+          update: {
+            ...(defaultConfigMatch ? {
+              name: modelName,
+              contextLength,
+              inputCostPer1k,
+              outputCostPer1k,
+              supportsImages,
+              supportsVision,
+              supportsFunctionCalling,
+              supportsJsonMode,
+              supportsStreaming,
+              supportsTools,
+            } : {}),
+            type: finalType,
+            capabilities: capsJson,
+            capabilitySource: finalCapabilitySource,
+            lastSyncedAt: new Date(),
+          },
+          create: {
+            providerId,
+            modelId: model.modelId,
+            name: modelName,
+            contextLength,
+            inputCostPer1k,
+            outputCostPer1k,
+            supportsImages,
+            supportsVision,
+            supportsFunctionCalling,
+            supportsJsonMode,
+            supportsStreaming,
+            supportsTools,
+            type: finalType,
+            capabilities: capsJson,
+            capabilitySource: finalCapabilitySource,
+            isActive: true,
+            lastSyncedAt: new Date(),
+          },
+        });
+        count++;
+        continue;
+      } catch (err: unknown) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        if (errMsg.includes('Unknown argument') || errMsg.includes('capabilities') || errMsg.includes('capabilitySource')) {
+          useRawUpsert = true;
+        } else {
+          throw err;
+        }
+      }
+    }
+
+    // Direct SQLite raw upsert fallback (ensures compatibility with any Prisma schema state)
+    const rowId = existing?.id ?? crypto.randomUUID();
+    const nowStr = new Date().toISOString();
+    await db.$executeRaw`
+      INSERT INTO "AiModel" (
+        id, providerId, modelId, name, type, capabilities, capabilitySource,
+        isDefaultText, isDefaultImage, contextLength, inputCostPer1k, outputCostPer1k,
+        supportsImages, supportsVision, supportsFunctionCalling, supportsJsonMode,
+        supportsStreaming, supportsTools, isActive, isDefault, lastSyncedAt, createdAt, updatedAt
+      ) VALUES (
+        ${rowId}, ${providerId}, ${model.modelId}, ${modelName},
+        ${finalType}, ${capsJson}, ${finalCapabilitySource},
+        0, 0, ${contextLength}, ${inputCostPer1k}, ${outputCostPer1k},
+        ${supportsImages ? 1 : 0}, ${supportsVision ? 1 : 0}, ${supportsFunctionCalling ? 1 : 0},
+        ${supportsJsonMode ? 1 : 0}, ${supportsStreaming ? 1 : 0}, ${supportsTools ? 1 : 0},
+        1, 0, ${nowStr}, ${nowStr}, ${nowStr}
+      )
+      ON CONFLICT(providerId, modelId) DO UPDATE SET
+        name = excluded.name,
+        type = excluded.type,
+        capabilities = excluded.capabilities,
+        capabilitySource = excluded.capabilitySource,
+        contextLength = excluded.contextLength,
+        inputCostPer1k = excluded.inputCostPer1k,
+        outputCostPer1k = excluded.outputCostPer1k,
+        supportsImages = excluded.supportsImages,
+        supportsVision = excluded.supportsVision,
+        supportsFunctionCalling = excluded.supportsFunctionCalling,
+        supportsJsonMode = excluded.supportsJsonMode,
+        supportsStreaming = excluded.supportsStreaming,
+        supportsTools = excluded.supportsTools,
+        lastSyncedAt = excluded.lastSyncedAt,
+        updatedAt = excluded.updatedAt;
+    `;
     count++;
   }
 
-  // Always ensure there's at least one default TEXT model for this provider
-  const textDefault = await db.aiModel.findFirst({
-    where: { providerId, type: 'TEXT', isActive: true },
-    orderBy: { createdAt: 'asc' },
-  });
-  if (textDefault) {
-    const hasTextDefault = await db.aiModel.findFirst({
-      where: { providerId, type: 'TEXT', isDefault: true },
-    });
-    if (!hasTextDefault) {
-      await db.aiModel.update({ where: { id: textDefault.id }, data: { isDefault: true } });
+  // Ensure default models per provider:
+  // 1. Text default: at least one active TEXT_GENERATION model has isDefaultText: true (and isDefault: true)
+  const allProviderModels = await db.aiModel.findMany({ where: { providerId, isActive: true } });
+  const textCapableModels = allProviderModels.filter((m) => parseCapabilities(m.capabilities).includes('TEXT_GENERATION'));
+  const hasTextDefault = textCapableModels.some((m) => m.isDefaultText || m.isDefault);
+  if (!hasTextDefault && textCapableModels.length > 0) {
+    const firstText = textCapableModels[0];
+    try {
+      await db.aiModel.update({ where: { id: firstText.id }, data: { isDefaultText: true, isDefault: true } });
+    } catch {
+      await db.$executeRaw`UPDATE "AiModel" SET isDefaultText = 1, isDefault = 1 WHERE id = ${firstText.id};`;
+    }
+  }
+
+  // 2. Image default: at least one active IMAGE_GENERATION model has isDefaultImage: true
+  const imageCapableModels = allProviderModels.filter((m) => parseCapabilities(m.capabilities).includes('IMAGE_GENERATION'));
+  const hasImageDefault = imageCapableModels.some((m) => m.isDefaultImage);
+  if (!hasImageDefault && imageCapableModels.length > 0) {
+    const firstImage = imageCapableModels[0];
+    try {
+      await db.aiModel.update({ where: { id: firstImage.id }, data: { isDefaultImage: true } });
+    } catch {
+      await db.$executeRaw`UPDATE "AiModel" SET isDefaultImage = 1 WHERE id = ${firstImage.id};`;
+    }
+  }
+
+  // 3. Global AI Settings auto-defaults:
+  const globalSettings = await db.aiSettings.findUnique({ where: { scope: 'global' } });
+  if (globalSettings) {
+    const updates: Record<string, unknown> = {};
+    if (!globalSettings.defaultModelId && textCapableModels.length > 0) {
+      updates.defaultModelId = textCapableModels[0].id;
+      if (!globalSettings.defaultProviderId) updates.defaultProviderId = providerId;
+    }
+    if (!globalSettings.imageModelId && imageCapableModels.length > 0) {
+      updates.imageModelId = imageCapableModels[0].id;
+      if (!globalSettings.imageProviderId) updates.imageProviderId = providerId;
+    }
+    if (Object.keys(updates).length > 0) {
+      await db.aiSettings.update({ where: { scope: 'global' }, data: updates });
     }
   }
 
   await db.aiProvider.update({
     where: { id: providerId },
-    data: { lastSyncAt: new Date() },
+    data: {
+      lastSyncAt: new Date(),
+      connectionStatus: 'CONNECTED',
+      lastError: null,
+    },
   });
 
   return count;
@@ -915,9 +1247,20 @@ export async function executeImageGeneration(req: ImageGenerationRequest): Promi
   if (!provider.isActive) throw new Error('Provider is disabled. Please activate it first.');
   if (!provider.apiKeyEncrypted) throw new Error('API key not configured for this provider.');
 
-  // Resolve + validate the model (type must be IMAGE)
-  const resolved = await resolveModel(req.providerId, req.modelId, 'IMAGE', provider.models);
+  // Pre-validate that provider kind supports image generation
+  if (!canProviderSupportImageGeneration(provider.kind)) {
+    throw new Error(`${provider.name} does not support image generation. Please use OpenAI, Gemini, or a Custom OpenAI-compatible provider.`);
+  }
+
+  // Resolve + validate the model (must support IMAGE_GENERATION)
+  const resolved = await resolveModel(req.providerId, req.modelId, 'IMAGE_GENERATION', provider.models, req.userId);
   const modelId = resolved.modelId;
+
+  // Double check model is not explicitly forbidden
+  const forbiddenCheck = isModelForbiddenForImageGeneration(provider.kind, modelId);
+  if (forbiddenCheck.forbidden) {
+    throw new Error('This model does not support image generation.');
+  }
 
   const apiKey = await decrypt(provider.apiKeyEncrypted);
   const config = getProviderConfig(provider.kind);
@@ -971,7 +1314,7 @@ export async function executeImageGeneration(req: ImageGenerationRequest): Promi
       // Only try fallbacks that support image generation (OpenAI, Gemini, or Custom OpenAI-compatible)
       if (fb.fallback.kind !== 'OPENAI' && fb.fallback.kind !== 'GEMINI' && fb.fallback.kind !== 'CUSTOM') continue;
       try {
-        const fbResolved = await resolveModel(fb.fallback.id, undefined, 'IMAGE', fb.fallback.models);
+        const fbResolved = await resolveModel(fb.fallback.id, undefined, 'IMAGE_GENERATION', fb.fallback.models);
         const fbApiKey = await decrypt(fb.fallback.apiKeyEncrypted);
         const fbConfig = getProviderConfig(fb.fallback.kind);
         const fbBaseUrl = fb.fallback.baseUrl || fbConfig.defaultBaseUrl;

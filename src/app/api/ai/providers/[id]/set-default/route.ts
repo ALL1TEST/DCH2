@@ -36,25 +36,36 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const provider = await db.aiProvider.findUnique({ where: { id: providerId } });
     if (!provider) return err('Provider not found', 404, 'NOT_FOUND');
 
-    // Row-level ownership: non-staff callers may only manage their own
-    // provider connections.
-    if (!isPlatformStaff(featureAuth.user) && provider.createdById !== featureAuth.user.id) {
-      return err('You can only manage your own AI provider connections.', 403, 'FORBIDDEN');
+    const staff = isPlatformStaff(featureAuth.user);
+    const unsetWhere: Record<string, unknown> = { isDefault: true, id: { not: providerId } };
+
+    if (staff) {
+      const { getPlatformStaffUserIds } = await import('@/lib/ai/platform-ai');
+      const staffIds = await getPlatformStaffUserIds();
+      if (!staffIds.includes(provider.createdById)) {
+        return err('You can only manage Platform AI providers as platform default.', 403, 'FORBIDDEN');
+      }
+      unsetWhere.createdById = { in: staffIds.length > 0 ? staffIds : ['__none__'] };
+    } else {
+      if (provider.createdById !== featureAuth.user.id) {
+        return err('You can only manage your own AI provider connections.', 403, 'FORBIDDEN');
+      }
+      unsetWhere.createdById = featureAuth.user.id;
     }
 
     if (!provider.isActive) {
       return err('Cannot set an inactive provider as default. Please activate it first.', 400, 'INACTIVE');
     }
 
-    // Atomically: clear other defaults, then set this one. The default
-    // flag is scoped per owner — a non-staff caller's default never
-    // unsets the platform's (or another client's) default, so the two
-    // AI experiences stay strictly separated.
-    const unsetWhere: Record<string, unknown> = { isDefault: true, id: { not: providerId } };
-    if (!isPlatformStaff(featureAuth.user)) unsetWhere.createdById = featureAuth.user.id;
+    const scope = staff ? 'global' : `user:${featureAuth.user.id}`;
     await db.$transaction([
       db.aiProvider.updateMany({ where: unsetWhere, data: { isDefault: false } }),
       db.aiProvider.update({ where: { id: providerId }, data: { isDefault: true } }),
+      db.aiSettings.upsert({
+        where: { scope },
+        update: { defaultProviderId: providerId },
+        create: { scope, defaultProviderId: providerId },
+      }),
     ]);
 
     return ok({ isDefault: true });

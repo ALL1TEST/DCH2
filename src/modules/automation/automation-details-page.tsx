@@ -13,6 +13,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { cn, formatRelativeTime, formatDateTime } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
+import { queryKeys } from '@/lib/query-keys';
 
 interface AutomationDetail {
   id: string;
@@ -53,12 +54,33 @@ export function AutomationDetailsPage({ automationId }: { automationId: string }
     queryKey: ['automation', automationId],
     queryFn: () => getApi<AutomationDetail>(`/api/automations/${automationId}`),
     staleTime: 5_000,
-  enabled: !!automationId,
+    enabled: !!automationId,
+    refetchInterval: (query) => {
+      const data = query.state.data as AutomationDetail | undefined;
+      const hasRunning = data?.runs?.some((r) => r.status === 'RUNNING' || r.status === 'PENDING');
+      return hasRunning ? 2000 : false;
+    },
   });
+
+  const latestRunStatus = automation?.runs?.[0]?.status;
+  React.useEffect(() => {
+    if (latestRunStatus === 'COMPLETED') {
+      queryClient.invalidateQueries({ queryKey: queryKeys.content.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all });
+      queryClient.invalidateQueries({ queryKey: ['calendar'] });
+    }
+  }, [latestRunStatus, queryClient]);
 
   const runMutation = useMutation({
     mutationFn: () => postApi(`/api/automations/${automationId}/run`),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['automation', automationId] }); toast.success(t('automation.details.toastStarted')); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['automation', automationId] });
+      queryClient.invalidateQueries({ queryKey: ['automations'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.content.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all });
+      queryClient.invalidateQueries({ queryKey: ['calendar'] });
+      toast.success(t('automation.details.toastStarted'));
+    },
     onError: (err: Error) => toast.error(err.message || t('automation.details.toastFailedToStart')),
   });
 
@@ -71,6 +93,8 @@ export function AutomationDetailsPage({ automationId }: { automationId: string }
       </div>
     );
   }
+
+  const isAnyRunning = automation.runs.some((r) => r.status === 'RUNNING' || r.status === 'PENDING');
 
   const workflow = JSON.parse(automation.workflowConfig || '{}');
   const schedule = JSON.parse(automation.scheduleConfig || '{}');
@@ -89,9 +113,9 @@ export function AutomationDetailsPage({ automationId }: { automationId: string }
           </div>
           {automation.description && <p className="text-sm text-muted-foreground mt-1">{automation.description}</p>}
         </div>
-        <Button onClick={() => runMutation.mutate()} disabled={runMutation.isPending} className="gap-2">
-          {runMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-          {t('automation.details.runNow')}
+        <Button onClick={() => runMutation.mutate()} disabled={runMutation.isPending || isAnyRunning} className="gap-2">
+          {runMutation.isPending || isAnyRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+          {isAnyRunning ? 'Running...' : t('automation.details.runNow')}
         </Button>
       </div>
 
@@ -160,7 +184,7 @@ export function AutomationDetailsPage({ automationId }: { automationId: string }
                       <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">{run.startedAt ? formatRelativeTime(run.startedAt) : '—'}</span>
                       {run.durationMs && <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">{(run.durationMs / 1000).toFixed(1)}s</span>}
                     </div>
-                    {logs.length > 0 && run.status !== 'RUNNING' && (
+                    {logs.length > 0 && (
                       <div className="mt-2 ml-5 space-y-1 text-xs text-muted-foreground">
                         {logs.slice(-5).map((log, i) => (
                           <div key={i} className="flex items-start gap-2">

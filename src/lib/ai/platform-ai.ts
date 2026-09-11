@@ -56,7 +56,7 @@ export async function getPlatformStaffUserIds(): Promise<string[]> {
       OR: [
         { role: 'OWNER' },
         { role: 'PLATFORM_ADMIN' },
-        { billingMode: 'INTERNAL' },
+        { billingMode: 'INTERNAL', role: { not: 'INTERNAL' } },
         { billingMode: 'EXEMPT' },
       ],
     },
@@ -74,6 +74,99 @@ export async function getPlatformStaffUserIds(): Promise<string[]> {
 export async function platformOwnedProviderFilter(): Promise<Record<string, unknown>> {
   const ids = await getPlatformStaffUserIds();
   return { createdById: { in: ids.length > 0 ? ids : ['__none__'] } };
+}
+
+/**
+ * Resolves the active AI provider to use for a given user, respecting plan entitlements:
+ * 1. If the user's plan has "Client's Own AI API" (ai_client):
+ *    - Checks if the user has an active, configured provider they created.
+ *    - If found, returns it (BYOK usage, unmetered).
+ *    - If not found AND the plan ALSO has "Platform AI" (ai_platform), falls back to Platform AI.
+ * 2. If the user's plan has "Platform AI" (ai_platform):
+ *    - Strictly uses the central Platform AI provider configured in Platform Admin.
+ * 3. Returns null if no eligible provider is found.
+ */
+export async function resolveAiProviderForUser(userId?: string | null) {
+  let hasAiClient = false;
+  let hasAiPlatform = false;
+  let isStaff = false;
+
+  if (userId) {
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, role: true, billingMode: true },
+    });
+    if (user) {
+      const { hasBillingBypass, getEffectivePlanIdAsync } = await import('@/lib/platform/entitlements');
+      const { isPlatformStaff } = await import('@/lib/platform/platform-auth');
+      const { getPlanConfigSync } = await import('@/lib/platform/plan-config');
+
+      if (hasBillingBypass(user) || isPlatformStaff(user)) {
+        isStaff = true;
+        hasAiClient = true;
+        hasAiPlatform = true;
+      } else {
+        const { planId } = await getEffectivePlanIdAsync(user);
+        const planConfig = getPlanConfigSync(planId);
+        const ents = planConfig?.entitlements ?? [];
+        hasAiClient = ents.includes('ai_client');
+        hasAiPlatform = ents.includes('ai_platform');
+      }
+    }
+  }
+
+  // 1. If user has Client's Own AI API, prefer their own configured provider
+  if (userId && hasAiClient) {
+    const userSettings = await db.aiSettings.findUnique({ where: { scope: `user:${userId}` } });
+    if (userSettings?.defaultProviderId) {
+      const configuredProv = await db.aiProvider.findFirst({
+        where: { id: userSettings.defaultProviderId, createdById: userId, isActive: true, apiKeyEncrypted: { not: null } },
+        include: { models: true },
+      });
+      if (configuredProv) return configuredProv;
+    }
+
+    const userDefault = await db.aiProvider.findFirst({
+      where: { createdById: userId, isActive: true, isDefault: true, apiKeyEncrypted: { not: null } },
+      include: { models: true },
+    });
+    if (userDefault) return userDefault;
+
+    const userActive = await db.aiProvider.findFirst({
+      where: { createdById: userId, isActive: true, apiKeyEncrypted: { not: null } },
+      include: { models: true },
+    });
+    if (userActive) return userActive;
+  }
+
+  // 2. If user has Platform AI (or is staff / no userId specified):
+  // Resolve from platform-owned active providers configured in Platform Admin
+  if (hasAiPlatform || isStaff || !userId) {
+    const aiSettings = await db.aiSettings.findUnique({ where: { scope: 'global' } });
+    const owned = await platformOwnedProviderFilter();
+
+    if (aiSettings?.defaultProviderId) {
+      const defaultProv = await db.aiProvider.findFirst({
+        where: { id: aiSettings.defaultProviderId, isActive: true, apiKeyEncrypted: { not: null }, ...owned },
+        include: { models: true },
+      });
+      if (defaultProv) return defaultProv;
+    }
+
+    const platformDefault = await db.aiProvider.findFirst({
+      where: { isActive: true, isDefault: true, apiKeyEncrypted: { not: null }, ...owned },
+      include: { models: true },
+    });
+    if (platformDefault) return platformDefault;
+
+    const platformActive = await db.aiProvider.findFirst({
+      where: { isActive: true, apiKeyEncrypted: { not: null }, ...owned },
+      include: { models: true },
+    });
+    return platformActive;
+  }
+
+  return null;
 }
 
 // -------------------- Prompt-slot resolution --------------------
@@ -262,3 +355,40 @@ export function slotForAction(action: string): PlatformPromptSlot {
   if (a.includes('improve') || a.includes('expand') || a.includes('enhance')) return 'improve';
   return 'text-action';
 }
+
+/**
+ * Sensible max output token limits configured appropriately per AI operation/use case:
+ * - AI Ideas: small/appropriate limit (1,200 tokens)
+ * - SEO generation: appropriate limit (300 for title, 400 for description)
+ * - Article generation: larger limit (5,000 tokens)
+ * - Article editing/rewrite: appropriate limit (2,500 tokens)
+ * - Other AI operations: their own sensible limits (outline: 1,500, title: 300, general text action: 2,000, images: 500)
+ */
+export const OPERATION_DEFAULT_MAX_TOKENS: Record<PlatformPromptSlot, number> = {
+  ideas: 1200,
+  'seo-title': 300,
+  'seo-description': 400,
+  title: 300,
+  outline: 1500,
+  rewrite: 2500,
+  improve: 2500,
+  'text-action': 2000,
+  article: 5000,
+  images: 500,
+};
+
+/**
+ * Resolves the appropriate max output tokens for an AI operation.
+ * Prioritizes any maxTokens configured on the resolved prompt template,
+ * otherwise falls back to the operation's specific limit.
+ */
+export function getOperationMaxTokens(
+  slot: PlatformPromptSlot,
+  promptMaxTokens?: number | null,
+): number {
+  if (promptMaxTokens != null && promptMaxTokens > 0) {
+    return promptMaxTokens;
+  }
+  return OPERATION_DEFAULT_MAX_TOKENS[slot] ?? 2048;
+}
+

@@ -67,6 +67,7 @@ import type {
 } from '@/shared/types';
 import { DEFAULT_PAGE_SIZE } from '@/shared/constants';
 import { useNavigationStore } from '@/lib/stores/navigation-store';
+import { useSiteStore } from '@/lib/stores/site-store';
 import type { ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
 
@@ -321,16 +322,27 @@ export function NewsletterPage() {
     },
   });
 
+  const isAllSites = useSiteStore((s) => s.isAllSites());
+
   // Create campaign dialog state
   const [createOpen, setCreateOpen] = useState(false);
   const [campaignForm, setCampaignForm] = useState<CampaignForm>(INITIAL_CAMPAIGN_FORM);
   const authUser = useAuthStore((s) => s.user);
 
   useEffect(() => {
-    if (currentSubPage === 'create') {
+    if (isAllSites) {
+      if (createOpen) setCreateOpen(false);
+      if (currentSubPage === 'create') {
+        navigate('newsletter', null, 'campaigns');
+      }
+    }
+  }, [isAllSites, createOpen, currentSubPage, navigate]);
+
+  useEffect(() => {
+    if (!isAllSites && currentSubPage === 'create') {
       setCreateOpen(true);
     }
-  }, [currentSubPage]);
+  }, [currentSubPage, isAllSites]);
 
   // Compute the live recipient count for the Create Campaign dialog
   // (must be after campaignForm state declaration)
@@ -711,7 +723,8 @@ export function NewsletterPage() {
 
         {/* Campaigns Tab */}
         <TabsContent value="campaigns" className="mt-4">
-          <div className="flex justify-end mb-0">
+          {!isAllSites && (
+            <div className="flex justify-end mb-0">
             <Dialog
               open={createOpen}
               onOpenChange={(open) => {
@@ -890,6 +903,7 @@ export function NewsletterPage() {
               </DialogContent>
             </Dialog>
           </div>
+          )}
 
           <DataTable
             columns={campaignColumns}

@@ -284,3 +284,28 @@
 *::-webkit-scrollbar-corner {
   background: transparent;
 }
+*::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Prevent horizontal tabs & scroll containers from ever showing unintended vertical scrollbars */
+[class*="overflow-x-auto"],
+[class*="overflow-x-scroll"] {
+  overflow-y: hidden;
+}
+
+/* Complete scrollbar hiding utilities */
+.no-scrollbar,
+.scrollbar-none {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+.no-scrollbar::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+

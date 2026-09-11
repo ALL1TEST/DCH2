@@ -249,24 +249,6 @@ function isoDaysAhead(days: number): string {
 
 const CUSTOMER_SEED: Omit<Customer, 'id'>[] = [
   { name: 'Admin User', email: 'admin@example.com', status: 'ACTIVE', planId: 'pro', subscriptionStatus: 'active', billingInterval: 'monthly', createdAt: isoDaysAgo(120), subscriptionStart: isoDaysAgo(90), nextBillingAt: isoDaysAhead(2), trialEnd: null, company: 'Acme Studios', country: 'Switzerland', storageLimitBytes: 10 * GB },
-  { name: 'Editor User', email: 'editor@example.com', status: 'ACTIVE', planId: 'plus', subscriptionStatus: 'active', billingInterval: 'monthly', createdAt: isoDaysAgo(64), subscriptionStart: isoDaysAgo(64), nextBillingAt: isoDaysAhead(5), trialEnd: null, company: 'Maple Media', country: 'Germany', storageLimitBytes: 1 * GB },
-  { name: 'Author User', email: 'author@example.com', status: 'ACTIVE', planId: 'plus', subscriptionStatus: 'active', billingInterval: 'monthly', createdAt: isoDaysAgo(40), subscriptionStart: isoDaysAgo(40), nextBillingAt: isoDaysAhead(8), trialEnd: null, company: null, country: 'France', storageLimitBytes: 1 * GB },
-  { name: 'John Smith', email: 'john@example.com', status: 'ACTIVE', planId: 'pro', subscriptionStatus: 'active', billingInterval: 'monthly', createdAt: isoDaysAgo(58), subscriptionStart: isoDaysAgo(58), nextBillingAt: isoDaysAhead(3), trialEnd: null, company: 'Smith Digital', country: 'United Kingdom', storageLimitBytes: 10 * GB },
-  { name: 'Sarah Wilson', email: 'sarah@example.com', status: 'ACTIVE', planId: 'max', subscriptionStatus: 'active', billingInterval: 'monthly', createdAt: isoDaysAgo(95), subscriptionStart: isoDaysAgo(95), nextBillingAt: isoDaysAhead(1), trialEnd: null, company: 'Wilson Group', country: 'United States', storageLimitBytes: 100 * GB },
-  { name: 'Michael Chen', email: 'michael@example.com', status: 'ACTIVE', planId: 'pro', subscriptionStatus: 'active', billingInterval: 'yearly', createdAt: isoDaysAgo(210), subscriptionStart: isoDaysAgo(210), nextBillingAt: isoDaysAhead(155), trialEnd: null, company: 'Chen Analytics', country: 'Singapore', storageLimitBytes: 10 * GB },
-  { name: 'Emma Rodriguez', email: 'emma@example.com', status: 'ACTIVE', planId: 'plus', subscriptionStatus: 'active', billingInterval: 'monthly', createdAt: isoDaysAgo(28), subscriptionStart: isoDaysAgo(28), nextBillingAt: isoDaysAhead(4), trialEnd: null, company: null, country: 'Spain', storageLimitBytes: 1 * GB },
-  { name: 'David Kim', email: 'david@example.com', status: 'ACTIVE', planId: 'pro', subscriptionStatus: 'active', billingInterval: 'monthly', createdAt: isoDaysAgo(72), subscriptionStart: isoDaysAgo(72), nextBillingAt: isoDaysAhead(6), trialEnd: null, company: 'Kim Labs', country: 'South Korea', storageLimitBytes: 10 * GB },
-  { name: 'Lisa Anderson', email: 'lisa@example.com', status: 'ACTIVE', planId: 'max', subscriptionStatus: 'active', billingInterval: 'monthly', createdAt: isoDaysAgo(140), subscriptionStart: isoDaysAgo(140), nextBillingAt: isoDaysAhead(7), trialEnd: null, company: 'Anderson Co', country: 'Canada', storageLimitBytes: 100 * GB },
-  { name: 'James Brown', email: 'james@example.com', status: 'ACTIVE', planId: 'plus', subscriptionStatus: 'active', billingInterval: 'monthly', createdAt: isoDaysAgo(15), subscriptionStart: isoDaysAgo(15), nextBillingAt: isoDaysAhead(16), trialEnd: null, company: null, country: 'Australia', storageLimitBytes: 1 * GB },
-  { name: 'Olivia Martinez', email: 'olivia@example.com', status: 'ACTIVE', planId: 'pro', subscriptionStatus: 'trial', billingInterval: 'monthly', createdAt: isoDaysAgo(6), subscriptionStart: isoDaysAgo(6), nextBillingAt: isoDaysAhead(8), trialEnd: isoDaysAhead(8), company: 'Martinez LLC', country: 'Mexico', storageLimitBytes: 10 * GB },
-  { name: 'William Davis', email: 'william@example.com', status: 'ACTIVE', planId: 'plus', subscriptionStatus: 'trial', billingInterval: 'monthly', createdAt: isoDaysAgo(3), subscriptionStart: isoDaysAgo(3), nextBillingAt: isoDaysAhead(11), trialEnd: isoDaysAhead(11), company: null, country: 'Ireland', storageLimitBytes: 1 * GB },
-  { name: 'Sophia Garcia', email: 'sophia@example.com', status: 'ACTIVE', planId: 'pro', subscriptionStatus: 'past_due', billingInterval: 'monthly', createdAt: isoDaysAgo(80), subscriptionStart: isoDaysAgo(80), nextBillingAt: isoDaysAhead(-2), trialEnd: null, company: 'Garcia Media', country: 'Argentina', storageLimitBytes: 10 * GB },
-  { name: 'Daniel Lee', email: 'daniel@example.com', status: 'ACTIVE', planId: 'plus', subscriptionStatus: 'active', billingInterval: 'monthly', createdAt: isoDaysAgo(48), subscriptionStart: isoDaysAgo(48), nextBillingAt: isoDaysAhead(12), trialEnd: null, company: null, country: 'Norway', storageLimitBytes: 1 * GB },
-  { name: 'Charlotte Taylor', email: 'charlotte@example.com', status: 'ACTIVE', planId: 'pro', subscriptionStatus: 'active', billingInterval: 'yearly', createdAt: isoDaysAgo(300), subscriptionStart: isoDaysAgo(300), nextBillingAt: isoDaysAhead(65), trialEnd: null, company: 'Taylor Press', country: 'United Kingdom', storageLimitBytes: 10 * GB },
-  { name: 'Ethan Moore', email: 'ethan@example.com', status: 'ACTIVE', planId: 'max', subscriptionStatus: 'active', billingInterval: 'monthly', createdAt: isoDaysAgo(160), subscriptionStart: isoDaysAgo(160), nextBillingAt: isoDaysAhead(9), trialEnd: null, company: 'Moore Ventures', country: 'United States', storageLimitBytes: 100 * GB },
-  { name: 'Ava Thomas', email: 'ava@example.com', status: 'ACTIVE', planId: 'pro', subscriptionStatus: 'cancelled', billingInterval: 'monthly', createdAt: isoDaysAgo(200), subscriptionStart: isoDaysAgo(200), nextBillingAt: null, trialEnd: null, company: null, country: 'New Zealand', storageLimitBytes: 10 * GB },
-  { name: 'Mason Clark', email: 'mason@example.com', status: 'ACTIVE', planId: 'pro', subscriptionStatus: 'active', billingInterval: 'monthly', createdAt: isoDaysAgo(33), subscriptionStart: isoDaysAgo(33), nextBillingAt: isoDaysAhead(13), trialEnd: null, company: 'Clark Co', country: 'South Africa', storageLimitBytes: 10 * GB },
-  { name: 'Isabella Lewis', email: 'isabella@example.com', status: 'ACTIVE', planId: 'max', subscriptionStatus: 'active', billingInterval: 'monthly', createdAt: isoDaysAgo(110), subscriptionStart: isoDaysAgo(110), nextBillingAt: isoDaysAhead(14), trialEnd: null, company: 'Lewis Holdings', country: 'Belgium', storageLimitBytes: 100 * GB },
 ];
 
 // -------------------- Sites --------------------
@@ -282,72 +264,7 @@ interface SiteSeed {
   storageBytes: number;
   daysAgo: number;
 }
-const SITE_SEED: SiteSeed[] = [
-  { customerIdIdx: 0, name: 'Tech Insights', slug: 'tech-insights', domain: 'tech.example.com', status: 'ACTIVE', articles: 12, media: 18, storageBytes: Math.round(2.1 * GB), daysAgo: 90 },
-  { customerIdIdx: 0, name: 'Finance Weekly', slug: 'finance-weekly', domain: 'finance.example.com', status: 'ACTIVE', articles: 9, media: 7, storageBytes: Math.round(1.4 * GB), daysAgo: 88 },
-  { customerIdIdx: 0, name: 'Travel Notes', slug: 'travel-notes', domain: 'travel.example.com', status: 'ACTIVE', articles: 8, media: 14, storageBytes: Math.round(3.2 * GB), daysAgo: 85 },
-  { customerIdIdx: 3, name: 'Gadget Lab', slug: 'gadget-lab', domain: 'gadgetlab.io', status: 'ACTIVE', articles: 14, media: 9, storageBytes: Math.round(1.8 * GB), daysAgo: 55 },
-  { customerIdIdx: 3, name: 'Mobile Review', slug: 'mobile-review', domain: 'mobilereview.io', status: 'ACTIVE', articles: 6, media: 4, storageBytes: Math.round(0.9 * GB), daysAgo: 50 },
-  { customerIdIdx: 3, name: 'Wearable Tech', slug: 'wearable-tech', domain: null, status: 'MAINTENANCE', articles: 3, media: 2, storageBytes: Math.round(0.4 * GB), daysAgo: 20 },
-  { customerIdIdx: 4, name: 'Fashion Daily', slug: 'fashion-daily', domain: 'fashiondaily.com', status: 'ACTIVE', articles: 22, media: 41, storageBytes: Math.round(8.1 * GB), daysAgo: 92 },
-  { customerIdIdx: 4, name: 'Style Guide', slug: 'style-guide', domain: 'styleguide.com', status: 'ACTIVE', articles: 11, media: 18, storageBytes: Math.round(4.2 * GB), daysAgo: 90 },
-  { customerIdIdx: 4, name: 'Runway Report', slug: 'runway-report', domain: 'runwayreport.com', status: 'ACTIVE', articles: 9, media: 27, storageBytes: Math.round(6.8 * GB), daysAgo: 88 },
-  { customerIdIdx: 4, name: 'Beauty Blog', slug: 'beauty-blog', domain: 'beautyblog.com', status: 'ACTIVE', articles: 7, media: 15, storageBytes: Math.round(3.5 * GB), daysAgo: 70 },
-  { customerIdIdx: 4, name: 'Trends Weekly', slug: 'trends-weekly', domain: 'trendsweekly.com', status: 'ACTIVE', articles: 5, media: 12, storageBytes: Math.round(2.8 * GB), daysAgo: 45 },
-  { customerIdIdx: 4, name: 'Couture Corner', slug: 'couture-corner', domain: 'couturecorner.com', status: 'ACTIVE', articles: 4, media: 9, storageBytes: Math.round(2.1 * GB), daysAgo: 30 },
-  { customerIdIdx: 4, name: 'Accessories Hub', slug: 'accessories-hub', domain: 'accessorieshub.com', status: 'ACTIVE', articles: 3, media: 6, storageBytes: Math.round(1.4 * GB), daysAgo: 18 },
-  { customerIdIdx: 4, name: 'Lookbook', slug: 'lookbook', domain: null, status: 'ACTIVE', articles: 2, media: 21, storageBytes: Math.round(5.0 * GB), daysAgo: 10 },
-  { customerIdIdx: 5, name: 'Data Dive', slug: 'data-dive', domain: 'datadive.ai', status: 'ACTIVE', articles: 16, media: 5, storageBytes: Math.round(1.2 * GB), daysAgo: 205 },
-  { customerIdIdx: 5, name: 'AI Insights', slug: 'ai-insights', domain: 'aiinsights.ai', status: 'ACTIVE', articles: 12, media: 3, storageBytes: Math.round(0.8 * GB), daysAgo: 150 },
-  { customerIdIdx: 5, name: 'ML Weekly', slug: 'ml-weekly', domain: 'mlweekly.ai', status: 'ACTIVE', articles: 8, media: 2, storageBytes: Math.round(0.6 * GB), daysAgo: 100 },
-  { customerIdIdx: 5, name: 'Stats Hub', slug: 'stats-hub', domain: 'statshub.ai', status: 'ACTIVE', articles: 5, media: 1, storageBytes: Math.round(0.3 * GB), daysAgo: 60 },
-  { customerIdIdx: 5, name: 'Quant Notes', slug: 'quant-notes', domain: null, status: 'ACTIVE', articles: 3, media: 1, storageBytes: Math.round(0.2 * GB), daysAgo: 20 },
-  { customerIdIdx: 6, name: 'Recipe Box', slug: 'recipe-box', domain: 'recipebox.es', status: 'ACTIVE', articles: 8, media: 12, storageBytes: Math.round(0.8 * GB), daysAgo: 26 },
-  { customerIdIdx: 6, name: 'Foodie Travel', slug: 'foodie-travel', domain: null, status: 'ACTIVE', articles: 4, media: 7, storageBytes: Math.round(0.5 * GB), daysAgo: 12 },
-  { customerIdIdx: 7, name: 'Dev Journal', slug: 'dev-journal', domain: 'devjournal.kr', status: 'ACTIVE', articles: 15, media: 4, storageBytes: Math.round(1.1 * GB), daysAgo: 70 },
-  { customerIdIdx: 7, name: 'Code Craft', slug: 'code-craft', domain: 'codecraft.kr', status: 'ACTIVE', articles: 9, media: 2, storageBytes: Math.round(0.7 * GB), daysAgo: 60 },
-  { customerIdIdx: 7, name: 'Ship Log', slug: 'ship-log', domain: 'shiplog.kr', status: 'ACTIVE', articles: 5, media: 1, storageBytes: Math.round(0.4 * GB), daysAgo: 40 },
-  { customerIdIdx: 7, name: 'Build Notes', slug: 'build-notes', domain: null, status: 'ACTIVE', articles: 3, media: 1, storageBytes: Math.round(0.2 * GB), daysAgo: 15 },
-  { customerIdIdx: 8, name: 'Wellness Daily', slug: 'wellness-daily', domain: 'wellnessdaily.ca', status: 'ACTIVE', articles: 18, media: 22, storageBytes: Math.round(5.5 * GB), daysAgo: 138 },
-  { customerIdIdx: 8, name: 'Mindful Living', slug: 'mindful-living', domain: 'mindfulliving.ca', status: 'ACTIVE', articles: 11, media: 14, storageBytes: Math.round(3.4 * GB), daysAgo: 100 },
-  { customerIdIdx: 8, name: 'Fitness Hub', slug: 'fitness-hub', domain: 'fitnesshub.ca', status: 'ACTIVE', articles: 8, media: 19, storageBytes: Math.round(4.6 * GB), daysAgo: 80 },
-  { customerIdIdx: 8, name: 'Nutrition Notes', slug: 'nutrition-notes', domain: 'nutritionnotes.ca', status: 'ACTIVE', articles: 6, media: 8, storageBytes: Math.round(1.9 * GB), daysAgo: 50 },
-  { customerIdIdx: 8, name: 'Yoga Studio', slug: 'yoga-studio', domain: 'yogastudio.ca', status: 'ACTIVE', articles: 4, media: 11, storageBytes: Math.round(2.7 * GB), daysAgo: 25 },
-  { customerIdIdx: 8, name: 'Meditation', slug: 'meditation', domain: null, status: 'ACTIVE', articles: 2, media: 5, storageBytes: Math.round(1.2 * GB), daysAgo: 10 },
-  { customerIdIdx: 9, name: 'Indie Games', slug: 'indie-games', domain: 'indiegames.au', status: 'ACTIVE', articles: 5, media: 3, storageBytes: Math.round(0.6 * GB), daysAgo: 14 },
-  { customerIdIdx: 10, name: 'Marketing Pro', slug: 'marketing-pro', domain: 'marketingpro.mx', status: 'ACTIVE', articles: 4, media: 2, storageBytes: Math.round(0.4 * GB), daysAgo: 5 },
-  { customerIdIdx: 10, name: 'Growth Lab', slug: 'growth-lab', domain: null, status: 'ACTIVE', articles: 2, media: 1, storageBytes: Math.round(0.2 * GB), daysAgo: 2 },
-  { customerIdIdx: 11, name: 'Photo Blog', slug: 'photo-blog', domain: null, status: 'ACTIVE', articles: 1, media: 4, storageBytes: Math.round(0.3 * GB), daysAgo: 2 },
-  { customerIdIdx: 12, name: 'Local News', slug: 'local-news', domain: 'localnews.ar', status: 'ACTIVE', articles: 10, media: 6, storageBytes: Math.round(1.5 * GB), daysAgo: 78 },
-  { customerIdIdx: 12, name: 'City Guide', slug: 'city-guide', domain: 'cityguide.ar', status: 'ACTIVE', articles: 6, media: 9, storageBytes: Math.round(2.1 * GB), daysAgo: 60 },
-  { customerIdIdx: 12, name: 'Events Hub', slug: 'events-hub', domain: null, status: 'ACTIVE', articles: 3, media: 4, storageBytes: Math.round(0.8 * GB), daysAgo: 30 },
-  { customerIdIdx: 13, name: 'Outdoor Life', slug: 'outdoor-life', domain: 'outdoorlife.no', status: 'ACTIVE', articles: 7, media: 11, storageBytes: Math.round(2.3 * GB), daysAgo: 47 },
-  { customerIdIdx: 13, name: 'Hiking Norway', slug: 'hiking-norway', domain: null, status: 'ACTIVE', articles: 3, media: 6, storageBytes: Math.round(1.4 * GB), daysAgo: 20 },
-  { customerIdIdx: 14, name: 'History Today', slug: 'history-today', domain: 'historytoday.uk', status: 'ACTIVE', articles: 20, media: 8, storageBytes: Math.round(2.0 * GB), daysAgo: 295 },
-  { customerIdIdx: 14, name: 'Archaeology', slug: 'archaeology', domain: 'archaeology.uk', status: 'ACTIVE', articles: 12, media: 5, storageBytes: Math.round(1.3 * GB), daysAgo: 200 },
-  { customerIdIdx: 14, name: 'Medieval', slug: 'medieval', domain: 'medieval.uk', status: 'ACTIVE', articles: 8, media: 3, storageBytes: Math.round(0.9 * GB), daysAgo: 120 },
-  { customerIdIdx: 14, name: 'Ancient World', slug: 'ancient-world', domain: 'ancientworld.uk', status: 'ACTIVE', articles: 5, media: 2, storageBytes: Math.round(0.6 * GB), daysAgo: 60 },
-  { customerIdIdx: 14, name: 'Art History', slug: 'art-history', domain: null, status: 'ACTIVE', articles: 3, media: 1, storageBytes: Math.round(0.3 * GB), daysAgo: 20 },
-  { customerIdIdx: 15, name: 'Venture Wire', slug: 'venture-wire', domain: 'venturewire.us', status: 'ACTIVE', articles: 24, media: 18, storageBytes: Math.round(4.5 * GB), daysAgo: 158 },
-  { customerIdIdx: 15, name: 'Startup News', slug: 'startup-news', domain: 'startupnews.us', status: 'ACTIVE', articles: 16, media: 12, storageBytes: Math.round(3.1 * GB), daysAgo: 120 },
-  { customerIdIdx: 15, name: 'Founders Forum', slug: 'founders-forum', domain: 'foundersforum.us', status: 'ACTIVE', articles: 11, media: 8, storageBytes: Math.round(2.0 * GB), daysAgo: 90 },
-  { customerIdIdx: 15, name: 'Pitch Deck', slug: 'pitch-deck', domain: 'pitchdeck.us', status: 'ACTIVE', articles: 7, media: 15, storageBytes: Math.round(3.6 * GB), daysAgo: 60 },
-  { customerIdIdx: 15, name: 'Cap Table', slug: 'cap-table', domain: 'captable.us', status: 'ACTIVE', articles: 4, media: 3, storageBytes: Math.round(0.9 * GB), daysAgo: 30 },
-  { customerIdIdx: 15, name: 'Term Sheet', slug: 'term-sheet', domain: 'termsheet.us', status: 'ACTIVE', articles: 3, media: 2, storageBytes: Math.round(0.6 * GB), daysAgo: 15 },
-  { customerIdIdx: 15, name: 'Unicorn Watch', slug: 'unicorn-watch', domain: null, status: 'ACTIVE', articles: 2, media: 1, storageBytes: Math.round(0.3 * GB), daysAgo: 5 },
-  { customerIdIdx: 17, name: 'Legal Briefs', slug: 'legal-briefs', domain: 'legalbriefs.za', status: 'ACTIVE', articles: 9, media: 3, storageBytes: Math.round(0.8 * GB), daysAgo: 32 },
-  { customerIdIdx: 17, name: 'Case Law', slug: 'case-law', domain: 'caselaw.za', status: 'ACTIVE', articles: 6, media: 2, storageBytes: Math.round(0.5 * GB), daysAgo: 20 },
-  { customerIdIdx: 17, name: 'Contracts', slug: 'contracts', domain: null, status: 'ACTIVE', articles: 3, media: 1, storageBytes: Math.round(0.3 * GB), daysAgo: 8 },
-  { customerIdIdx: 18, name: 'EU Policy', slug: 'eu-policy', domain: 'eupolicy.be', status: 'ACTIVE', articles: 18, media: 7, storageBytes: Math.round(1.8 * GB), daysAgo: 108 },
-  { customerIdIdx: 18, name: 'Brussels Wire', slug: 'brussels-wire', domain: 'brusselswire.be', status: 'ACTIVE', articles: 14, media: 5, storageBytes: Math.round(1.3 * GB), daysAgo: 95 },
-  { customerIdIdx: 18, name: 'Regulation', slug: 'regulation', domain: 'regulation.be', status: 'ACTIVE', articles: 11, media: 4, storageBytes: Math.round(1.0 * GB), daysAgo: 80 },
-  { customerIdIdx: 18, name: 'Trade Desk', slug: 'trade-desk', domain: 'tradedesk.be', status: 'ACTIVE', articles: 8, media: 3, storageBytes: Math.round(0.7 * GB), daysAgo: 60 },
-  { customerIdIdx: 18, name: 'Euro Brief', slug: 'euro-brief', domain: 'eurobrief.be', status: 'ACTIVE', articles: 6, media: 2, storageBytes: Math.round(0.5 * GB), daysAgo: 45 },
-  { customerIdIdx: 18, name: 'Diplomat', slug: 'diplomat', domain: 'diplomat.be', status: 'ACTIVE', articles: 5, media: 2, storageBytes: Math.round(0.4 * GB), daysAgo: 30 },
-  { customerIdIdx: 18, name: 'Council Notes', slug: 'council-notes', domain: 'councilnotes.be', status: 'ACTIVE', articles: 4, media: 1, storageBytes: Math.round(0.3 * GB), daysAgo: 20 },
-  { customerIdIdx: 18, name: 'Parliament', slug: 'parliament', domain: 'parliament.be', status: 'ACTIVE', articles: 3, media: 1, storageBytes: Math.round(0.2 * GB), daysAgo: 10 },
-  { customerIdIdx: 18, name: 'Commission', slug: 'commission', domain: null, status: 'ACTIVE', articles: 2, media: 1, storageBytes: Math.round(0.2 * GB), daysAgo: 3 },
-];
+const SITE_SEED: SiteSeed[] = [];
 
 // -------------------- Payments --------------------
 
@@ -359,51 +276,7 @@ interface PaymentSeed {
   method: string;
   daysAgo: number;
 }
-const PAYMENT_SEED: PaymentSeed[] = [
-  { customerIdx: 0, planId: 'pro', amount: 49, status: 'paid', method: 'Visa ••4242', daysAgo: 2 },
-  { customerIdx: 0, planId: 'pro', amount: 49, status: 'paid', method: 'Visa ••4242', daysAgo: 32 },
-  { customerIdx: 0, planId: 'pro', amount: 49, status: 'paid', method: 'Visa ••4242', daysAgo: 62 },
-  { customerIdx: 3, planId: 'pro', amount: 49, status: 'paid', method: 'Mastercard ••8810', daysAgo: 3 },
-  { customerIdx: 3, planId: 'pro', amount: 49, status: 'paid', method: 'Mastercard ••8810', daysAgo: 33 },
-  { customerIdx: 4, planId: 'max', amount: 99, status: 'paid', method: 'Amex ••1005', daysAgo: 1 },
-  { customerIdx: 4, planId: 'max', amount: 99, status: 'paid', method: 'Amex ••1005', daysAgo: 31 },
-  { customerIdx: 4, planId: 'max', amount: 99, status: 'paid', method: 'Amex ••1005', daysAgo: 61 },
-  { customerIdx: 5, planId: 'pro', amount: 588, status: 'paid', method: 'Visa ••7733', daysAgo: 55 },
-  { customerIdx: 7, planId: 'pro', amount: 49, status: 'paid', method: 'Visa ••2099', daysAgo: 6 },
-  { customerIdx: 7, planId: 'pro', amount: 49, status: 'paid', method: 'Visa ••2099', daysAgo: 36 },
-  { customerIdx: 8, planId: 'max', amount: 99, status: 'paid', method: 'Mastercard ••5514', daysAgo: 7 },
-  { customerIdx: 8, planId: 'max', amount: 99, status: 'paid', method: 'Mastercard ••5514', daysAgo: 37 },
-  { customerIdx: 10, planId: 'pro', amount: 49, status: 'pending', method: 'Visa ••0011', daysAgo: 0 },
-  { customerIdx: 12, planId: 'pro', amount: 49, status: 'failed', method: 'Visa ••6634', daysAgo: 2 },
-  { customerIdx: 12, planId: 'pro', amount: 49, status: 'failed', method: 'Visa ••6634', daysAgo: 5 },
-  { customerIdx: 12, planId: 'pro', amount: 49, status: 'paid', method: 'Visa ••6634', daysAgo: 33 },
-  { customerIdx: 14, planId: 'pro', amount: 588, status: 'paid', method: 'Visa ••4488', daysAgo: 65 },
-  { customerIdx: 15, planId: 'max', amount: 99, status: 'paid', method: 'Amex ••3006', daysAgo: 9 },
-  { customerIdx: 15, planId: 'max', amount: 99, status: 'paid', method: 'Amex ••3006', daysAgo: 39 },
-  { customerIdx: 15, planId: 'max', amount: 99, status: 'paid', method: 'Amex ••3006', daysAgo: 69 },
-  { customerIdx: 16, planId: 'pro', amount: 49, status: 'refunded', method: 'Visa ••9900', daysAgo: 12 },
-  { customerIdx: 16, planId: 'pro', amount: 49, status: 'paid', method: 'Visa ••9900', daysAgo: 42 },
-  { customerIdx: 17, planId: 'pro', amount: 49, status: 'paid', method: 'Mastercard ••2271', daysAgo: 13 },
-  { customerIdx: 17, planId: 'pro', amount: 49, status: 'paid', method: 'Mastercard ••2271', daysAgo: 43 },
-  { customerIdx: 18, planId: 'max', amount: 99, status: 'paid', method: 'Visa ••1188', daysAgo: 14 },
-  { customerIdx: 18, planId: 'max', amount: 99, status: 'paid', method: 'Visa ••1188', daysAgo: 44 },
-  { customerIdx: 4, planId: 'max', amount: 99, status: 'failed', method: 'Amex ••1005', daysAgo: 1 },
-  { customerIdx: 8, planId: 'max', amount: 99, status: 'failed', method: 'Mastercard ••5514', daysAgo: 4 },
-  // ---- Coverage: payments for the remaining mock customers so every
-  // customer detail page's "Recent Payments" section shows real rows
-  // (no more "No payments recorded." empty states). Each entry uses the
-  // customer's own planId + amount so the PlanBadge + Amount match their
-  // subscription. Deterministic — no Math.random.
-  { customerIdx: 1, planId: 'plus', amount: 9, status: 'paid', method: 'Visa ••4242', daysAgo: 4 },     // Editor User — Plus monthly
-  { customerIdx: 1, planId: 'plus', amount: 9, status: 'paid', method: 'Visa ••4242', daysAgo: 34 },
-  { customerIdx: 2, planId: 'plus', amount: 9, status: 'paid', method: 'Mastercard ••5555', daysAgo: 10 },  // Author User — Plus monthly
-  { customerIdx: 6, planId: 'plus', amount: 9, status: 'paid', method: 'Amex ••3782', daysAgo: 8 },      // Emma Rodriguez — Plus monthly
-  { customerIdx: 6, planId: 'plus', amount: 9, status: 'paid', method: 'Amex ••3782', daysAgo: 38 },
-  { customerIdx: 9, planId: 'plus', amount: 9, status: 'paid', method: 'Discover ••6011', daysAgo: 5 },   // James Brown — Plus monthly
-  { customerIdx: 11, planId: 'plus', amount: 9, status: 'paid', method: 'Visa ••1881', daysAgo: 3 },     // William Davis — Plus monthly trial (initial)
-  { customerIdx: 13, planId: 'plus', amount: 9, status: 'paid', method: 'Visa ••4242', daysAgo: 18 },    // Daniel Lee — Plus monthly
-  { customerIdx: 13, planId: 'plus', amount: 9, status: 'paid', method: 'Visa ••4242', daysAgo: 48 },
-];
+const PAYMENT_SEED: PaymentSeed[] = [];
 
 // -------------------- Audit log (initial entries) --------------------
 

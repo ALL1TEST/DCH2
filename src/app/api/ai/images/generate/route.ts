@@ -9,6 +9,12 @@ import { requireFeature } from '@/lib/platform/platform-auth';
 import { checkAiLimit, aiLimitExceededResponse } from '@/lib/platform/usage-limits';
 import { platformOwnedProviderFilter } from '@/lib/ai/platform-ai';
 
+import {
+  canProviderSupportImageGeneration,
+  isModelForbiddenForImageGeneration,
+  parseCapabilities,
+} from '@/lib/ai/providers';
+
 // ---------- helpers ---------------------------------------------------
 
 function reqId() {
@@ -97,11 +103,11 @@ export async function POST(request: NextRequest) {
     });
     if (!provider) return err('Provider not found', 404, 'NOT_FOUND');
     if (!provider.isActive) return err('Provider is disabled. Please activate it first.', 400, 'PROVIDER_INACTIVE');
-    if (!['OPENAI', 'GEMINI', 'CUSTOM'].includes(provider.kind)) {
-      return err(`${provider.kind} does not support image generation. Please use OpenAI, Gemini, or a Custom OpenAI-compatible provider.`, 400, 'UNSUPPORTED');
+    if (!canProviderSupportImageGeneration(provider.kind)) {
+      return err(`${provider.name} does not support image generation. Please use OpenAI, Gemini, or a Custom OpenAI-compatible provider.`, 400, 'UNSUPPORTED');
     }
 
-    // Pre-validate the model is an IMAGE-type model belonging to this provider
+    // Pre-validate the model supports image generation
     if (d.modelId) {
       const model = await db.aiModel.findUnique({ where: { id: d.modelId } });
       if (!model) return err('Selected model not found', 404, 'NOT_FOUND');
@@ -109,8 +115,13 @@ export async function POST(request: NextRequest) {
         return err('The selected model does not belong to the selected provider', 400, 'MODEL_PROVIDER_MISMATCH');
       }
       if (!model.isActive) return err('Selected model is inactive', 400, 'MODEL_INACTIVE');
-      if (model.type?.toUpperCase() !== 'IMAGE') {
-        return err('The selected model is not an image generation model. Please select an IMAGE-type model.', 400, 'MODEL_TYPE_MISMATCH');
+      const caps = parseCapabilities(model.capabilities ?? (model.type === 'IMAGE' ? ['IMAGE_GENERATION'] : ['TEXT_GENERATION']));
+      if (!caps.includes('IMAGE_GENERATION')) {
+        return err('This model does not support image generation.', 400, 'MODEL_CAPABILITY_MISMATCH');
+      }
+      const forbidden = isModelForbiddenForImageGeneration(provider.kind, model.modelId);
+      if (forbidden.forbidden) {
+        return err(forbidden.reason || 'This model does not support image generation.', 400, 'FORBIDDEN_CAPABILITY');
       }
     }
 

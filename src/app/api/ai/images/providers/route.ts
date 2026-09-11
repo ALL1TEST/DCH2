@@ -3,16 +3,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requireFeatureAllowStaff, isPlatformStaff } from '@/lib/platform/platform-auth';
+import {
+  canProviderSupportImageGeneration,
+  isModelForbiddenForImageGeneration,
+  parseCapabilities,
+} from '@/lib/ai/providers';
 
 // =====================================================================
 // GET /api/ai/images/providers — Find providers capable of image generation
 // =====================================================================
-// OpenAI, Gemini, and Custom (OpenAI-compatible) providers support image
-// generation. A provider qualifies if it's active, has an API key, and has
-// at least one active IMAGE-type model.
-//
-// Connection-management data: platform staff see the platform
-// infrastructure; ai_client clients see ONLY their own connections.
 
 export async function GET(request: NextRequest) {
   const requestId = 'req_' + crypto.randomUUID().slice(0, 8);
@@ -25,7 +24,6 @@ export async function GET(request: NextRequest) {
     const where: Record<string, unknown> = {
       isActive: true,
       apiKeyEncrypted: { not: null },
-      kind: { in: ['OPENAI', 'GEMINI', 'CUSTOM'] },
     };
     // Non-staff callers (Client's Own AI API) only ever see their own
     // provider connections.
@@ -35,27 +33,37 @@ export async function GET(request: NextRequest) {
       where,
       include: {
         models: {
-          where: { isActive: true, type: 'IMAGE' },
+          where: { isActive: true },
         },
       },
       orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
     });
 
-    // Filter out providers that have no image models after all
+    // Filter providers that support image generation and have active image generation models
     const imageProviders = providers
-      .filter((p) => p.models.length > 0)
-      .map((p) => ({
-        id: p.id,
-        name: p.name,
-        kind: p.kind,
-        isDefault: p.isDefault,
-        models: p.models.map((m) => ({
-          id: m.id,
-          modelId: m.modelId,
-          name: m.name,
-          isDefault: m.isDefault,
-        })),
-      }));
+      .filter((p) => canProviderSupportImageGeneration(p.kind))
+      .map((p) => {
+        const imageModels = p.models.filter((m) => {
+          const caps = parseCapabilities(m.capabilities ?? (m.type === 'IMAGE' ? ['IMAGE_GENERATION'] : ['TEXT_GENERATION']));
+          if (!caps.includes('IMAGE_GENERATION')) return false;
+          const forbidden = isModelForbiddenForImageGeneration(p.kind, m.modelId);
+          return !forbidden.forbidden;
+        });
+
+        return {
+          id: p.id,
+          name: p.name,
+          kind: p.kind,
+          isDefault: p.isDefault,
+          models: imageModels.map((m) => ({
+            id: m.id,
+            modelId: m.modelId,
+            name: m.name,
+            isDefault: m.isDefaultImage || m.isDefault,
+          })),
+        };
+      })
+      .filter((p) => p.models.length > 0);
 
     return NextResponse.json({
       data: imageProviders,

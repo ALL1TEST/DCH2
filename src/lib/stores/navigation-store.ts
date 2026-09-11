@@ -8,7 +8,10 @@ interface NavigationState {
   currentModule: string;
   currentItemId: string | null;
   currentSubPage: string | null;
+  initialAiPrompt?: string | null;
+  initialArticleTitle?: string | null;
 
+  setInitialAiPrompt: (prompt: string | null, title?: string | null) => void;
   navigate: (mod: string, itemId?: string | null, subPage?: string | null) => void;
   readFromHash: () => void;
 }
@@ -159,6 +162,11 @@ export const useNavigationStore = create<NavigationState>((set) => ({
   currentModule: initialState.mod,
   currentItemId: initialState.itemId,
   currentSubPage: initialState.subPage,
+  initialAiPrompt: null,
+  initialArticleTitle: null,
+
+  setInitialAiPrompt: (prompt, title = null) =>
+    set({ initialAiPrompt: prompt, initialArticleTitle: title }),
 
   navigate: (mod, itemId = null, subPage = null) => {
     let targetMod = mod;
@@ -195,23 +203,26 @@ export const useNavigationStore = create<NavigationState>((set) => ({
   },
 }));
 
-// -------------------- Hash Change Listener --------------------
+// -------------------- Hash / History Change Listener --------------------
+
+function syncHashToStore() {
+  const hash = window.location.hash;
+  const parsed = parseHash(hash);
+  useNavigationStore.setState({
+    currentModule: parsed.mod,
+    currentItemId: parsed.itemId,
+    currentSubPage: parsed.subPage,
+  });
+
+  // Canonicalize legacy hash forms (e.g. "#seo/robots") in the address bar.
+  // replaceState does NOT fire hashchange, so no loop is possible.
+  const canonical = buildHash(parsed.mod, parsed.itemId, parsed.subPage);
+  if (hash !== canonical && canonical) {
+    window.history.replaceState(null, '', canonical);
+  }
+}
 
 if (typeof window !== 'undefined') {
-  window.addEventListener('hashchange', () => {
-    const hash = window.location.hash;
-    const parsed = parseHash(hash);
-    useNavigationStore.setState({
-      currentModule: parsed.mod,
-      currentItemId: parsed.itemId,
-      currentSubPage: parsed.subPage,
-    });
-
-    // Canonicalize legacy hash forms (e.g. "#seo/robots") in the address bar.
-    // replaceState does NOT fire hashchange, so no loop is possible.
-    const canonical = buildHash(parsed.mod, parsed.itemId, parsed.subPage);
-    if (hash !== canonical && canonical) {
-      window.history.replaceState(null, '', canonical);
-    }
-  });
+  window.addEventListener('hashchange', syncHashToStore);
+  window.addEventListener('popstate', syncHashToStore);
 }

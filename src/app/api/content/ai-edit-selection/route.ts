@@ -7,7 +7,7 @@ import type { ChatMessage } from '@/lib/ai/ai-service';
 import { z } from 'zod/v4';
 import { requireFeature } from '@/lib/platform/platform-auth';
 import { checkAiLimit, aiLimitExceededResponse } from '@/lib/platform/usage-limits';
-import { resolvePlatformPrompt, slotForAction, platformOwnedProviderFilter } from '@/lib/ai/platform-ai';
+import { resolvePlatformPrompt, slotForAction, platformOwnedProviderFilter, resolveAiProviderForUser, getOperationMaxTokens } from '@/lib/ai/platform-ai';
 
 function reqId() {
   return 'req_' + crypto.randomUUID().slice(0, 8);
@@ -109,25 +109,7 @@ Apply the action to the selected text and return ONLY the modified text.`;
     ];
 
     // ---- Resolve the platform's configured provider
-    // (PLATFORM-OWNED providers only) ----
-    const aiSettings = await db.aiSettings.findUnique({ where: { scope: 'global' } });
-    const owned = await platformOwnedProviderFilter();
-    const provider = await db.aiProvider.findFirst({
-      where: { isActive: true, isDefault: true, apiKeyEncrypted: { not: null }, ...owned },
-      include: { models: true },
-    });
-    const activeProvider =
-      provider ??
-      (aiSettings?.defaultProviderId
-        ? await db.aiProvider.findFirst({
-            where: { id: aiSettings.defaultProviderId, isActive: true, apiKeyEncrypted: { not: null }, ...owned },
-            include: { models: true },
-          })
-        : null) ??
-      (await db.aiProvider.findFirst({
-        where: { isActive: true, apiKeyEncrypted: { not: null }, ...owned },
-        include: { models: true },
-      }));
+    const activeProvider = await resolveAiProviderForUser(auth.user.id);
 
     let content: string;
     if (activeProvider) {
@@ -135,7 +117,8 @@ Apply the action to the selected text and return ONLY the modified text.`;
         providerId: activeProvider.id,
         messages,
         temperature: platformPrompt?.temperature ?? 0.5,
-        maxTokens: platformPrompt?.maxTokens ?? 4000,
+        // Operation-specific max output tokens: tailored limit based on slot (e.g. SEO, rewrite, outline, text-action)
+        maxTokens: getOperationMaxTokens(slot, platformPrompt?.maxTokens),
         // Attribute the usage to the user for the Platform AI monthly
         // usage tracker (AiLog).
         userId: auth.user.id,
@@ -143,6 +126,17 @@ Apply the action to the selected text and return ONLY the modified text.`;
       content = result.content;
     } else {
       // ---- Platform SDK fallback (z-ai-web-dev-sdk) ----
+      const { getEffectivePlanIdAsync } = await import('@/lib/platform/entitlements');
+      const { getPlanConfigSync } = await import('@/lib/platform/plan-config');
+      const { planId } = await getEffectivePlanIdAsync(auth.user);
+      const planEnts = planId === 'internal' ? ['ai_platform'] : getPlanConfigSync(planId).entitlements;
+      if (!planEnts.includes('ai_platform') && planId !== 'internal') {
+        return err(
+          "No AI provider connected, and your plan does not include Platform AI. Connect your own AI provider (Client's Own AI API) or upgrade your plan.",
+          403,
+          'FEATURE_NOT_AVAILABLE',
+        );
+      }
       const ZAI = (await import('z-ai-web-dev-sdk')).default;
       const zai = await ZAI.create();
       const response = await zai.chat.completions.create({

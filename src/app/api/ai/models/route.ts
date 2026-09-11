@@ -5,6 +5,12 @@ import { db } from '@/lib/db';
 import { z } from 'zod/v4';
 import type { ApiResponse, ApiError } from '@/shared/types';
 import { requireFeatureAllowStaff, isPlatformStaff } from '@/lib/platform/platform-auth';
+import {
+  canProviderSupportImageGeneration,
+  isModelForbiddenForImageGeneration,
+  parseCapabilities,
+  type ModelCapability,
+} from '@/lib/ai/providers';
 
 // ============================================================
 // AI MODELS — same separation as /api/ai/providers: platform staff
@@ -52,15 +58,30 @@ export async function GET(request: NextRequest) {
     const providerId = sp.get('providerId')?.trim();
     const supportsVision = sp.get('supportsVision');
     const supportsFunctionCalling = sp.get('supportsFunctionCalling');
+    const capability = sp.get('capability')?.trim();
 
     const where: Record<string, unknown> = {};
-    // Non-staff callers (Client's Own AI API) only ever see models of
-    // their own provider connections.
-    if (!staff) where.provider = { createdById: featureAuth.user.id };
+    // Strict separation: Platform staff see models of Platform AI providers;
+    // clients see only models of their own provider connections.
+    if (staff) {
+      const { getPlatformStaffUserIds } = await import('@/lib/ai/platform-ai');
+      const staffIds = await getPlatformStaffUserIds();
+      where.provider = { createdById: { in: staffIds.length > 0 ? staffIds : ['__none__'] } };
+    } else {
+      where.provider = { createdById: featureAuth.user.id };
+    }
     if (search) where.name = { contains: search };
     if (providerId) where.providerId = providerId;
-    const type = sp.get('type')?.trim();
-    if (type) where.type = type.toUpperCase();
+    const typeParam = sp.get('type')?.trim();
+    if (typeParam && typeParam !== 'all') {
+      where.type = typeParam.toUpperCase();
+    } else if (capability && capability !== 'all') {
+      if (capability.toUpperCase().includes('IMAGE')) {
+        where.type = 'IMAGE';
+      } else if (capability.toUpperCase().includes('TEXT')) {
+        where.type = 'TEXT';
+      }
+    }
     const isActive = sp.get('isActive');
     if (isActive !== null && isActive !== undefined && isActive !== '') where.isActive = isActive === 'true';
     if (supportsVision === 'true') where.supportsVision = true;
@@ -102,9 +123,12 @@ const createSchema = z.object({
   name: z.string().min(1, 'Name is required').max(200),
   modelId: z.string().min(1, 'Model ID is required').max(200),
   providerId: z.string().min(1, 'Provider is required'),
-  type: z.enum(['TEXT', 'IMAGE']).default('TEXT'),
+  capabilities: z.array(z.enum(['TEXT_GENERATION', 'IMAGE_GENERATION'])).min(1).optional(),
+  type: z.enum(['TEXT', 'IMAGE']).optional(),
   isActive: z.boolean().default(true),
   isDefault: z.boolean().default(false),
+  isDefaultText: z.boolean().optional(),
+  isDefaultImage: z.boolean().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -153,16 +177,41 @@ export async function POST(request: NextRequest) {
       return err('A model with this Model ID already exists for this provider', 409, 'CONFLICT');
     }
 
-    // If setting as default, atomically clear other defaults of the same type then create.
-    // The default flag is scoped per owner for non-staff callers so a
-    // client's default never unsets the platform's (or another client's).
-    if (d.isDefault) {
-      const unsetWhere: Record<string, unknown> = { type: d.type, isDefault: true };
+    // Resolve capabilities
+    const caps: ModelCapability[] = d.capabilities && d.capabilities.length > 0
+      ? d.capabilities
+      : (d.type === 'IMAGE' ? ['IMAGE_GENERATION'] : ['TEXT_GENERATION']);
+
+    if (caps.includes('IMAGE_GENERATION')) {
+      if (!canProviderSupportImageGeneration(provider.kind)) {
+        return err('This provider does not support image generation.', 400, 'UNSUPPORTED_CAPABILITY');
+      }
+      const forbidden = isModelForbiddenForImageGeneration(provider.kind, d.modelId);
+      if (forbidden.forbidden) {
+        return err(forbidden.reason || 'This model does not support image generation.', 400, 'FORBIDDEN_CAPABILITY');
+      }
+    }
+
+    const derivedType = caps.includes('TEXT_GENERATION') ? 'TEXT' : 'IMAGE';
+    const isDefaultText = d.isDefaultText ?? (d.isDefault && derivedType === 'TEXT');
+    const isDefaultImage = d.isDefaultImage ?? (d.isDefault && derivedType === 'IMAGE');
+
+    // If setting as default, clear other defaults in scope
+    if (isDefaultText || isDefaultImage || d.isDefault) {
+      const unsetWhere: Record<string, unknown> = {};
       if (!isPlatformStaff(featureAuth.user)) unsetWhere.provider = { createdById: featureAuth.user.id };
-      await db.aiModel.updateMany({
-        where: unsetWhere,
-        data: { isDefault: false },
-      });
+      if (isDefaultText) {
+        await db.aiModel.updateMany({
+          where: { ...unsetWhere, isDefaultText: true },
+          data: { isDefaultText: false },
+        });
+      }
+      if (isDefaultImage) {
+        await db.aiModel.updateMany({
+          where: { ...unsetWhere, isDefaultImage: true },
+          data: { isDefaultImage: false },
+        });
+      }
     }
 
     const model = await db.aiModel.create({
@@ -170,9 +219,13 @@ export async function POST(request: NextRequest) {
         name: d.name,
         modelId: d.modelId,
         providerId: d.providerId,
-        type: d.type,
+        type: derivedType,
+        capabilities: JSON.stringify(caps),
+        capabilitySource: 'manual_override',
         isActive: d.isActive,
-        isDefault: d.isDefault,
+        isDefaultText,
+        isDefaultImage,
+        isDefault: isDefaultText || isDefaultImage || d.isDefault,
       },
       include: { provider: { select: { id: true, name: true, kind: true } } },
     });

@@ -17,6 +17,8 @@ import { useNavigationStore } from '@/lib/stores/navigation-store';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
+import { useSiteStore } from '@/lib/stores/site-store';
+import { queryKeys } from '@/lib/query-keys';
 
 // -------------------- Types --------------------
 
@@ -73,6 +75,7 @@ export function AutomationBuilderPage({ mode }: { mode?: 'generate' }) {
   const navigate = useNavigationStore((s) => s.navigate);
   const queryClient = useQueryClient();
   const isGenerateMode = mode === 'generate';
+  const activeSiteDbId = useSiteStore((s) => s.activeSiteDbId);
   const [step, setStep] = useState(isGenerateMode ? 2 : 1);
   const [generating, setGenerating] = useState(false);
   const keywordFileRef = useRef<HTMLInputElement>(null);
@@ -198,7 +201,7 @@ export function AutomationBuilderPage({ mode }: { mode?: 'generate' }) {
         media: { source: mediaSource, folderId: mediaSource === 'MEDIA_LIBRARY' ? selectedFolderId : undefined, selectedMediaIds: mediaSource === 'MEDIA_LIBRARY' && selectedMediaIds.length > 0 ? selectedMediaIds : undefined, imageSelectionMode: mediaSource === 'MEDIA_LIBRARY' ? imageSelectionMode : undefined, generateFeaturedImage: mediaSource === 'AI_GENERATE' ? generateFeaturedImage : undefined, generateSectionImages: mediaSource === 'AI_GENERATE' ? generateSectionImages : undefined, imageCount: mediaSource === 'AI_GENERATE' ? finalImageCount : undefined, imageStyle: mediaSource === 'AI_GENERATE' ? finalImageStyle : undefined, aspectRatio: mediaSource === 'AI_GENERATE' ? finalAspectRatio : undefined, imageTone: mediaSource === 'AI_GENERATE' ? finalImageTone : undefined, imagePromptInstructions: mediaSource === 'AI_GENERATE' ? imagePromptInstructions : undefined, placement: mediaSource !== 'NONE' ? imagePlacement : undefined },
         finalAction: { action: actualFinalAction, publishDate: actualFinalAction === 'SCHEDULE' ? publishDate : undefined, publishTime: actualFinalAction === 'SCHEDULE' ? publishTime : undefined },
       });
-      const created = await postApi<any>('/api/automations', { name: isGenerateMode ? `Generate: ${topic}` : name, description, triggerType: isGenerateMode ? 'MANUAL' : triggerType, scheduleConfig: JSON.stringify({ frequency, time }), workflowConfig });
+      const created = await postApi<any>('/api/automations', { name: isGenerateMode ? `Generate: ${topic}` : name, description, triggerType: isGenerateMode ? 'MANUAL' : triggerType, scheduleConfig: JSON.stringify({ frequency, time }), workflowConfig, siteId: activeSiteDbId || undefined });
       const automationId = created?.id || created?.data?.id;
       queryClient.invalidateQueries({ queryKey: ['automations'] });
 
@@ -230,6 +233,10 @@ export function AutomationBuilderPage({ mode }: { mode?: 'generate' }) {
       return { articleId: null };
     },
     onSuccess: (result: any) => {
+      queryClient.invalidateQueries({ queryKey: ['automations'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.content.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all });
+      queryClient.invalidateQueries({ queryKey: ['calendar'] });
       if (isGenerateMode) {
         setGenerating(false);
         if (result?.articleId) {

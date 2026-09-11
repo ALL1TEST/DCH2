@@ -79,6 +79,50 @@ export async function GET(request: NextRequest) {
       count: group._count.status,
     }));
 
+    const [pendingCommentsCount, inReviewCount, draftCount] = await Promise.all([
+      db.comment.count({ where: { ...siteFilter, status: 'PENDING' } }),
+      db.contentItem.count({ where: { ...baseWhere, status: 'IN_REVIEW' } }),
+      db.contentItem.count({ where: { ...baseWhere, status: 'DRAFT' } }),
+    ]);
+
+    const pendingActionsList: Array<{ id: string; type: 'CRITICAL' | 'WARNING' | 'INFO'; siteName?: string; message: string; time: string; action: string; module: string }> = [];
+    if (pendingCommentsCount > 0) {
+      pendingActionsList.push({
+        id: 'action-comments-pending',
+        type: 'WARNING',
+        message: `${pendingCommentsCount} comment${pendingCommentsCount > 1 ? 's' : ''} awaiting moderation`,
+        time: 'Pending',
+        action: 'Moderate',
+        module: 'comments',
+      });
+    }
+    if (inReviewCount > 0) {
+      pendingActionsList.push({
+        id: 'action-articles-review',
+        type: 'INFO',
+        message: `${inReviewCount} article${inReviewCount > 1 ? 's' : ''} awaiting review`,
+        time: 'Pending',
+        action: 'Review',
+        module: 'content',
+      });
+    }
+
+    // Build real 7-day traffic points
+    const traffic: Array<{ date: string; visitors: number; sessions: number; pageViews: number }> = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dayStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      traffic.push({
+        date: dayStr,
+        visitors: i === 0 ? uniqueSessions.length : 0,
+        sessions: i === 0 ? uniqueSessions.length : 0,
+        pageViews: i === 0 ? totalPageViews : 0,
+      });
+    }
+
+    const healthScore = siteCounts > 0 ? Math.round((activeSiteCount / siteCounts) * 100) : 100;
+
     return NextResponse.json({
       data: {
         totalPageViews,
@@ -96,14 +140,16 @@ export async function GET(request: NextRequest) {
         totalSites: siteCounts,
         activeSites: activeSiteCount,
         siteBreakdown,
-        healthScore: 97,
-        aiArticlesToday: Math.floor(Math.random() * 5) + 1,
-        aiWordsToday: Math.floor(Math.random() * 5000) + 2000,
+        healthScore,
+        aiArticlesToday: 0,
+        aiWordsToday: 0,
         pendingActions: {
-          critical: Math.floor(Math.random() * 3),
-          warning: Math.floor(Math.random() * 8) + 2,
-          info: Math.floor(Math.random() * 12) + 5,
+          critical: 0,
+          warning: pendingCommentsCount,
+          info: inReviewCount,
         },
+        pendingActionsList,
+        traffic,
       },
       meta: { requestId: id, timestamp: new Date().toISOString() },
     });

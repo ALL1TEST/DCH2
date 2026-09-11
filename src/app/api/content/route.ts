@@ -8,7 +8,8 @@ import { db } from '@/lib/db';
 import { nanoid } from 'nanoid';
 import { slugify } from '@/lib/utils';
 import { z } from 'zod/v4';
-import { getSiteWhere, getSiteFromRequest } from '@/lib/site-context';
+import { getSiteWhere, getSiteFromRequest, getActivePlanSiteId } from '@/lib/site-context';
+import { getAuthUser } from '@/lib/platform/platform-auth';
 
 // ---------- helpers ---------------------------------------------------
 
@@ -174,11 +175,20 @@ export async function POST(request: NextRequest) {
     });
     const finalSlug = existing ? `${slug}-${nanoid(4)}` : slug;
 
+    // Resolve siteId from request or fallback to active plan site
+    let siteId = await getSiteFromRequest(request);
+    if (!siteId) {
+      const authUser = await getAuthUser(request);
+      if (authUser) {
+        siteId = await getActivePlanSiteId(authUser);
+      }
+    }
+
     const item = await db.contentItem.create({
       data: {
         title: d.title,
         slug: finalSlug,
-        siteId: (await getSiteFromRequest(request)) || undefined,
+        siteId: siteId || undefined,
         contentTypeId: d.contentTypeId,
         authorId,
         categoryId: d.categoryId === '' ? null : d.categoryId ?? null,

@@ -5,6 +5,12 @@ import { db } from '@/lib/db';
 import { z } from 'zod/v4';
 import type { ApiResponse, ApiError } from '@/shared/types';
 import { requireFeatureAllowStaff, isPlatformStaff } from '@/lib/platform/platform-auth';
+import {
+  canProviderSupportImageGeneration,
+  isModelForbiddenForImageGeneration,
+  parseCapabilities,
+  type ModelCapability,
+} from '@/lib/ai/providers';
 
 // ============================================================
 // AI MODELS [id] — same separation as /api/ai/providers: platform
@@ -33,6 +39,7 @@ const updateSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   modelId: z.string().min(1).max(200).optional(),
   providerId: z.string().min(1).optional(),
+  capabilities: z.array(z.enum(['TEXT_GENERATION', 'IMAGE_GENERATION'])).min(1).optional(),
   type: z.enum(['TEXT', 'IMAGE']).optional(),
   contextLength: z.number().int().positive().optional(),
   inputCostPer1k: z.number().min(0).optional(),
@@ -45,6 +52,8 @@ const updateSchema = z.object({
   supportsTools: z.boolean().optional(),
   isActive: z.boolean().optional(),
   isDefault: z.boolean().optional(),
+  isDefaultText: z.boolean().optional(),
+  isDefaultImage: z.boolean().optional(),
 });
 
 // =====================================================================
@@ -129,7 +138,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     if (d.name !== undefined) data.name = d.name;
     if (d.modelId !== undefined) data.modelId = d.modelId;
-    if (d.type !== undefined) data.type = d.type;
     if (d.contextLength !== undefined) data.contextLength = d.contextLength;
     if (d.inputCostPer1k !== undefined) data.inputCostPer1k = d.inputCostPer1k;
     if (d.outputCostPer1k !== undefined) data.outputCostPer1k = d.outputCostPer1k;
@@ -149,16 +157,54 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       data.providerId = d.providerId;
     }
 
-    // If setting as default, clear other defaults of the same type first.
-    // Use the NEW type if type is being changed, otherwise the existing type.
-    // The default flag is scoped per owner for non-staff callers so a
-    // client's default never unsets the platform's (or another client's).
-    if (d.isDefault === true) {
-      const modelType = (d.type ?? existing.type)?.toUpperCase() === 'IMAGE' ? 'IMAGE' : 'TEXT';
-      const unsetWhere: Record<string, unknown> = { type: modelType, isDefault: true, id: { not: modelId } };
-      if (!isPlatformStaff(featureAuth.user)) unsetWhere.provider = { createdById: featureAuth.user.id };
+    if (d.capabilities !== undefined) {
+      const targetProviderId = (data.providerId as string | undefined) ?? existing.providerId;
+      const targetProvider = await db.aiProvider.findUnique({ where: { id: targetProviderId } });
+      if (d.capabilities.includes('IMAGE_GENERATION')) {
+        if (targetProvider && !canProviderSupportImageGeneration(targetProvider.kind)) {
+          return err('This provider does not support image generation.', 400, 'UNSUPPORTED_CAPABILITY');
+        }
+        const checkModelId = (data.modelId as string | undefined) ?? existing.modelId;
+        const forbidden = isModelForbiddenForImageGeneration(targetProvider?.kind ?? '', checkModelId);
+        if (forbidden.forbidden) {
+          return err(forbidden.reason || 'This model does not support image generation.', 400, 'FORBIDDEN_CAPABILITY');
+        }
+      }
+      data.capabilities = JSON.stringify(d.capabilities);
+      data.capabilitySource = 'manual_override';
+      data.type = d.capabilities.includes('TEXT_GENERATION') ? 'TEXT' : 'IMAGE';
+    } else if (d.type !== undefined) {
+      data.type = d.type;
+    }
+
+    // Default flags management
+    const unsetWhere: Record<string, unknown> = { id: { not: modelId } };
+    if (!isPlatformStaff(featureAuth.user)) unsetWhere.provider = { createdById: featureAuth.user.id };
+
+    if (d.isDefaultText === true) {
       await db.aiModel.updateMany({
-        where: unsetWhere,
+        where: { ...unsetWhere, isDefaultText: true },
+        data: { isDefaultText: false },
+      });
+      data.isDefaultText = true;
+    } else if (d.isDefaultText === false) {
+      data.isDefaultText = false;
+    }
+
+    if (d.isDefaultImage === true) {
+      await db.aiModel.updateMany({
+        where: { ...unsetWhere, isDefaultImage: true },
+        data: { isDefaultImage: false },
+      });
+      data.isDefaultImage = true;
+    } else if (d.isDefaultImage === false) {
+      data.isDefaultImage = false;
+    }
+
+    if (d.isDefault === true) {
+      const modelType = ((data.type as string | undefined) ?? existing.type)?.toUpperCase() === 'IMAGE' ? 'IMAGE' : 'TEXT';
+      await db.aiModel.updateMany({
+        where: { ...unsetWhere, type: modelType, isDefault: true },
         data: { isDefault: false },
       });
       data.isDefault = true;

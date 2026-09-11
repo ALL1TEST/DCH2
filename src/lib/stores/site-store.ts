@@ -145,10 +145,13 @@ function resolveSiteRef(ref: string | null, sites: Site[]): { dbId: string | nul
 
 // -------------------- Store --------------------
 
+const initialPreloadSlug = typeof window !== 'undefined' ? (readFromUrl() ?? readFromStorage()) : null;
+const initialPreloadDbId = typeof window !== 'undefined' ? readDbIdFromStorage() : null;
+
 export const useSiteStore = create<SiteState>((set, get) => ({
   sites: [],
-  activeSiteDbId: null,
-  activeSiteSlug: null,
+  activeSiteDbId: initialPreloadSlug && initialPreloadSlug !== 'all' ? (initialPreloadDbId ?? initialPreloadSlug) : null,
+  activeSiteSlug: initialPreloadSlug && initialPreloadSlug !== 'all' ? initialPreloadSlug : null,
   isLoading: false,
   isInitialized: false,
   error: null,

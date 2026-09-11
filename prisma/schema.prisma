@@ -2531,6 +2531,10 @@ model AiModel {
   modelId         String  // e.g. "gpt-4o", "claude-3-sonnet"
   name            String  // display name
   type            String  @default("TEXT") // TEXT | IMAGE
+  capabilities    String  @default("[\"TEXT_GENERATION\"]") // JSON array: ["TEXT_GENERATION"], ["IMAGE_GENERATION"], or both
+  capabilitySource String @default("provider_metadata") // "provider_metadata" | "manual_override"
+  isDefaultText   Boolean @default(false)
+  isDefaultImage  Boolean @default(false)
   contextLength   Int?
   inputCostPer1k  Float?  // USD
   outputCostPer1k Float?  // USD

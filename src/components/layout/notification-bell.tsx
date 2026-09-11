@@ -137,6 +137,13 @@ export function NotificationBell({
   const notifications = allNotifications.filter((n) => !dismissedIds.has(n.id));
   const dropdownUnreadCount = notifications.filter((n) => !n.isRead).length;
 
+  // Defensive: if the list has loaded and there are 0 notifications,
+  // or if all loaded items were dismissed from the dropdown,
+  // ensure the badge does not show a ghost number over an empty list.
+  const effectiveUnreadCount = (data && allNotifications.length === 0)
+    ? 0
+    : Math.max(0, unreadCount - dismissedIds.size);
+
   // Mark-read endpoint: platform admin POSTs to
   // /api/platform/admin/notifications (real persisted). Client uses the
   // existing /api/notifications POST (also real).
@@ -282,9 +289,9 @@ export function NotificationBell({
                 <Button variant="ghost" size="icon" className="relative h-8 w-8">
                   <Bell className="h-4 w-4" />
                   <span className="sr-only">Notifications</span>
-                  {unreadCount > 0 && (
+                  {effectiveUnreadCount > 0 && (
                     <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
-                      {unreadCount > 9 ? '9+' : unreadCount}
+                      {effectiveUnreadCount > 9 ? '9+' : effectiveUnreadCount}
                     </span>
                   )}
                 </Button>
@@ -305,9 +312,9 @@ export function NotificationBell({
             <Button variant="ghost" size="icon" className="relative h-8 w-8">
               <Bell className="h-4 w-4" />
               <span className="sr-only">Notifications</span>
-              {unreadCount > 0 && (
+              {effectiveUnreadCount > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
-                  {unreadCount > 9 ? '9+' : unreadCount}
+                  {effectiveUnreadCount > 9 ? '9+' : effectiveUnreadCount}
                 </span>
               )}
             </Button>

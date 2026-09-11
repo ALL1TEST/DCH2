@@ -295,6 +295,9 @@ export const queryKeys = {
   // -------------------- Email Templates --------------------
   emailTemplates: createNestedQueryKeys('email-templates'),
   smtpSettings: createQueryKeys('smtp-settings'),
+
+  // -------------------- Analytics --------------------
+  analytics: createQueryKeys('analytics'),
 } as const;
 
 export type QueryKeys = typeof queryKeys;

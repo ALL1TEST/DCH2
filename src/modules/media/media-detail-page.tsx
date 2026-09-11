@@ -296,12 +296,9 @@ export function MediaDetailPage({ mediaId }: { mediaId: string }) {
 
   const metadataRows = [
     { label: t('media.filename'), value: media.originalName },
-    { label: t('media.type'), value: `${getMimeCategory(media.mimeType)} (${media.mimeType})` },
     { label: t('media.size'), value: formatFileSize(media.size) },
     { label: t('media.dimensions'), value: media.width && media.height ? `${media.width} x ${media.height} px` : t('media.notApplicable') },
-    { label: t('media.uploadedBy'), value: media.uploadedBy?.name || t('media.unknown'), avatar: media.uploadedBy?.avatar, avatarName: media.uploadedBy?.name },
     { label: t('media.uploadDate'), value: formatDate(media.createdAt) },
-    { label: t('common.status'), value: labelize(media.processingStatus), isBadge: true, badgeVariant: statusColor },
   ];
 
   return (
@@ -331,7 +328,6 @@ export function MediaDetailPage({ mediaId }: { mediaId: string }) {
         {/* ==================== Media Action Buttons + Folder selector ==================== */}
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" asChild><a href={media.url} download={media.originalName}><Download className="h-4 w-4 mr-2" />{t('media.download')}</a></Button>
-          <Button variant="outline" size="sm" onClick={handleCopyUrl}><Copy className="h-4 w-4 mr-2" />{t('media.copyUrl')}</Button>
           <Button variant="outline" size="sm" asChild><a href={media.url} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4 mr-2" />{t('media.openInNewTab')}</a></Button>
           <Select
             value={folderId || 'root'}
@@ -433,28 +429,6 @@ export function MediaDetailPage({ mediaId }: { mediaId: string }) {
                   )}
                 </div>
 
-                {/* Alt Text */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="alt-text" className="text-xs">{t('media.altText')}</Label>
-                  <Input
-                    id="alt-text" value={seo.alt}
-                    onChange={(e) => updateSeoField('alt', e.target.value)}
-                    placeholder={t('media.altTextPlaceholder')}
-                    className="h-9 text-sm"
-                  />
-                </div>
-
-                {/* Caption */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="caption" className="text-xs">{t('media.caption')}</Label>
-                  <Input
-                    id="caption" value={seo.caption}
-                    onChange={(e) => updateSeoField('caption', e.target.value)}
-                    placeholder={t('media.captionPlaceholder')}
-                    className="h-9 text-sm"
-                  />
-                </div>
-
                 {/* Focus Keywords */}
                 <div className="space-y-1.5">
                   <Label className="text-xs">{t('media.focusKeywords')}</Label>
@@ -482,17 +456,6 @@ export function MediaDetailPage({ mediaId }: { mediaId: string }) {
                       ))}
                     </div>
                   )}
-                </div>
-
-                {/* Image Description */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="img-desc" className="text-xs">{t('media.imageDescription')}</Label>
-                  <Textarea
-                    id="img-desc" value={seo.imageDescription}
-                    onChange={(e) => updateSeoField('imageDescription', e.target.value)}
-                    placeholder={t('media.imageDescPlaceholder')}
-                    rows={3} className="resize-none text-sm"
-                  />
                 </div>
 
                 {seoHasChanges && (

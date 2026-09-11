@@ -311,49 +311,65 @@ export function MediaDetailPage({ mediaId }: { mediaId: string }) {
       </Button>
 
       <div className="space-y-6">
-        {/* ==================== Image Preview ==================== */}
+        {/* ==================== Image Preview (reduced height) ==================== */}
         <div className="rounded-lg border bg-card overflow-hidden">
           {showImage ? (
             <div className="relative bg-[repeating-conic-gradient(#e5e7eb_0%_25%,transparent_0%_50%)] dark:bg-[repeating-conic-gradient(#374151_0%_25%,transparent_0%_50%)] bg-[length:20px_20px]">
-              <img src={media.url} alt={media.alt || media.originalName} className="w-full h-auto max-h-[600px] object-contain" />
+              <img src={media.url} alt={media.alt || media.originalName} className="w-full h-auto max-h-[350px] object-contain" />
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center py-20 gap-4 bg-muted/30">
-              <div className="rounded-full bg-muted p-6 text-muted-foreground">{getFileIcon(media.mimeType, 'h-16 w-16')}</div>
+            <div className="flex flex-col items-center justify-center py-16 gap-4 bg-muted/30">
+              <div className="rounded-full bg-muted p-5 text-muted-foreground">{getFileIcon(media.mimeType, 'h-12 w-12')}</div>
               <div className="text-center">
                 <p className="font-medium">{media.originalName}</p>
                 <p className="text-sm text-muted-foreground mt-1">{getMimeCategory(media.mimeType)} - {formatFileSize(media.size)}</p>
               </div>
-              <Button variant="outline" size="sm" asChild>
-                <a href={media.url} download={media.originalName}><Download className="h-4 w-4 mr-2" />{t('media.downloadFile')}</a>
-              </Button>
             </div>
           )}
         </div>
 
-        {/* ==================== Media Action Buttons ==================== */}
-        <div className="flex items-center gap-2">
+        {/* ==================== Media Action Buttons + Folder selector ==================== */}
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" asChild><a href={media.url} download={media.originalName}><Download className="h-4 w-4 mr-2" />{t('media.download')}</a></Button>
           <Button variant="outline" size="sm" onClick={handleCopyUrl}><Copy className="h-4 w-4 mr-2" />{t('media.copyUrl')}</Button>
           <Button variant="outline" size="sm" asChild><a href={media.url} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4 mr-2" />{t('media.openInNewTab')}</a></Button>
-          <Button variant="destructive" size="sm" onClick={() => setShowDeleteDialog(true)}>
-            <Trash2 className="h-4 w-4 mr-2" />{t('media.deleteMedia')}
+          <Select
+            value={folderId || 'root'}
+            onValueChange={(v) => setFolderEdits({ folderId: v === 'root' ? '' : v })}
+          >
+            <SelectTrigger className="h-8 w-auto gap-1.5 text-xs">
+              <span className="text-muted-foreground">{t('media.folder')}:</span>
+              <SelectValue placeholder={t('media.noFolder')} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="root">{t('media.noFolder')}</SelectItem>
+              {allFolders.map((f) => (
+                <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {folderHasChanges && (
+            <Button size="sm" className="h-8" onClick={() => saveFolderMutation.mutate({ folderId: folderEdits!.folderId })} disabled={saveFolderMutation.isPending}>
+              {saveFolderMutation.isPending && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
+              {t('media.saveFolder')}
+            </Button>
+          )}
+          <Button variant="destructive" size="sm" onClick={() => setShowDeleteDialog(true)} className="ml-auto">
+            <Trash2 className="h-4 w-4 mr-2" />{t('common.delete')}
           </Button>
         </div>
 
-        {/* ==================== Details + Image SEO + Folder + File URL ====================
-            Two-column grid: Details (left) + Image SEO (right) on desktop,
-            Folder + File URL below in a second row. All existing sections
-            relocated from the right sidebar to fill the space below the image. */}
+        {/* ==================== Details + Image SEO ====================
+            Two-column grid: Details (left) + Image SEO (right). */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Details */}
-          <div className="rounded-lg border bg-card p-4 space-y-3">
-            <h3 className="text-sm font-semibold">{t('media.details')}</h3>
-            <Separator />
-            <div className="space-y-3">
+          <div className="rounded-lg border bg-card p-4">
+            <h3 className="text-sm font-semibold mb-3">{t('media.details')}</h3>
+            <Separator className="mb-3" />
+            <div className="space-y-2">
               {metadataRows.map((row) => (
-                <div key={row.label} className="flex items-start justify-between gap-3">
-                  <span className="text-xs text-muted-foreground shrink-0 pt-0.5">{row.label}</span>
+                <div key={row.label} className="flex items-center justify-between gap-3">
+                  <span className="text-xs text-muted-foreground shrink-0">{row.label}</span>
                   <div className="text-right min-w-0">
                     {'avatar' in row && row.avatar ? (
                       <div className="flex items-center gap-2 justify-end">
@@ -493,44 +509,6 @@ export function MediaDetailPage({ mediaId }: { mediaId: string }) {
               </div>
             </div>
           )}
-
-          {/* Folder */}
-          <div className="rounded-lg border bg-card p-4 space-y-4">
-            <h3 className="text-sm font-semibold">{t('media.folder')}</h3>
-            <Separator />
-            <Select
-              value={folderId || 'root'}
-              onValueChange={(v) => setFolderEdits({ folderId: v === 'root' ? '' : v })}
-            >
-              <SelectTrigger><SelectValue placeholder={t('media.noFolder')} /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="root">{t('media.noFolder')}</SelectItem>
-                {allFolders.map((f) => (
-                  <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {folderHasChanges && (
-              <Button className="w-full" size="sm" onClick={() => saveFolderMutation.mutate({ folderId: folderEdits!.folderId })} disabled={saveFolderMutation.isPending}>
-                {saveFolderMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                {t('media.saveFolder')}
-              </Button>
-            )}
-          </div>
-
-          {/* File URL */}
-          <div className="rounded-lg border bg-card p-4 space-y-3">
-            <h3 className="text-sm font-semibold">{t('media.fileUrl')}</h3>
-            <Separator />
-            <div className="flex items-center gap-2">
-              <code className="flex-1 text-xs bg-muted rounded-md px-3 py-2 overflow-hidden whitespace-nowrap text-ellipsis block" title={media.url}>
-                {truncateUrl(media.url)}
-              </code>
-              <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={handleCopyUrl} title={t('media.copyFullUrl')}>
-                <Copy className="h-3.5 w-3.5" /><span className="sr-only">{t('media.copyUrlSr')}</span>
-              </Button>
-            </div>
-          </div>
         </div>
       </div>
 

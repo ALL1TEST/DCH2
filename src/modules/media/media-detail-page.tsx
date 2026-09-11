@@ -350,7 +350,7 @@ export function MediaDetailPage({ mediaId }: { mediaId: string }) {
               {t('media.saveFolder')}
             </Button>
           )}
-          <Button variant="destructive" size="sm" onClick={() => setShowDeleteDialog(true)} className="ml-auto">
+          <Button variant="destructive" size="sm" onClick={() => setShowDeleteDialog(true)}>
             <Trash2 className="h-4 w-4 mr-2" />{t('common.delete')}
           </Button>
         </div>

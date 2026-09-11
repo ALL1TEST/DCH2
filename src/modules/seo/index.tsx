@@ -135,8 +135,6 @@ function SeoRouter() {
 
   return (
     <>
-      {/* Top tools sub-nav bar is always visible across all SEO views */}
-      <SeoSubNav />
       <Suspense fallback={<PageLoader />}>
         {(() => {
           // Detail page (filtered view from Overview metric cards)

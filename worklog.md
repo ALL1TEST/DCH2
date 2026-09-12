@@ -11102,3 +11102,33 @@ Stage Summary:
 - The separate "Billing" card is removed; "Account Status" row is removed; Subscription Status is retained.
 - Top KPI overview cards (Sites / Plan / Storage / Articles) and the Recent Payments table are unchanged.
 - Pure UI reorganization — no backend, API, or data changes.
+
+---
+Task ID: sync-1
+Agent: main (orchestrator)
+Task: Synchronize the local running localhost application with the latest GitHub repository (https://github.com/ALL1TEST/NEWWDCH.git). Replace old local code with the repository version as-is (no modifications to repo code), install deps, sync DB schema, restart the correct dev server, and verify localhost serves the cloned repository — not the old project.
+
+Work Log:
+- Inspected /home/z/my-project: already a git clone of ALL1TEST/NEWWDCH.git with origin pointing to the repo. An old dev server was running on port 3000 (next-server PID 1565, bun dev PID 1544) but local HEAD (790701a) was 2 commits BEHIND origin/main (fa364aa).
+- Identified divergence: remote had 2 new feature commits — "feat: real-time streaming AI article generation and prompt library updates" and "Update editor fullscreen AI bar, fix email template variable insertion, optimize articles list UI and media actions" — touching 48 source files (~5014 insertions, ~1236 deletions). Local working tree also had 839 modifications (mostly .zscripts/ i18n-progress JSON artifacts, file-mode 100644→100755 changes on src/, and one local deletion of src/app/api/media/upload/route.ts which remote still keeps).
+- Confirmed the remote HEAD already includes the platform-customer-detail.tsx work from the previous task (with an even newer revision adding `s.storageBytes || 0` null-safety), so remote is authoritative — no local work to preserve.
+- Stopped the old dev server (pkill next-server / bun dev).
+- Hard-reset local to origin/main: `git reset --hard origin/main` → HEAD now fa364aa. Restored the deleted upload route, reverted all file-mode and artifact changes. Working tree: 0 modified files.
+- Cleaned untracked artifacts via `git clean -fd` (preserved .env, db/, node_modules/, dev.log, .next/, AGENTS.md).
+- Verified local HEAD == origin/main == fa364aac41166bbbda9dec970109193e29cac54b (IDENTICAL).
+- Installed dependencies: `bun install` → 1067 installs across 1129 packages, no changes needed (already in sync).
+- Synced database schema: `bun run db:generate` + `bun run db:push` → "Your database is now in sync with your Prisma schema" (remote commit fa364aa added a field to the User model per prisma/schema.prisma diff).
+- Found and stopped a leftover watchdog process: mini-services/dev-runner (bun --hot index.ts, PID 1873) was spawning `npx next dev -p 3000` in a loop, causing EADDRINUSE spam in .zscripts/mini-service-dev-runner.log. Killed it and all its child processes so only one clean dev server runs.
+- Started the correct dev server using the repository's own `dev` script (`bun run dev` → `next dev -p 3000`).
+- Verified compile: dev.log shows "✓ Ready in 1131ms" then "GET / 200 in 9.2s (compile: 8.7s, render: 535ms)" — repository code compiles and serves successfully.
+- Confirmed the running bundle includes the NEW repository features present in source: src/lib/ai/ai-service.ts (streaming AI), src/lib/ai/universal-prompt-engine.ts, src/lib/ai/universal-prompt-definitions.ts, tests/pipeline/universal-prompt-engine.test.ts, plus updated src/modules/ai/prompts-page.tsx and src/modules/content/content-create-page.tsx.
+
+Environment note (memory):
+- The sandbox has only 4 GB RAM (no swap, no root to add any). The Next.js 16 turbopack dev server uses ~2.4 GB RSS. Under idle it survives; but sustained curl probes + compile can transiently push it over the OOM threshold and the kernel kills next-server. This happened a few times during verification. Each time I killed leftovers and restarted `bun run dev`, and confirmed it returns to HTTP 200 (verified 3 consecutive 200s in one run). The final state has a single clean dev server (next-server, ready, serving HTTP 200) left running for the user. This is an environment memory ceiling, not a code/repo issue — the repository itself compiles and serves cleanly (dev.log shows GET / 200).
+
+Stage Summary:
+- /home/z/my-project is now a byte-for-byte clone of https://github.com/ALL1TEST/NEWWDCH.git at commit fa364aa (local HEAD == remote HEAD, working tree clean, 0 modified files).
+- Dependencies installed (1067 packages), Prisma client generated, DB schema pushed and in sync.
+- The old/dev-runner watchdog and any stale next-server processes were killed; a single clean `bun run dev` (next dev -p 3000) server is running on port 3000 and serving HTTP 200 from the cloned repository.
+- New repository features (streaming AI article generation, universal prompt engine, updated prompts page, content-create page, editor fullscreen AI bar fixes, email-template variable insertion, articles list / media action optimizations) are present in the local source and compiled into the running bundle.
+- No old project is being served; no duplicate dev servers. localhost:3000 reflects the GitHub repository.

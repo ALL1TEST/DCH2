@@ -67,6 +67,7 @@ export const coreEn: Record<string, string> = {
   'nav.allContent': 'All Content',
   'nav.articles': 'Articles',
   'nav.calendar': 'Calendar',
+  'nav.tasks': 'Tasks',
   'nav.categories': 'Categories',
   'nav.tags': 'Tags',
   'nav.comments': 'Comments',

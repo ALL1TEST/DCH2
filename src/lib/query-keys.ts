@@ -90,6 +90,9 @@ export const queryKeys = {
   // -------------------- Tags --------------------
   tags: createQueryKeys('tags'),
 
+  // -------------------- Tasks (Kanban) --------------------
+  tasks: createQueryKeys('tasks'),
+
   // -------------------- Comments --------------------
   comments: createQueryKeys('comments'),
 

@@ -61,6 +61,7 @@ export const coreFr: Record<string, string> = {
   'nav.allContent': 'Tout le contenu',
   'nav.articles': 'Articles',
   'nav.calendar': 'Calendrier',
+  'nav.tasks': 'Tâches',
   'nav.categories': 'Catégories',
   'nav.tags': 'Tags',
   'nav.comments': 'Commentaires',

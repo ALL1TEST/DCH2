@@ -252,6 +252,7 @@ const NAV_LABEL_KEYS: Record<string, string> = {
   '#': 'nav.dashboard',
   '#content': 'nav.articles',
   '#calendar': 'nav.calendar',
+  '#tasks': 'nav.tasks',
   '#media': 'nav.media',
   '#users': 'nav.users',
   '#comments': 'nav.comments',
@@ -287,6 +288,11 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Dashboard',
     href: '#',
     icon: 'LayoutDashboard',
+  },
+  {
+    label: 'Tasks',
+    href: '#tasks',
+    icon: 'ListTodo',
   },
   {
     label: 'Articles',

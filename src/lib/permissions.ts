@@ -14,6 +14,7 @@ import type { UserRole, NavItem } from '@/shared/types';
 export const BUILTIN_PAGES = [
   { key: 'dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
   { key: 'calendar', label: 'Calendar', icon: 'Calendar' },
+  { key: 'tasks', label: 'Tasks', icon: 'ListTodo' },
   { key: 'content', label: 'Articles', icon: 'FileText' },
   { key: 'media', label: 'Media', icon: 'Image' },
   { key: 'users', label: 'Users', icon: 'Users' },

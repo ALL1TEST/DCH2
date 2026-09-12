@@ -682,6 +682,9 @@ model Site {
   securityEvents      SecurityEvent[]
   schedulerLogs       SchedulerLog[]
 
+  // Tasks (Kanban board)
+  tasks               Task[]
+
   @@index([slug])
   @@index([status])
 }
@@ -765,6 +768,10 @@ model User {
   payments          Payment[]
   // Per-customer coupon redemptions — back-relation for CouponRedemption.
   couponRedemptions CouponRedemption[]
+
+  // Tasks (Kanban board) — owned tasks + assigned tasks
+  ownedTasks        Task[] @relation("TaskOwner")
+  assignedTasks     Task[] @relation("TaskAssignee")
 
   @@index([email])
   @@index([role])
@@ -3206,4 +3213,50 @@ model AutomationRun {
   @@index([automationId])
   @@index([status])
   @@index([createdAt])
+}
+
+// ============================================================
+// TASKS — Kanban task board (Backlog / To Do / In Progress / Done)
+// ============================================================
+// Account + site scoped. `ownerId` is the user who owns the task
+// (the workspace owner); `assigneeId` is the optional user the task
+// is assigned to. In "All Sites" mode the API returns tasks across
+// all sites the user owns (within their current plan), so the same
+// task entity cleanly supports both site-scoped and cross-site views.
+// Soft-deleted via `deletedAt` (never hard-deleted) to preserve audit
+// history. Labels are stored as a JSON string array for simplicity
+// (predefined + custom labels both live in the same field).
+// ============================================================
+
+model Task {
+  id          String   @id @default(cuid())
+  ownerId     String                        // workspace/account owner (always required)
+  assigneeId  String?                       // optional assignee (FK to User)
+  siteId      String?                       // site scoping (null = global / All Sites)
+  title       String
+  description String   @default("")
+  status      String   @default("BACKLOG")  // BACKLOG | TODO | IN_PROGRESS | DONE
+  priority    String   @default("MEDIUM")   // LOW | MEDIUM | HIGH
+  labels      String   @default("[]")       // JSON string[] — predefined + custom labels
+  dueDate     DateTime?
+  sortOrder   Int      @default(0)          // ordering within a column
+  completedAt DateTime?
+  completedBy  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  site     Site?  @relation(fields: [siteId], references: [id])
+  owner    User   @relation("TaskOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  assignee User?  @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+
+  @@index([ownerId])
+  @@index([assigneeId])
+  @@index([siteId])
+  @@index([status])
+  @@index([priority])
+  @@index([ownerId, status])
+  @@index([siteId, status])
+  @@index([createdAt])
+  @@index([updatedAt])
 }

@@ -157,6 +157,43 @@ function FolderCard({
   );
 }
 
+function downloadMediaFile(url: string, filename?: string) {
+  if (!url) return;
+  const safeName = filename || 'download.png';
+  if (url.startsWith('data:')) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = safeName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    return;
+  }
+  fetch(url)
+    .then((res) => {
+      if (!res.ok) throw new Error('Network error');
+      return res.blob();
+    })
+    .then((blob) => {
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = safeName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+    })
+    .catch(() => {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = safeName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    });
+}
+
 // ==================== Grid Card ====================
 
 function MediaGridCard({
@@ -222,10 +259,7 @@ function MediaGridCard({
               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onMove(item); }}>
                 <Move className="mr-2 h-4 w-4" /> {t('media.moveToFolder')}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onCopyUrl(item.url); }}>
-                <Copy className="mr-2 h-4 w-4" /> {t('media.copyUrl')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); window.open(item.url, '_blank'); }}>
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); downloadMediaFile(item.url, item.originalName || item.filename); }}>
                 <Download className="mr-2 h-4 w-4" /> {t('media.download')}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
@@ -318,10 +352,7 @@ function MediaListItem({
             <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onMove(item); }}>
               <Move className="mr-2 h-4 w-4" /> {t('media.moveToFolder')}
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onCopyUrl(item.url); }}>
-              <Copy className="mr-2 h-4 w-4" /> {t('media.copyUrl')}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); window.open(item.url, '_blank'); }}>
+            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); downloadMediaFile(item.url, item.originalName || item.filename); }}>
               <Download className="mr-2 h-4 w-4" /> {t('media.download')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -1290,12 +1321,12 @@ export function MediaListPage() {
                 )}
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">{t('media.altText')}</label>
-                <Input value={editAlt} onChange={(e) => setEditAlt(e.target.value)} placeholder={t('media.altPlaceholder')} className="h-10" />
+                <label className="text-sm font-medium">{t('media.altText') || 'Meta Title'}</label>
+                <Input value={editAlt} onChange={(e) => setEditAlt(e.target.value)} placeholder={t('media.altPlaceholder') || 'Enter meta title...'} className="h-10" />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">{t('media.caption')}</label>
-                <Input value={editCaption} onChange={(e) => setEditCaption(e.target.value)} placeholder={t('media.captionPlaceholder')} className="h-10" />
+                <label className="text-sm font-medium">{t('media.caption') || 'Meta Description'}</label>
+                <Input value={editCaption} onChange={(e) => setEditCaption(e.target.value)} placeholder={t('media.captionPlaceholder') || 'Enter meta description...'} className="h-10" />
               </div>
             </div>
           )}

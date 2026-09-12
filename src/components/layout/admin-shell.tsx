@@ -85,7 +85,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0 min-h-0">
           <Topbar />
-          <main ref={mainRef} className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 pt-4 flex flex-col scrollbar-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{children}</main>
+          <main ref={mainRef} className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 pt-4 flex flex-col">{children}</main>
         </div>
       </div>
       <CommandPalette />

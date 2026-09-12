@@ -87,18 +87,124 @@ export interface ListNotificationsResult {
   totalPages: number;
 }
 
+// -------------------- Setting Keys for Dismissals --------------------
+
+const SETTING_CLEARED_AT = 'platform:notifications:cleared_at';
+const SETTING_DISMISSED_KEYS = 'platform:notifications:dismissed_keys';
+
+export async function getNotificationsClearedAt(): Promise<Date | null> {
+  try {
+    const row = await db.setting.findFirst({
+      where: { key: SETTING_CLEARED_AT, scope: 'GLOBAL' },
+    });
+    if (!row?.value) return null;
+    const d = new Date(row.value);
+    return isNaN(d.getTime()) ? null : d;
+  } catch {
+    return null;
+  }
+}
+
+export async function setNotificationsClearedAt(date: Date = new Date()): Promise<void> {
+  try {
+    const val = date.toISOString();
+    const existing = await db.setting.findFirst({
+      where: { key: SETTING_CLEARED_AT, scope: 'GLOBAL' },
+    });
+    if (existing) {
+      await db.setting.update({
+        where: { id: existing.id },
+        data: { value: val },
+      });
+    } else {
+      await db.setting.create({
+        data: {
+          key: SETTING_CLEARED_AT,
+          value: val,
+          type: 'STRING',
+          scope: 'GLOBAL',
+          category: 'GENERAL',
+        },
+      });
+    }
+  } catch (err) {
+    console.error('[notifications] setNotificationsClearedAt failed:', err);
+  }
+}
+
+export async function getDismissedDedupeKeys(): Promise<Set<string>> {
+  try {
+    const row = await db.setting.findFirst({
+      where: { key: SETTING_DISMISSED_KEYS, scope: 'GLOBAL' },
+    });
+    if (!row?.value) return new Set();
+    const arr = JSON.parse(row.value);
+    return new Set(Array.isArray(arr) ? arr : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export async function addDismissedDedupeKey(key: string): Promise<void> {
+  if (!key) return;
+  try {
+    const existing = await db.setting.findFirst({
+      where: { key: SETTING_DISMISSED_KEYS, scope: 'GLOBAL' },
+    });
+    let keys: string[] = [];
+    if (existing?.value) {
+      try {
+        const parsed = JSON.parse(existing.value);
+        if (Array.isArray(parsed)) keys = parsed;
+      } catch {}
+    }
+    if (!keys.includes(key)) {
+      keys.push(key);
+      if (keys.length > 1000) {
+        keys = keys.slice(keys.length - 1000);
+      }
+      const val = JSON.stringify(keys);
+      if (existing) {
+        await db.setting.update({
+          where: { id: existing.id },
+          data: { value: val },
+        });
+      } else {
+        await db.setting.create({
+          data: {
+            key: SETTING_DISMISSED_KEYS,
+            value: val,
+            type: 'STRING',
+            scope: 'GLOBAL',
+            category: 'GENERAL',
+          },
+        });
+      }
+    }
+  } catch (err) {
+    console.error('[notifications] addDismissedDedupeKey failed:', err);
+  }
+}
+
 // -------------------- createNotification --------------------
 
 /** Idempotent insert. When `dedupeKey` is provided and a row with the
  *  same key already exists, the existing row is left untouched (NOT
  *  re-marked unread, NOT timestamp-bumped) — so Stripe retries or
  *  repeated platform scans can never "un-read" an admin-acknowledged
- *  notification. Returns the row id (existing or new). */
+ *  notification. Returns the row id (existing or new).
+ *  Also checks if the dedupeKey has been dismissed/deleted by an admin;
+ *  if dismissed, returns null without recreating. */
 export async function createNotification(
   input: CreateNotificationInput,
 ): Promise<string | null> {
   try {
     if (input.dedupeKey) {
+      const dismissed = await getDismissedDedupeKeys();
+      if (dismissed.has(input.dedupeKey)) {
+        return null;
+      }
+
       const existing = await db.notification.findUnique({
         where: { dedupeKey: input.dedupeKey },
         select: { id: true },
@@ -242,6 +348,13 @@ export async function markAllNotificationsRead(): Promise<number> {
 
 export async function deleteNotification(id: string): Promise<void> {
   try {
+    const existing = await db.notification.findUnique({
+      where: { id },
+      select: { id: true, dedupeKey: true },
+    });
+    if (existing?.dedupeKey) {
+      await addDismissedDedupeKey(existing.dedupeKey);
+    }
     await db.notification.delete({ where: { id } });
   } catch (err) {
     console.error('[notifications] deleteNotification failed:', err);
@@ -250,6 +363,23 @@ export async function deleteNotification(id: string): Promise<void> {
 
 export async function deleteAllNotifications(): Promise<number> {
   try {
+    // 1. Record the cleared timestamp to now so derived scans don't re-create older events
+    await setNotificationsClearedAt(new Date());
+
+    // 2. Clear dismissed_keys setting since all prior notifications are wiped
+    try {
+      const existing = await db.setting.findFirst({
+        where: { key: SETTING_DISMISSED_KEYS, scope: 'GLOBAL' },
+      });
+      if (existing) {
+        await db.setting.update({
+          where: { id: existing.id },
+          data: { value: '[]' },
+        });
+      }
+    } catch {}
+
+    // 3. Delete all existing rows
     const result = await db.notification.deleteMany({});
     return result.count;
   } catch (err) {
@@ -283,14 +413,26 @@ export async function scanPlatformForNotifications(): Promise<{
   let newCustomers = 0;
 
   try {
+    const [clearedAt, dismissedKeys] = await Promise.all([
+      getNotificationsClearedAt(),
+      getDismissedDedupeKeys(),
+    ]);
+
     // 1. Past-due subscriptions (one notification per customer).
+    const pastDueWhere: Record<string, unknown> = { status: 'past_due' };
+    if (clearedAt) {
+      pastDueWhere.updatedAt = { gt: clearedAt };
+    }
     const pastDueSubs = await db.subscription.findMany({
-      where: { status: 'past_due' },
+      where: pastDueWhere,
       include: { user: { select: { id: true, name: true, email: true } } },
       take: 50,
     });
     pastDue = pastDueSubs.length;
     for (const sub of pastDueSubs) {
+      const dedupeKey = `platform-scan:past-due:${sub.userId}`;
+      if (dismissedKeys.has(dedupeKey)) continue;
+
       const name = sub.user?.name || sub.user?.email || sub.userId;
       const id = await createNotification({
         type: 'WARNING',
@@ -298,7 +440,7 @@ export async function scanPlatformForNotifications(): Promise<{
         message: `${name}'s subscription is past due. Stripe will retry the invoice — access continues until the retry window closes.`,
         relatedEntityType: 'subscription',
         relatedEntityId: sub.id,
-        dedupeKey: `platform-scan:past-due:${sub.userId}`,
+        dedupeKey,
         link: `#platform-customer-detail/${sub.userId}`,
         createdBy: 'platform-scan',
       });
@@ -307,13 +449,20 @@ export async function scanPlatformForNotifications(): Promise<{
 
     // 2. Failed payments (one notification per failed payment that
     // doesn't already have a notification).
+    const failedWhere: Record<string, unknown> = { status: 'failed' };
+    if (clearedAt) {
+      failedWhere.createdAt = { gt: clearedAt };
+    }
     const failedPaymentRows = await db.payment.findMany({
-      where: { status: 'failed' },
+      where: failedWhere,
       include: { user: { select: { id: true, name: true, email: true } } },
       take: 50,
     });
     failedPayments = failedPaymentRows.length;
     for (const p of failedPaymentRows) {
+      const dedupeKey = `platform-scan:failed-payment:${p.id}`;
+      if (dismissedKeys.has(dedupeKey)) continue;
+
       const name = p.user?.name || p.user?.email || p.userId;
       const id = await createNotification({
         type: 'ERROR',
@@ -321,7 +470,7 @@ export async function scanPlatformForNotifications(): Promise<{
         message: `A payment of ${p.currency} ${(p.amount / 100).toFixed(2)} from ${name} failed${p.description ? `: ${p.description}` : ''}. Invoice ${p.invoiceNumber ?? p.stripeInvoiceId ?? '—'}.`,
         relatedEntityType: 'payment',
         relatedEntityId: p.id,
-        dedupeKey: `platform-scan:failed-payment:${p.id}`,
+        dedupeKey,
         link: '#platform-payments',
         createdBy: 'platform-scan',
       });
@@ -330,16 +479,20 @@ export async function scanPlatformForNotifications(): Promise<{
 
     // 3. New customers (EXTERNAL users registered in the last 7 days).
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const sinceDate = clearedAt && clearedAt > weekAgo ? clearedAt : weekAgo;
     const newUsers = await db.user.findMany({
       where: {
         billingMode: 'EXTERNAL',
-        createdAt: { gte: weekAgo },
+        createdAt: { gt: sinceDate },
       },
       select: { id: true, name: true, email: true, createdAt: true, subscription: true },
       take: 50,
     });
     newCustomers = newUsers.length;
     for (const u of newUsers) {
+      const dedupeKey = `platform-scan:new-customer:${u.id}`;
+      if (dismissedKeys.has(dedupeKey)) continue;
+
       const planId = u.subscription?.planId ?? 'free';
       const id = await createNotification({
         type: 'INFO',
@@ -347,7 +500,7 @@ export async function scanPlatformForNotifications(): Promise<{
         message: `${u.name ?? u.email} signed up on the ${String(planId).toUpperCase()} plan.`,
         relatedEntityType: 'customer',
         relatedEntityId: u.id,
-        dedupeKey: `platform-scan:new-customer:${u.id}`,
+        dedupeKey,
         link: `#platform-customer-detail/${u.id}`,
         createdBy: 'platform-scan',
       });

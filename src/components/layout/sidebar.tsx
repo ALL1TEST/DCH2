@@ -609,48 +609,24 @@ function CollapsedLogoButton({ hovered }: { hovered: boolean }) {
        (NOT on rail-level hover of other items) — the C↔PanelLeftOpen ICON
        swap, by contrast, is driven by the lifted `hovered` prop and fires
        for ANY rail item. */
-    <Tooltip disableHoverableContent>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          onClick={toggleSidebar}
-          aria-label={t('app.expandSidebar')}
-          className={cn(
-            'flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg font-bold text-sm outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring select-none',
-            // NORMAL LOGO STATE (at rest): bg-primary black box +
-            // text-primary-foreground white "C" — background UNCHANGED,
-            // same as the expanded LogoMark.
-            // EXPAND-ICON STATE (on hover): bg-transparent (NO background)
-            // + text-muted-foreground gray icon — ONLY this temporary
-            // state loses the background. The icon stays visible (gray
-            // on transparent/page bg) in both Light and Dark mode.
-            hovered
-              ? 'bg-transparent text-muted-foreground'
-              : 'bg-primary text-primary-foreground',
-          )}
-        >
-          {/* Conditional render: "C" logo at rest, PanelLeftOpen icon on
-              hover. h-4 w-4 matches the CollapseToggle's PanelLeftClose
-              icon size; the icon is the visual opposite of the collapse
-              icon so the collapsed logo reads as a clear "expand"
-              affordance when the pointer is over it. */}
-          {hovered ? (
-            <PanelLeftOpen className="h-4 w-4 [dir=rtl]:-scale-x-100" />
-          ) : (
-            <span>C</span>
-          )}
-          <span className="sr-only">{t('app.expandSidebar')}</span>
-        </button>
-      </TooltipTrigger>
-      {/* Collapsed-rail tooltip — uses the SHARED COLLAPSED_TOOLTIP_PROPS
-          constant so the "Expand" label has IDENTICAL positioning (side,
-          align, sideOffset, collisionPadding) to every other collapsed-
-          rail tooltip (ThemeToggle, SimpleNavItem, ExpandableNavItem,
-          CollapsedParentNavItem). Portal-based rendering means the bubble
-          floats outside the sidebar DOM at z-50 — never clipped by the
-          rail's overflow-hidden. */}
-      <TooltipContent {...COLLAPSED_TOOLTIP_PROPS}>{t('app.expand')}</TooltipContent>
-    </Tooltip>
+    <button
+      type="button"
+      onClick={toggleSidebar}
+      aria-label={t('app.expandSidebar')}
+      className={cn(
+        'flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg font-bold text-sm outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring select-none',
+        hovered
+          ? 'bg-transparent text-muted-foreground'
+          : 'bg-primary text-primary-foreground',
+      )}
+    >
+      {hovered ? (
+        <PanelLeftOpen className="h-4 w-4 [dir=rtl]:-scale-x-100" />
+      ) : (
+        <span>C</span>
+      )}
+      <span className="sr-only">{t('app.expandSidebar')}</span>
+    </button>
   );
 }
 
@@ -665,21 +641,16 @@ function CollapseToggle({ side = 'right' }: { side?: 'left' | 'right' }) {
   const { toggleSidebar } = useSidebar();
   const { t } = useT();
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 shrink-0 rounded-md"
-          onClick={toggleSidebar}
-          aria-label={t('app.collapseSidebar')}
-        >
-          <PanelLeftClose className="h-4 w-4 text-muted-foreground [dir=rtl]:-scale-x-100" />
-          <span className="sr-only">{t('app.toggleSidebar')}</span>
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent side={side}>{t('app.collapse')}</TooltipContent>
-    </Tooltip>
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-8 w-8 shrink-0 rounded-md"
+      onClick={toggleSidebar}
+      aria-label={t('app.collapseSidebar')}
+    >
+      <PanelLeftClose className="h-4 w-4 text-muted-foreground [dir=rtl]:-scale-x-100" />
+      <span className="sr-only">{t('app.toggleSidebar')}</span>
+    </Button>
   );
 }
 
@@ -758,6 +729,11 @@ function CollapsedParentNavItem({
     useNavigationStore.getState().navigate(parts[0], null, childSubPage);
   };
 
+  const isNotifications =
+    item.href === '#notifications' ||
+    item.href === '#platform-notifications' ||
+    item.label.toLowerCase().includes('notification');
+
   return (
     <SidebarMenuItem>
       <Popover open={floatOpen} onOpenChange={setFloatOpen}>
@@ -776,7 +752,7 @@ function CollapsedParentNavItem({
             // outside the sidebar DOM at z-50 — never clipped by the rail's
             // overflow-hidden.
             tooltip={
-              floatOpen
+              floatOpen || isNotifications
                 ? undefined
                 : { ...COLLAPSED_TOOLTIP_PROPS, children: itemLabel }
             }
@@ -854,6 +830,10 @@ function ExpandableNavItem({
   const isActive = currentModule === mod;
   const { t } = useT();
   const itemLabel = useNavLabel(item);
+  const isNotifications =
+    item.href === '#notifications' ||
+    item.href === '#platform-notifications' ||
+    item.label.toLowerCase().includes('notification');
   const sectionId = `submenu-${item.label.toLowerCase().replace(/\s+/g, '-')}`;
 
   return (
@@ -867,7 +847,7 @@ function ExpandableNavItem({
         // toggles between expanded and collapsed while this row stays
         // mounted, the tooltip that appears is identical in positioning to
         // SimpleNavItem / CollapsedParentNavItem / CollapsedLogoButton.
-        tooltip={{ ...COLLAPSED_TOOLTIP_PROPS, children: itemLabel }}
+        tooltip={isNotifications ? undefined : { ...COLLAPSED_TOOLTIP_PROPS, children: itemLabel }}
         isActive={isActive}
         onClick={(e: React.MouseEvent) => {
           e.preventDefault();
@@ -943,6 +923,10 @@ function SimpleNavItem({
   const mod = hrefToModule(item.href);
   const isActive = currentModule === mod;
   const itemLabel = useNavLabel(item);
+  const isNotifications =
+    item.href === '#notifications' ||
+    item.href === '#platform-notifications' ||
+    item.label.toLowerCase().includes('notification');
 
   return (
     <SidebarMenuItem>
@@ -958,7 +942,7 @@ function SimpleNavItem({
         // ExpandableNavItem, CollapsedParentNavItem). Portal-based rendering
         // means the bubble floats outside the sidebar DOM at z-50 — never
         // clipped by the rail's overflow-hidden.
-        tooltip={{ ...COLLAPSED_TOOLTIP_PROPS, children: itemLabel }}
+        tooltip={isNotifications ? undefined : { ...COLLAPSED_TOOLTIP_PROPS, children: itemLabel }}
       >
         <a
           href={item.href}
@@ -1273,21 +1257,16 @@ export function AppSidebar() {
             {isPlatformAdmin ? t('app.platformAdmin') : t('app.cmsAdmin')}
           </span>
           <div className="ml-auto flex shrink-0 items-center gap-1">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 shrink-0 rounded-md"
-                  onClick={openCommandPalette}
-                  aria-label={t('app.search')}
-                >
-                  <Search className="h-4 w-4" />
-                  <span className="sr-only">{t('app.search')}</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">{t('app.search')}</TooltipContent>
-            </Tooltip>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0 rounded-md"
+              onClick={openCommandPalette}
+              aria-label={t('app.search')}
+            >
+              <Search className="h-4 w-4" />
+              <span className="sr-only">{t('app.search')}</span>
+            </Button>
             <CollapseToggle side="bottom" />
           </div>
         </div>
@@ -1414,7 +1393,7 @@ export function AppSidebar() {
             there is never a duplicate. */}
         <div className="hidden flex-col items-center gap-1 py-1 group-data-[collapsible=icon]:flex">
           {/* Theme toggle — shared component, same theme state as header */}
-          <ThemeToggle withTooltip />
+          <ThemeToggle />
 
           {/* Collapsed-rail notification bell — icon-only trigger, live
               badge. Positioning MIRRORS the collapsed-rail profile menu
@@ -1444,7 +1423,6 @@ export function AppSidebar() {
               align="end"
               sideOffset={16}
               collisionPadding={12}
-              withTooltip
             />
           )}
 
@@ -1481,7 +1459,6 @@ export function AppSidebar() {
             align="end"
             sideOffset={16}
             collisionPadding={12}
-            withTooltip
           >
             <Button
               type="button"

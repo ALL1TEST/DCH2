@@ -491,6 +491,8 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [mediaLibraryOpen, setMediaLibraryOpen] = useState(false);
   const [aiAssistOpen, setAiAssistOpen] = useState(false);
+  const [aiImageDialogOpen, setAiImageDialogOpen] = useState(false);
+  const [aiImagePrompt, setAiImagePrompt] = useState('');
 
   // Fetch the article
   const { data: content, isLoading: isLoadingContent } = useQuery({
@@ -619,6 +621,36 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
       toast.success(t('articles.imageUploadedToast'));
     },
     onError: (err: Error) => toast.error(err.message || t('articles.uploadFailedToast')),
+  });
+
+  // Generate featured image with AI mutation
+  const aiImageGenerateMutation = useMutation({
+    mutationFn: async (promptText: string) => {
+      const res = await postApi<any>('/api/media/generate', {
+        prompt: promptText,
+        aspectRatio: '16:9',
+        count: 1,
+      });
+      const items = Array.isArray(res) ? res : (res as any)?.data;
+      return items?.[0];
+    },
+    onSuccess: (item) => {
+      if (item && item.url) {
+        setFeaturedImage({
+          id: item.id,
+          filename: item.filename || 'ai-featured-image.png',
+          url: item.url,
+          alt: item.alt || aiImagePrompt || 'Featured image',
+        });
+        setAiImageDialogOpen(false);
+        toast.success(t('media.imagesGenerated') || 'Featured image generated successfully');
+      } else {
+        toast.error(t('media.generateFailed') || 'Image generation failed');
+      }
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || t('media.generateFailed') || 'Image generation failed');
+    },
   });
 
   // AbortController ref for interrupting ongoing AI generation
@@ -952,109 +984,111 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
       {/* Main Grid: Editor (9 cols) + Sidebar (3 cols) — fills remaining vertical space down to pb-6 */}
       <div className={cn('grid grid-cols-1 lg:grid-cols-12 gap-4 transition-all flex-1 min-h-0 items-stretch', previewOpen ? 'hidden' : '')}>
         {/* LEFT: Editor Area — Fixed height matching right sidebar with internal vertical scroll */}
-        <div className="lg:col-span-9 h-full min-h-0 flex flex-col">
+        <div className="lg:col-span-9 xl:col-span-9 2xl:col-span-9 h-full min-h-0 flex flex-col">
           <div className="flex flex-col h-full min-h-0 border border-border/50 rounded-xl overflow-hidden bg-background shadow-2xs">
             {/* Tiptap Rich Text Editor — internal vertical scroll */}
-            <div className="flex-1 min-h-0 flex flex-col">
+            <div className="flex-1 min-h-0 flex flex-col h-full">
               <TiptapEditor
                 ref={editorRef}
                 content={editorContent}
                 onChange={setEditorContent}
                 onSelectionChange={handleEditorSelectionChange}
                 className="border-0 rounded-none h-full flex-1 min-h-0"
+                footer={
+                  <div className="w-full">
+                    <div className="w-full max-w-3xl mx-auto">
+                      {/* Persistent saved selection indicator */}
+                      {savedSelectedText && (
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="flex items-center gap-1.5 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 px-2.5 py-1 min-w-0 flex-1">
+                            <Sparkles className="h-3 w-3 text-amber-500 shrink-0" />
+                            <span className="text-[11px] text-amber-700 dark:text-amber-400 font-medium shrink-0">{t('articles.selectedPrefix')}</span>
+                            <span className="text-[11px] text-amber-800 dark:text-amber-300 truncate max-w-[280px]">&ldquo;{savedSelectedText}&rdquo;</span>
+                          </div>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={clearSavedSelection}
+                            className="text-[10px] text-muted-foreground hover:text-foreground shrink-0 transition-colors"
+                            title={t('articles.clearSelectionContext')}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* AI Box: matching Image 1 with full rounded border */}
+                      <div className="border border-border/80 rounded-2xl p-2.5 bg-background shadow-2xs">
+                        <div className="flex items-center gap-2 px-1">
+                          <div className="flex size-7 items-center justify-center rounded-full bg-amber-500 text-white shrink-0">
+                            <Sparkles className="size-3.5" />
+                          </div>
+                          <div className="relative flex-1">
+                            <textarea
+                              value={aiInput}
+                              onChange={(e) => setAiInput(e.target.value)}
+                              onMouseDown={() => {
+                                editorRef.current?.saveSelectionForReplace();
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                  e.preventDefault();
+                                  if (isAiGenerating) return;
+                                  if (aiInput.trim()) {
+                                    handleAiSubmit(aiInput.trim());
+                                    setAiInput('');
+                                  }
+                                }
+                              }}
+                              placeholder={
+                                isAiGenerating
+                                  ? t('articles.generatingPlaceholder')
+                                  : savedSelectedText
+                                  ? t('articles.editSelectedTextPlaceholder')
+                                  : t('articles.askAiPlaceholder')
+                              }
+                              disabled={isAiGenerating}
+                              rows={1}
+                              className="flex-1 resize-none bg-transparent text-sm leading-normal placeholder:text-muted-foreground/60 focus:outline-none w-full py-0.5 disabled:opacity-60"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onMouseDown={isAiGenerating ? undefined : captureSelectionOnMouseDown}
+                            onClick={() => {
+                              if (isAiGenerating) {
+                                handleStopAi();
+                              } else if (aiInput.trim()) {
+                                handleAiSubmit(aiInput.trim());
+                                setAiInput('');
+                              }
+                            }}
+                            className={
+                              isAiGenerating
+                                ? 'size-7 rounded-full bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center shrink-0 transition-all active:scale-95'
+                                : 'size-7 rounded-full flex items-center justify-center shrink-0 transition-all text-muted-foreground hover:text-foreground'
+                            }
+                            title={isAiGenerating ? t('articles.stopGeneration') : t('articles.sendToAi')}
+                            aria-label={isAiGenerating ? t('articles.stopGeneration') : t('articles.sendToAi')}
+                          >
+                            {isAiGenerating ? (
+                              <Loader2 className="size-3.5 animate-spin" />
+                            ) : (
+                              <Send className="size-3.5" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                }
               />
-            </div>
-
-            {/* AI Assistant Bar — matching Image 1 */}
-            <div className="shrink-0 p-3 pt-2 bg-background">
-              {/* Persistent saved selection indicator */}
-              {savedSelectedText && (
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="flex items-center gap-1.5 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 px-2.5 py-1 min-w-0 flex-1">
-                    <Sparkles className="h-3 w-3 text-amber-500 shrink-0" />
-                    <span className="text-[11px] text-amber-700 dark:text-amber-400 font-medium shrink-0">{t('articles.selectedPrefix')}</span>
-                    <span className="text-[11px] text-amber-800 dark:text-amber-300 truncate max-w-[280px]">&ldquo;{savedSelectedText}&rdquo;</span>
-                  </div>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={clearSavedSelection}
-                    className="text-[10px] text-muted-foreground hover:text-foreground shrink-0 transition-colors"
-                    title={t('articles.clearSelectionContext')}
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              )}
-
-              {/* AI Box: matching Image 1 with full rounded border */}
-              <div className="border border-border/80 rounded-2xl p-2.5 bg-background shadow-2xs">
-                <div className="flex items-center gap-2 px-1">
-                  <div className="flex size-7 items-center justify-center rounded-full bg-amber-500 text-white shrink-0">
-                    <Sparkles className="size-3.5" />
-                  </div>
-                  <div className="relative flex-1">
-                    <textarea
-                      value={aiInput}
-                      onChange={(e) => setAiInput(e.target.value)}
-                      onMouseDown={() => {
-                        editorRef.current?.saveSelectionForReplace();
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          if (isAiGenerating) return;
-                          if (aiInput.trim()) {
-                            handleAiSubmit(aiInput.trim());
-                            setAiInput('');
-                          }
-                        }
-                      }}
-                      placeholder={
-                        isAiGenerating
-                          ? t('articles.generatingPlaceholder')
-                          : savedSelectedText
-                          ? t('articles.editSelectedTextPlaceholder')
-                          : t('articles.askAiPlaceholder')
-                      }
-                      disabled={isAiGenerating}
-                      rows={1}
-                      className="flex-1 resize-none bg-transparent text-sm leading-normal placeholder:text-muted-foreground/60 focus:outline-none w-full py-0.5 disabled:opacity-60"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onMouseDown={isAiGenerating ? undefined : captureSelectionOnMouseDown}
-                    onClick={() => {
-                      if (isAiGenerating) {
-                        handleStopAi();
-                      } else if (aiInput.trim()) {
-                        handleAiSubmit(aiInput.trim());
-                        setAiInput('');
-                      }
-                    }}
-                    className={
-                      isAiGenerating
-                        ? 'size-7 rounded-full bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center shrink-0 transition-all active:scale-95'
-                        : 'size-7 rounded-full flex items-center justify-center shrink-0 transition-all text-muted-foreground hover:text-foreground'
-                    }
-                    title={isAiGenerating ? t('articles.stopGeneration') : t('articles.sendToAi')}
-                    aria-label={isAiGenerating ? t('articles.stopGeneration') : t('articles.sendToAi')}
-                  >
-                    {isAiGenerating ? (
-                      <Loader2 className="size-3.5 animate-spin" />
-                    ) : (
-                      <Send className="size-3.5" />
-                    )}
-                  </button>
-                </div>
-              </div>
             </div>
           </div>
         </div>
 
         {/* RIGHT: Sidebar — height matching the editor with internal scroll */}
-        <div className="col-span-1 lg:col-span-3 h-full min-h-0">
+        <div className="col-span-1 lg:col-span-3 xl:col-span-3 2xl:col-span-3 h-full min-h-0">
           <div className="h-full overflow-y-auto rounded-lg border bg-card">
               <Accordion type="multiple" defaultValue={['featured-image', 'publishing', 'title-slug', 'excerpt']} className="px-4">
                 {/* 1. Featured Image */}
@@ -1083,36 +1117,43 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
                           <span className="text-slate-400 text-sm">{t('articles.noImage')}</span>
                         </div>
                       )}
-                      <div className="flex gap-1.5 w-full min-w-0">
+                      <div className="grid grid-cols-3 gap-1.5 w-full">
                         <Button
+                          type="button"
                           variant="outline"
                           size="sm"
-                          className="flex-1 min-w-0 h-7 text-xs gap-1"
+                          className="h-8 text-xs gap-1 px-1 font-medium min-w-0"
                           onClick={handleFileUpload}
                           disabled={uploadMutation.isPending}
                         >
-                          {uploadMutation.isPending ? <Loader2 className="h-3 w-3 shrink-0" /> : <Upload className="h-3 w-3 shrink-0" />}
+                          {uploadMutation.isPending ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" /> : <Upload className="h-3.5 w-3.5 shrink-0" />}
                           <span className="truncate">{t('media.upload')}</span>
                         </Button>
                         <Button
+                          type="button"
                           variant="outline"
                           size="sm"
-                          className="flex-1 min-w-0 h-7 text-xs gap-1"
+                          className="h-8 text-xs gap-1 px-1 font-medium min-w-0"
                           onClick={() => setMediaLibraryOpen(true)}
                         >
-                          <ImageIcon className="h-3 w-3 shrink-0" />
+                          <ImageIcon className="h-3.5 w-3.5 shrink-0" />
                           <span className="truncate">{t('articles.library')}</span>
                         </Button>
                         <Button
+                          type="button"
                           variant="outline"
                           size="sm"
-                          className="shrink-0 h-7 text-xs gap-1 border-amber-400/40 text-amber-600 hover:bg-amber-400/10 dark:text-amber-400 dark:border-amber-400/40 dark:hover:bg-amber-400/10"
-                          onClick={() => setAiAssistOpen(true)}
-                          disabled={!aiToolsEnabled}
-                          title={aiToolsEnabled ? t('articles.aiAssistantTitle') : t('articles.aiPlatformNotIncluded')}
+                          className="h-8 text-xs gap-1 px-1 font-medium min-w-0 border-amber-400/40 text-amber-600 hover:bg-amber-400/10 dark:text-amber-400 dark:border-amber-400/40 dark:hover:bg-amber-400/10"
+                          onClick={() => {
+                            if (!aiImagePrompt && watchedTitle) {
+                              setAiImagePrompt(watchedTitle);
+                            }
+                            setAiImageDialogOpen(true);
+                          }}
+                          disabled={aiImageGenerateMutation.isPending}
                         >
-                          <Sparkles className="h-3 w-3 shrink-0" />
-                          <span className="truncate">AI</span>
+                          {aiImageGenerateMutation.isPending ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 shrink-0" />}
+                          <span>AI</span>
                         </Button>
                       </div>
                     </div>
@@ -1321,6 +1362,66 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
         onGenerate={handleAiSubmit}
         isPending={aiGenerateMutation.isPending || aiEditSelectionMutation.isPending}
       />
+
+      {/* AI Featured Image Dialog */}
+      <Dialog open={aiImageDialogOpen} onOpenChange={setAiImageDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-amber-500" />
+              {t('media.generateWithAi') || 'Generate Featured Image with AI'}
+            </DialogTitle>
+            <DialogDescription>
+              {t('media.generateDescription') || 'Describe the image you want to generate for this article.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <Textarea
+              value={aiImagePrompt}
+              onChange={(e) => setAiImagePrompt(e.target.value)}
+              placeholder={watchedTitle ? `e.g. A high quality editorial photograph for "${watchedTitle}"` : 'Describe the image you want to generate...'}
+              rows={3}
+              className="text-sm"
+            />
+          </div>
+          <DialogFooter className="flex items-center justify-between sm:justify-between">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                setAiImageDialogOpen(false);
+                setAiAssistOpen(true);
+              }}
+            >
+              {t('articles.aiAssistantTitle') || 'AI Content Assistant'} &rarr;
+            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setAiImageDialogOpen(false)}
+              >
+                {t('common.cancel')}
+              </Button>
+              <Button
+                type="button"
+                className="gap-1.5 bg-amber-400 text-zinc-900 hover:bg-amber-500 font-semibold"
+                onClick={() => aiImageGenerateMutation.mutate(aiImagePrompt.trim() || watchedTitle || 'Featured article image')}
+                disabled={aiImageGenerateMutation.isPending || (!aiImagePrompt.trim() && !watchedTitle?.trim())}
+              >
+                {aiImageGenerateMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
+                {t('common.generate') || 'Generate'}
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation */}
       <ConfirmDialog

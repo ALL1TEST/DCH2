@@ -36,6 +36,7 @@ export interface ArticlePipelineContext {
 
 export interface GeneratedDraftOutput {
   content: string;
+  markdownContent?: string;
   wordCount: number;
 }
 
@@ -44,6 +45,7 @@ export interface ArticlePipelineOutput {
   operation: PipelineOperation;
   drafts: GeneratedDraftOutput[];
   primaryContent: string;
+  htmlContent?: string;
   seoFields: {
     seoTitle: string;
     seoDescription: string;

@@ -28,6 +28,7 @@ import {
   listNotifications,
   markNotificationsRead,
   markAllNotificationsRead,
+  deleteAllNotifications,
   scanPlatformForNotifications,
 } from '@/lib/notifications';
 import type { NotificationType, PaginationMeta } from '@/shared/types';
@@ -195,17 +196,12 @@ export async function DELETE(request: NextRequest) {
   if ('response' in auth) return auth.response;
 
   try {
-    // Delete-all endpoint — there's no body to parse, but we still
-    // accept one for API parity with the existing DELETE shape.
+    // Delete-all endpoint — accept optional body for parity
     await request.json().catch(() => null);
 
-    // Inline the delete-all (avoids importing deleteAllNotifications
-    // for a one-off — but the helper exists in /lib/notifications.ts
-    // for other callers). The Prisma call is the source of truth.
-    const { db } = await import('@/lib/db');
-    const result = await db.notification.deleteMany({});
+    const count = await deleteAllNotifications();
     return NextResponse.json({
-      data: { deleted: result.count },
+      data: { deleted: count },
       meta: { requestId: id },
     });
   } catch (error) {

@@ -703,9 +703,14 @@ export function TemplateEditor({ templateId, isNew = false, scope = 'client', on
       let start = lastSelectionRef.current.start;
       let end = lastSelectionRef.current.end;
 
-      if (textarea && typeof textarea.selectionStart === 'number' && textarea.selectionStart !== textarea.selectionEnd) {
-        start = textarea.selectionStart;
-        end = textarea.selectionEnd;
+      if (textarea && typeof textarea.selectionStart === 'number') {
+        if (textarea.selectionStart !== textarea.selectionEnd) {
+          start = textarea.selectionStart;
+          end = textarea.selectionEnd;
+        } else if (textarea.selectionStart > 0 || lastSelectionRef.current.start === 0) {
+          start = textarea.selectionStart;
+          end = textarea.selectionEnd;
+        }
       }
 
       setHtmlBody((prev) => {
@@ -931,21 +936,17 @@ export function TemplateEditor({ templateId, isNew = false, scope = 'client', on
       </Tooltip>
 
       <DropdownMenu>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-              >
-                <Variable className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-          </TooltipTrigger>
-          <TooltipContent>{t('emailTemplates.insertVariable')}</TooltipContent>
-        </Tooltip>
-        <DropdownMenuContent align="start" className="w-64 max-h-80 overflow-y-auto">
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            title={t('emailTemplates.insertVariable')}
+          >
+            <Variable className="h-3.5 w-3.5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="z-[200] w-64 max-h-80 overflow-y-auto">
           <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground px-2 py-1.5">
             {t('emailTemplates.insertVariable')}
           </DropdownMenuLabel>
@@ -1232,7 +1233,7 @@ export function TemplateEditor({ templateId, isNew = false, scope = 'client', on
                       <Undo2 className="h-3.5 w-3.5" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>{t('emailTemplates.undo')}</TooltipContent>
+                  <TooltipContent className="z-[200]">{t('emailTemplates.undo')}</TooltipContent>
                 </Tooltip>
 
                 <Tooltip>
@@ -1249,7 +1250,7 @@ export function TemplateEditor({ templateId, isNew = false, scope = 'client', on
                       <Redo2 className="h-3.5 w-3.5" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>{t('emailTemplates.redo')}</TooltipContent>
+                  <TooltipContent className="z-[200]">{t('emailTemplates.redo')}</TooltipContent>
                 </Tooltip>
 
                 <Separator orientation="vertical" className="mx-1 h-5" />
@@ -1265,25 +1266,21 @@ export function TemplateEditor({ templateId, isNew = false, scope = 'client', on
                       <Search className="h-3.5 w-3.5" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>{t('emailTemplates.searchReplace')}</TooltipContent>
+                  <TooltipContent className="z-[200]">{t('emailTemplates.searchReplace')}</TooltipContent>
                 </Tooltip>
 
                 <DropdownMenu>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                        >
-                          <Variable className="h-3.5 w-3.5" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                    </TooltipTrigger>
-                    <TooltipContent>{t('emailTemplates.insertVariable')}</TooltipContent>
-                  </Tooltip>
-                  <DropdownMenuContent align="start" className="w-64 max-h-80 overflow-y-auto">
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      title={t('emailTemplates.insertVariable')}
+                    >
+                      <Variable className="h-3.5 w-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="z-[200] w-64 max-h-80 overflow-y-auto">
                     <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground px-2 py-1.5">
                       {t('emailTemplates.insertVariable')}
                     </DropdownMenuLabel>

@@ -379,6 +379,8 @@ export interface TiptapEditorProps {
   className?: string;
   /** Called whenever the editor selection changes. Passes the selected text (empty string when nothing is selected). */
   onSelectionChange?: (selectedText: string) => void;
+  /** Optional footer content or AI Assistant bar that appears at the bottom of the editor (and remains attached in Fullscreen mode!) */
+  footer?: React.ReactNode;
 }
 
 export interface TiptapEditorRef {
@@ -831,6 +833,7 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
   placeholder = '',
   className,
   onSelectionChange,
+  footer,
 }, ref) {
   const [editorMode, setEditorMode] = useState<EditorMode>('editing');
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -3147,6 +3150,16 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
         </div>
       </div>
 
+      {footer && (
+        <div className={cn(
+          "shrink-0 z-20 bg-background w-full",
+          isFullscreen ? "pb-8 pt-2" : "pb-4 pt-1"
+        )}>
+          <div className="max-w-3xl mx-auto w-full px-4">
+            {footer}
+          </div>
+        </div>
+      )}
     </div>
   );
 });

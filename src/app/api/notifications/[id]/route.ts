@@ -104,7 +104,8 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
       );
     }
 
-    await db.notification.delete({ where: { id } });
+    const { deleteNotification } = await import('@/lib/notifications');
+    await deleteNotification(id);
     const duration = Date.now() - startTime;
     return NextResponse.json({ data: { id, deleted: true }, meta: { requestId, timestamp, duration } });
   } catch (error) {

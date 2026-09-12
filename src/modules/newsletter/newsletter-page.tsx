@@ -14,8 +14,12 @@ import {
   Eye,
   RotateCcw,
   Ban,
-  CalendarClock,
+  Calendar as CalendarIcon,
+  Clock,
 } from 'lucide-react';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -327,6 +331,7 @@ export function NewsletterPage() {
 
   // Create campaign dialog state
   const [createOpen, setCreateOpen] = useState(false);
+  const [schedulePopoverOpen, setSchedulePopoverOpen] = useState(false);
   const [campaignForm, setCampaignForm] = useState<CampaignForm>(INITIAL_CAMPAIGN_FORM);
   const authUser = useAuthStore((s) => s.user);
 
@@ -421,6 +426,7 @@ export function NewsletterPage() {
 
   // Edit campaign modal state
   const [editOpen, setEditOpen] = useState(false);
+  const [editSchedulePopoverOpen, setEditSchedulePopoverOpen] = useState(false);
   const [editForm, setEditForm] = useState<CampaignForm>(INITIAL_CAMPAIGN_FORM);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -821,7 +827,7 @@ export function NewsletterPage() {
                           name="audience"
                           checked={campaignForm.audience === 'all'}
                           onChange={() => setCampaignForm((f) => ({ ...f, audience: 'all' }))}
-                          className="h-4 w-4 accent-amber-500"
+                          className="h-4 w-4 accent-black dark:accent-white cursor-pointer"
                         />
                         <span className="text-sm">{t('newsletter.allSubscribed')}</span>
                       </label>
@@ -831,7 +837,7 @@ export function NewsletterPage() {
                           name="audience"
                           checked={campaignForm.audience === 'selected'}
                           onChange={() => setCampaignForm((f) => ({ ...f, audience: 'selected' }))}
-                          className="h-4 w-4 accent-amber-500"
+                          className="h-4 w-4 accent-black dark:accent-white cursor-pointer"
                         />
                         <span className="text-sm">{t('newsletter.selectSpecific')}</span>
                       </label>
@@ -873,17 +879,95 @@ export function NewsletterPage() {
 
                   {/* Schedule (optional) */}
                   <div className="space-y-1.5">
-                    <Label htmlFor="camp-schedule" className="flex items-center gap-1.5">
-                      <CalendarClock className="h-3.5 w-3.5 text-amber-500" />
+                    <Label htmlFor="camp-schedule">
                       {t('newsletter.schedule')} <span className="text-muted-foreground font-normal">{t('newsletter.optional')}</span>
                     </Label>
-                    <Input
-                      id="camp-schedule"
-                      type="datetime-local"
-                      placeholder={t('newsletter.selectDateTime')}
-                      value={campaignForm.scheduledAt}
-                      onChange={(e) => setCampaignForm((f) => ({ ...f, scheduledAt: e.target.value }))}
-                    />
+                    <Popover open={schedulePopoverOpen} onOpenChange={setSchedulePopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          id="camp-schedule"
+                          type="button"
+                          variant="outline"
+                          className={cn(
+                            'w-full justify-between text-left font-normal h-9 px-3',
+                            !campaignForm.scheduledAt && 'text-muted-foreground'
+                          )}
+                        >
+                          <span>
+                            {campaignForm.scheduledAt && !isNaN(new Date(campaignForm.scheduledAt).getTime())
+                              ? format(new Date(campaignForm.scheduledAt), "PPP 'at' HH:mm")
+                              : (t('newsletter.selectDateTime') || 'mm/dd/yyyy --:-- --')}
+                          </span>
+                          <CalendarIcon className="h-4 w-4 opacity-50 shrink-0" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-3" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={
+                            campaignForm.scheduledAt && !isNaN(new Date(campaignForm.scheduledAt).getTime())
+                              ? new Date(campaignForm.scheduledAt)
+                              : undefined
+                          }
+                          onSelect={(date) => {
+                            if (!date) {
+                              setCampaignForm((f) => ({ ...f, scheduledAt: '' }));
+                              return;
+                            }
+                            const current = campaignForm.scheduledAt ? new Date(campaignForm.scheduledAt) : null;
+                            const h = current && !isNaN(current.getTime()) ? current.getHours() : 9;
+                            const m = current && !isNaN(current.getTime()) ? current.getMinutes() : 0;
+                            date.setHours(h, m, 0, 0);
+                            setCampaignForm((f) => ({
+                              ...f,
+                              scheduledAt: format(date, "yyyy-MM-dd'T'HH:mm"),
+                            }));
+                          }}
+                          initialFocus
+                        />
+                        <div className="border-t border-border/60 pt-2.5 mt-2 flex items-center justify-between gap-2 px-1">
+                          <div className="flex items-center gap-1.5">
+                            <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                            <Input
+                              type="time"
+                              value={
+                                campaignForm.scheduledAt && !isNaN(new Date(campaignForm.scheduledAt).getTime())
+                                  ? format(new Date(campaignForm.scheduledAt), 'HH:mm')
+                                  : '09:00'
+                              }
+                              onChange={(e) => {
+                                const timeVal = e.target.value;
+                                if (!timeVal) return;
+                                const [h, m] = timeVal.split(':').map(Number);
+                                const baseDate =
+                                  campaignForm.scheduledAt && !isNaN(new Date(campaignForm.scheduledAt).getTime())
+                                    ? new Date(campaignForm.scheduledAt)
+                                    : new Date();
+                                baseDate.setHours(h, m, 0, 0);
+                                setCampaignForm((f) => ({
+                                  ...f,
+                                  scheduledAt: format(baseDate, "yyyy-MM-dd'T'HH:mm"),
+                                }));
+                              }}
+                              className="h-8 w-24 text-xs font-mono"
+                            />
+                          </div>
+                          {campaignForm.scheduledAt && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+                              onClick={() => {
+                                setCampaignForm((f) => ({ ...f, scheduledAt: '' }));
+                              }}
+                            >
+                              {t('common.clear') || 'Clear'}
+                            </Button>
+                          )}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 </div>
                 <DialogFooter>
@@ -1075,12 +1159,92 @@ export function NewsletterPage() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="edit-schedule">{t('newsletter.schedule')} <span className="text-muted-foreground font-normal">{t('newsletter.optional')}</span></Label>
-              <Input
-                id="edit-schedule"
-                type="datetime-local"
-                value={editForm.scheduledAt}
-                onChange={(e) => setEditForm((f) => ({ ...f, scheduledAt: e.target.value }))}
-              />
+              <Popover open={editSchedulePopoverOpen} onOpenChange={setEditSchedulePopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="edit-schedule"
+                    type="button"
+                    variant="outline"
+                    className={cn(
+                      'w-full justify-between text-left font-normal h-9 px-3',
+                      !editForm.scheduledAt && 'text-muted-foreground'
+                    )}
+                  >
+                    <span>
+                      {editForm.scheduledAt && !isNaN(new Date(editForm.scheduledAt).getTime())
+                        ? format(new Date(editForm.scheduledAt), "PPP 'at' HH:mm")
+                        : (t('newsletter.selectDateTime') || 'mm/dd/yyyy --:-- --')}
+                    </span>
+                    <CalendarIcon className="h-4 w-4 opacity-50 shrink-0" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-3" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={
+                      editForm.scheduledAt && !isNaN(new Date(editForm.scheduledAt).getTime())
+                        ? new Date(editForm.scheduledAt)
+                        : undefined
+                    }
+                    onSelect={(date) => {
+                      if (!date) {
+                        setEditForm((f) => ({ ...f, scheduledAt: '' }));
+                        return;
+                      }
+                      const current = editForm.scheduledAt ? new Date(editForm.scheduledAt) : null;
+                      const h = current && !isNaN(current.getTime()) ? current.getHours() : 9;
+                      const m = current && !isNaN(current.getTime()) ? current.getMinutes() : 0;
+                      date.setHours(h, m, 0, 0);
+                      setEditForm((f) => ({
+                        ...f,
+                        scheduledAt: format(date, "yyyy-MM-dd'T'HH:mm"),
+                      }));
+                    }}
+                    initialFocus
+                  />
+                  <div className="border-t border-border/60 pt-2.5 mt-2 flex items-center justify-between gap-2 px-1">
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        type="time"
+                        value={
+                          editForm.scheduledAt && !isNaN(new Date(editForm.scheduledAt).getTime())
+                            ? format(new Date(editForm.scheduledAt), 'HH:mm')
+                            : '09:00'
+                        }
+                        onChange={(e) => {
+                          const timeVal = e.target.value;
+                          if (!timeVal) return;
+                          const [h, m] = timeVal.split(':').map(Number);
+                          const baseDate =
+                            editForm.scheduledAt && !isNaN(new Date(editForm.scheduledAt).getTime())
+                              ? new Date(editForm.scheduledAt)
+                              : new Date();
+                          baseDate.setHours(h, m, 0, 0);
+                          setEditForm((f) => ({
+                            ...f,
+                            scheduledAt: format(baseDate, "yyyy-MM-dd'T'HH:mm"),
+                          }));
+                        }}
+                        className="h-8 w-24 text-xs font-mono"
+                      />
+                    </div>
+                    {editForm.scheduledAt && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => {
+                          setEditForm((f) => ({ ...f, scheduledAt: '' }));
+                        }}
+                      >
+                        {t('common.clear') || 'Clear'}
+                      </Button>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
           <DialogFooter>

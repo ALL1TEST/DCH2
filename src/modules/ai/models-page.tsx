@@ -427,10 +427,10 @@ export function ModelsPage() {
 
       {/* Add/Edit Dialog */}
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-3 shrink-0 border-b border-border/40">
             <DialogTitle className="flex items-center gap-2">
-              <TypeIcon className="h-5 w-5" />
+              <TypeIcon className="h-5 w-5 text-primary" />
               {editingId ? t('ai.editModel') : t('ai.addModel')}
             </DialogTitle>
             <DialogDescription>
@@ -438,43 +438,45 @@ export function ModelsPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            {/* Model Name */}
-            <div className="space-y-1.5">
-              <Label>{t('ai.modelName')} <span className="text-destructive">*</span></Label>
-              <Input
-                value={formData.name}
-                onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))}
-                placeholder={t('ai.modelNamePlaceholder')}
-              />
-            </div>
+          <div className="px-6 py-4 overflow-y-auto flex-1 space-y-4">
+            {/* Model Name & Model ID in 2-column grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Model Name */}
+              <div className="space-y-1.5">
+                <Label>{t('ai.modelName')} <span className="text-destructive">*</span></Label>
+                <Input
+                  value={formData.name}
+                  onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))}
+                  placeholder={t('ai.modelNamePlaceholder')}
+                />
+              </div>
 
-            {/* Model ID */}
-            {/* Model ID */}
-            <div className="space-y-1.5">
-              <Label>{t('ai.modelId')} <span className="text-destructive">*</span></Label>
-              <Input
-                value={formData.modelId}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  const selectedP = providers.find((p) => p.id === formData.providerId);
-                  const pKind = selectedP?.kind || '';
-                  const forbidden = isModelForbiddenForImageGeneration(pKind, val);
-                  const isImg = isKnownImageModel(val);
+              {/* Model ID */}
+              <div className="space-y-1.5">
+                <Label>{t('ai.modelId')} <span className="text-destructive">*</span></Label>
+                <Input
+                  value={formData.modelId}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const selectedP = providers.find((p) => p.id === formData.providerId);
+                    const pKind = selectedP?.kind || '';
+                    const forbidden = isModelForbiddenForImageGeneration(pKind, val);
+                    const isImg = isKnownImageModel(val);
 
-                  setFormData((p) => {
-                    let nextCaps = p.capabilities;
-                    if (isImg) {
-                      nextCaps = ['IMAGE_GENERATION'];
-                    } else if (forbidden.forbidden) {
-                      nextCaps = ['TEXT_GENERATION'];
-                    }
-                    return { ...p, modelId: val, capabilities: nextCaps };
-                  });
-                }}
-                placeholder={t('ai.modelIdPlaceholder')}
-                className="font-mono text-sm"
-              />
+                    setFormData((p) => {
+                      let nextCaps = p.capabilities;
+                      if (isImg) {
+                        nextCaps = ['IMAGE_GENERATION'];
+                      } else if (forbidden.forbidden) {
+                        nextCaps = ['TEXT_GENERATION'];
+                      }
+                      return { ...p, modelId: val, capabilities: nextCaps };
+                    });
+                  }}
+                  placeholder={t('ai.modelIdPlaceholder')}
+                  className="font-mono text-sm"
+                />
+              </div>
             </div>
 
             {/* Provider */}
@@ -524,24 +526,26 @@ export function ModelsPage() {
                     <span className="text-xs text-muted-foreground">Select what this model can do</span>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {/* Option 1: Text Generation Only */}
                     <div
                       onClick={() => setFormData((p) => ({ ...p, capabilities: ['TEXT_GENERATION'] }))}
-                      className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all cursor-pointer ${
+                      className={`flex flex-col justify-between p-3.5 rounded-lg border-2 transition-all cursor-pointer ${
                         isTextOnly
-                          ? 'border-primary bg-primary/5'
+                          ? 'border-primary bg-primary/5 shadow-xs'
                           : 'border-border hover:border-primary/30 hover:bg-muted/50'
                       }`}
                     >
-                      <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${isTextOnly ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground'}`}>
-                        <FileText className="h-4 w-4" />
-                      </div>
-                      <div className="flex-1">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${isTextOnly ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                            <FileText className="h-4 w-4" />
+                          </div>
+                          <span className={`h-4 w-4 rounded-full border-2 transition-colors shrink-0 ${isTextOnly ? 'border-primary bg-primary' : 'border-muted-foreground/30'}`} />
+                        </div>
                         <span className="text-sm font-medium">{t('ai.textType')} Only</span>
-                        <p className="text-xs text-muted-foreground mt-0.5">Articles, chat, prompts, and content generation.</p>
+                        <p className="text-xs text-muted-foreground mt-1 leading-snug">Articles, chat, prompts, and content generation.</p>
                       </div>
-                      <span className={`h-4 w-4 rounded-full border-2 transition-colors shrink-0 ${isTextOnly ? 'border-primary bg-primary' : 'border-muted-foreground/30'}`} />
                     </div>
 
                     {/* Option 2: Image Generation Only */}
@@ -550,22 +554,24 @@ export function ModelsPage() {
                         if (imageDisabled) return;
                         setFormData((p) => ({ ...p, capabilities: ['IMAGE_GENERATION'] }));
                       }}
-                      className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
+                      className={`flex flex-col justify-between p-3.5 rounded-lg border-2 transition-all ${
                         imageDisabled
                           ? 'opacity-40 cursor-not-allowed border-border bg-muted/30'
                           : isImageOnly
-                          ? 'border-primary bg-primary/5 cursor-pointer'
+                          ? 'border-primary bg-primary/5 shadow-xs cursor-pointer'
                           : 'border-border hover:border-primary/30 hover:bg-muted/50 cursor-pointer'
                       }`}
                     >
-                      <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${isImageOnly ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground'}`}>
-                        <ImageIcon className="h-4 w-4" />
-                      </div>
-                      <div className="flex-1">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${isImageOnly ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                            <ImageIcon className="h-4 w-4" />
+                          </div>
+                          <span className={`h-4 w-4 rounded-full border-2 transition-colors shrink-0 ${isImageOnly ? 'border-primary bg-primary' : 'border-muted-foreground/30'}`} />
+                        </div>
                         <span className="text-sm font-medium">{t('ai.imageType')} Only</span>
-                        <p className="text-xs text-muted-foreground mt-0.5">Image generator models (e.g. DALL-E, Imagen, Flux).</p>
+                        <p className="text-xs text-muted-foreground mt-1 leading-snug">Image generator models (e.g. DALL-E, Imagen, Flux).</p>
                       </div>
-                      <span className={`h-4 w-4 rounded-full border-2 transition-colors shrink-0 ${isImageOnly ? 'border-primary bg-primary' : 'border-muted-foreground/30'}`} />
                     </div>
 
                     {/* Option 3: Both Text & Image Generation */}
@@ -574,55 +580,57 @@ export function ModelsPage() {
                         if (imageDisabled) return;
                         setFormData((p) => ({ ...p, capabilities: ['TEXT_GENERATION', 'IMAGE_GENERATION'] }));
                       }}
-                      className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
+                      className={`flex flex-col justify-between p-3.5 rounded-lg border-2 transition-all ${
                         imageDisabled
                           ? 'opacity-40 cursor-not-allowed border-border bg-muted/30'
                           : isBoth
-                          ? 'border-primary bg-primary/5 cursor-pointer'
+                          ? 'border-primary bg-primary/5 shadow-xs cursor-pointer'
                           : 'border-border hover:border-primary/30 hover:bg-muted/50 cursor-pointer'
                       }`}
                     >
-                      <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${isBoth ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground'}`}>
-                        <Sparkles className="h-4 w-4" />
-                      </div>
-                      <div className="flex-1">
-                        <span className="text-sm font-medium">Both Text & Image Generation</span>
-                        <p className="text-xs text-muted-foreground mt-0.5">Unified model that supports both articles and images.</p>
-                      </div>
-                      <span className={`h-4 w-4 rounded-full border-2 transition-colors shrink-0 ${isBoth ? 'border-primary bg-primary' : 'border-muted-foreground/30'}`} />
-                    </div>
-
-                    {/* Explanatory guardrail message when image is disabled */}
-                    {imageDisabled && (
-                      <div className="flex items-start gap-2 p-2.5 rounded-md bg-muted/50 border border-border text-xs text-muted-foreground mt-1">
-                        <AlertCircle className="h-4 w-4 shrink-0 text-muted-foreground mt-0.5" />
-                        <div>
-                          <span className="font-semibold">Image generation disabled: </span>
-                          {modelForbidden.forbidden
-                            ? (modelForbidden.reason || 'This model does not support image generation.')
-                            : (selectedProvider && !providerAllowsImage ? `${selectedProvider.name} does not support image generation.` : 'Selected provider cannot generate images.')}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${isBoth ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                            <Sparkles className="h-4 w-4" />
+                          </div>
+                          <span className={`h-4 w-4 rounded-full border-2 transition-colors shrink-0 ${isBoth ? 'border-primary bg-primary' : 'border-muted-foreground/30'}`} />
                         </div>
+                        <span className="text-sm font-medium">Both Text & Image</span>
+                        <p className="text-xs text-muted-foreground mt-1 leading-snug">Unified model that supports both articles and images.</p>
                       </div>
-                    )}
+                    </div>
                   </div>
+
+                  {/* Explanatory guardrail message when image is disabled */}
+                  {imageDisabled && (
+                    <div className="flex items-start gap-2 p-2.5 rounded-md bg-muted/50 border border-border text-xs text-muted-foreground mt-1">
+                      <AlertCircle className="h-4 w-4 shrink-0 text-muted-foreground mt-0.5" />
+                      <div>
+                        <span className="font-semibold">Image generation disabled: </span>
+                        {modelForbidden.forbidden
+                          ? (modelForbidden.reason || 'This model does not support image generation.')
+                          : (selectedProvider && !providerAllowsImage ? `${selectedProvider.name} does not support image generation.` : 'Selected provider cannot generate images.')}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })()}
 
             {/* Active + Default toggles */}
-            <div className="flex items-center justify-between pt-2">
-              <div className="flex items-center gap-2">
-                <Switch checked={formData.isActive} onCheckedChange={(v) => setFormData((p) => ({ ...p, isActive: v }))} />
-                <Label>{t('common.active')}</Label>
+            <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+              <div className="flex items-center gap-2.5">
+                <Switch checked={formData.isActive} onCheckedChange={(v) => setFormData((p) => ({ ...p, isActive: v }))} id="model-active-toggle" />
+                <Label htmlFor="model-active-toggle" className="cursor-pointer text-sm font-medium">{t('common.active')}</Label>
               </div>
-              <div className="flex items-center gap-2">
-                <Switch checked={formData.isDefault} onCheckedChange={(v) => setFormData((p) => ({ ...p, isDefault: v }))} />
-                <Label>{t('ai.setAsDefaultLabel')}</Label>
+              <div className="flex items-center gap-2.5">
+                <Switch checked={formData.isDefault} onCheckedChange={(v) => setFormData((p) => ({ ...p, isDefault: v }))} id="model-default-toggle" />
+                <Label htmlFor="model-default-toggle" className="cursor-pointer text-sm font-medium">{t('ai.setAsDefaultLabel')}</Label>
               </div>
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="px-6 py-3.5 border-t bg-muted/20 shrink-0">
             <Button variant="outline" onClick={() => setFormOpen(false)}>{t('common.cancel')}</Button>
             <Button
               onClick={handleSubmit}

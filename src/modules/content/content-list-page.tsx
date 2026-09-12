@@ -10,6 +10,7 @@ import {
   Pencil,
   Trash2,
   Sparkles,
+  ChevronLeft,
   ChevronRight,
   Save,
   FileText,
@@ -1120,7 +1121,8 @@ export function ContentListPage() {
                             type="checkbox"
                             checked={selectedIds.length === contentItems.length && contentItems.length > 0}
                             onChange={toggleSelectAll}
-                            className="rounded border-gray-300"
+                            className="h-4 w-4 rounded border-gray-300 accent-black text-black cursor-pointer focus:ring-black"
+                            style={{ accentColor: '#000000' }}
                           />
                         </th>
                         <th className="text-left px-3 py-3">
@@ -1156,7 +1158,8 @@ export function ContentListPage() {
                                 type="checkbox"
                                 checked={isSelected}
                                 onChange={() => toggleSelect(item.id)}
-                                className="rounded border-gray-300"
+                                className="h-4 w-4 rounded border-gray-300 accent-black text-black cursor-pointer focus:ring-black"
+                                style={{ accentColor: '#000000' }}
                               />
                             </td>
                             <td className="px-3 py-3">
@@ -1230,29 +1233,52 @@ export function ContentListPage() {
                 </div>
 
                 {/* Pagination */}
-                <div className="flex items-center justify-between px-4 py-3 border-t bg-muted/10">
-                  <span className="text-sm text-muted-foreground">
+                <div className="flex items-center justify-between px-5 py-3.5 border-t border-border/70 bg-muted/10">
+                  <span className="text-xs sm:text-sm text-muted-foreground">
                     {`${t('common.showing')} ${fromItem} ${t('articles.paginationTo')} ${toItem} ${t('common.of')} ${totalItems} ${t('articles.articles')}`}
                   </span>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5">
+                    {/* Previous page button */}
+                    <button
+                      type="button"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      className="h-8 w-8 rounded-full border border-border/70 bg-background hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                      aria-label={t('common.previous') || 'Previous'}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+
                     {pageNumbers.map((p, i) =>
                       p === '...' ? (
-                        <span key={`dot-${i}`} className="px-1 text-muted-foreground">...</span>
+                        <span key={`dot-${i}`} className="px-1 text-muted-foreground text-xs">...</span>
                       ) : (
                         <button
                           key={p}
+                          type="button"
                           onClick={() => setPage(p as number)}
                           className={cn(
-                            'h-8 w-8 rounded-md text-sm font-medium transition-colors',
+                            'h-8 w-8 rounded-full text-xs sm:text-sm font-semibold transition-all flex items-center justify-center',
                             page === p
-                              ? 'bg-primary text-primary-foreground'
-                              : 'hover:bg-muted',
+                              ? 'bg-amber-400 text-zinc-950 shadow-xs'
+                              : 'border border-transparent hover:bg-muted text-muted-foreground hover:text-foreground',
                           )}
                         >
                           {p}
                         </button>
                       ),
                     )}
+
+                    {/* Next page button */}
+                    <button
+                      type="button"
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={page === totalPages}
+                      className="h-8 w-8 rounded-full border border-border/70 bg-background hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                      aria-label={t('common.next') || 'Next'}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
                   </div>
                 </div>
               </div>

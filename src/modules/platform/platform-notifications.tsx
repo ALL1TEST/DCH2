@@ -388,9 +388,23 @@ export function PlatformNotificationsModule() {
           pages: old.pages.map((p: any) => ({
             ...p,
             data: (p?.data ?? []).filter((n: NotificationItem) => n.id !== id),
+            meta: {
+              ...p.meta,
+              pagination: {
+                ...p.meta?.pagination,
+                total: Math.max(0, (p.meta?.pagination?.total ?? 1) - 1),
+              },
+            },
           })),
         };
       });
+      // If deleted notification was unread, decrement unread count optimistically
+      const deletedItem = allNotifications.find((n) => n.id === id);
+      if (deletedItem && !deletedItem.isRead) {
+        queryClient.setQueryData(['platform-admin', 'notifications', 'unread-count'], (old: any) => ({
+          count: Math.max(0, (old?.count ?? 1) - 1),
+        }));
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['platform-notifications'] });
@@ -402,6 +416,47 @@ export function PlatformNotificationsModule() {
   // Delete ALL notifications — DELETE /api/platform/admin/notifications
   const deleteAllMutation = useMutation({
     mutationFn: () => deleteApi('/api/platform/admin/notifications'),
+    onMutate: () => {
+      // Optimistically clear all notifications from local cache
+      queryClient.setQueryData(['platform-notifications', queryParams], (old: any) => {
+        if (!old?.pages) return old;
+        return {
+          ...old,
+          pages: old.pages.map((p: any) => ({
+            ...p,
+            data: [],
+            meta: {
+              ...p.meta,
+              pagination: {
+                ...p.meta?.pagination,
+                total: 0,
+                totalPages: 1,
+              },
+            },
+          })),
+        };
+      });
+      // Also clear all notifications queries across any other tabs/filters
+      queryClient.setQueriesData({ queryKey: ['platform-notifications'] }, (old: any) => {
+        if (!old?.pages) return old;
+        return {
+          ...old,
+          pages: old.pages.map((p: any) => ({
+            ...p,
+            data: [],
+            meta: {
+              ...p.meta,
+              pagination: {
+                ...p.meta?.pagination,
+                total: 0,
+                totalPages: 1,
+              },
+            },
+          })),
+        };
+      });
+      queryClient.setQueryData(['platform-admin', 'notifications', 'unread-count'], { count: 0 });
+    },
     onSuccess: () => {
       toast.success(t('platformNotifications.allDeleted'));
       queryClient.invalidateQueries({ queryKey: ['platform-notifications'] });

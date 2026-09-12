@@ -1231,6 +1231,50 @@ function EventDetailsModal({
     onClose();
   }, [event, isArticle, isCampaign, onNavigate, onClose]);
 
+  const formatKeywords = (raw: any): string => {
+    if (!raw) return '';
+    // 1. If raw.keywords is an array of keywords with items
+    if (Array.isArray(raw.keywords) && raw.keywords.length > 0) {
+      const list = raw.keywords.map((k: string) => k.trim()).filter(Boolean);
+      if (raw.primaryKeyword && typeof raw.primaryKeyword === 'string') {
+        const pk = raw.primaryKeyword.trim();
+        if (
+          !list.some((k) => k.toLowerCase() === pk.toLowerCase()) &&
+          pk.toLowerCase() !== list.join(' ').toLowerCase()
+        ) {
+          list.unshift(pk);
+        }
+      }
+      if (list.length > 1) {
+        return Array.from(new Set(list)).join(', ');
+      }
+    }
+    // 2. If raw.tags exists and has multiple items
+    if (Array.isArray(raw.tags) && raw.tags.length > 1) {
+      return Array.from(new Set(raw.tags.map((t: string) => t.trim()).filter(Boolean))).join(', ');
+    }
+    // 3. From raw.primaryKeyword
+    const pk = typeof raw.primaryKeyword === 'string' ? raw.primaryKeyword.trim() : '';
+    if (pk) {
+      if (pk.includes(',')) {
+        return pk.split(',').map((s) => s.trim()).filter(Boolean).join(', ');
+      }
+      if (pk.includes(';')) {
+        return pk.split(';').map((s) => s.trim()).filter(Boolean).join(', ');
+      }
+      // If no commas, separate multi-word phrases:
+      const words = pk.split(/\s+/);
+      if (words.length === 4) {
+        return `${words[0]} ${words[1]}, ${words[2]} ${words[3]}`;
+      }
+      if (words.length > 2) {
+        return words.join(', ');
+      }
+      return pk;
+    }
+    return '';
+  };
+
   return (
     <Dialog open={!!event} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-lg bg-card border border-border shadow-xl rounded-xl">
@@ -1241,7 +1285,7 @@ function EventDetailsModal({
             )}
             <span className="text-foreground">{event?.title ?? t('calendar.eventDetails')}</span>
           </DialogTitle>
-          <DialogDescription className="text-xs text-muted-foreground">
+          <DialogDescription className="sr-only">
             {t('calendar.eventDetailsDescription')}
           </DialogDescription>
         </DialogHeader>
@@ -1292,8 +1336,11 @@ function EventDetailsModal({
             )}
             {isIdea && event.raw && (
               <div className="space-y-3 text-sm">
-                {event.raw.primaryKeyword && (
-                  <DetailRow label={t('calendar.primaryKeyword') || 'Primary Keyword'} value={event.raw.primaryKeyword} />
+                {formatKeywords(event.raw) && (
+                  <DetailRow
+                    label={t('calendar.primaryKeyword') || 'Primary Keyword'}
+                    value={formatKeywords(event.raw)}
+                  />
                 )}
                 {event.raw.description && (
                   <DetailRow label={t('calendar.descriptionLabel') || 'Description'} value={event.raw.description} />

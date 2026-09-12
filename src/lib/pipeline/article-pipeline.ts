@@ -16,6 +16,7 @@ import { detectCannibalization } from '@/lib/skills/seo-ranking/cannibalization'
 import type { CannibalizationReport } from '@/lib/skills/seo-ranking/types';
 import { validateArticleSeo } from '@/lib/skills/seo-ranking/validator';
 import { generateValidSchema } from '@/lib/skills/seo-ranking/schema-builder';
+import { markdownToEditorHtml } from './markdown-to-html';
 import type {
   ArticlePipelineInput,
   ArticlePipelineContext,
@@ -61,6 +62,8 @@ function inferClassification(title: string, nicheInput?: string, typeInput?: str
     else if (/prun|plant|soil|tomato|leaf|garden/i.test(normTitle)) niche = 'gardening';
     else if (/faucet|toilet|tile|wood|repair|diy|wall/i.test(normTitle)) niche = 'home-diy';
     else if (/headphone|app|laptop|software|phone|gpu|pc/i.test(normTitle)) niche = 'technology';
+    else if (/car|cars|vehicle|driv|suv|sedan|truck|engine|hybrid|ev|commut/i.test(normTitle)) niche = 'cars';
+    else if (/invest|budget|credit|loan|money|saving/i.test(normTitle)) niche = 'finance';
   }
 
   return {
@@ -111,6 +114,8 @@ export async function runArticlePipeline(
   });
 
   const classification = inferClassification(input.title, input.niche, input.contentType);
+
+  console.log(`[PIPELINE] Phase 1: PLAN (SEO Ranking Skill) - Intent: ${intent.primary_intent.toUpperCase()} (${intent.user_goal}) | Primary KW: "${primaryKw}" | Outline: ${contentBrief.outline.length} sections | Niche: ${classification.niche}`);
 
   // If this was only an idea-screen call, return brief and intent screen early
   if (operation === 'idea-screen') {
@@ -263,13 +268,25 @@ export async function runArticlePipeline(
   // ============================================================
   // PHASE 2: WRITE (Content Style Skill)
   // ============================================================
+  const secondaryKws = keywordMap.secondary_keywords.map((k) => k.term).filter(Boolean);
   const briefSummary = `
-Search Intent: ${intent.primary_intent.toUpperCase()} (${intent.user_goal})
-Key Entities: ${keywordMap.semantic_entities.join(', ')}
-Recommended Outline:
-${contentBrief.outline.map((o) => `  ${o.level}: ${o.heading} (${o.purpose})`).join('\n')}
-Information Gain Priorities:
+SEARCH INTENT: ${intent.primary_intent.toUpperCase()} - ${intent.user_goal}
+PRIMARY KEYWORD: ${primaryKw}
+SECONDARY KEYWORDS: ${secondaryKws.length > 0 ? secondaryKws.join(', ') : 'None specified'}
+SEMANTIC TOPICS & KEY ENTITIES: ${keywordMap.semantic_entities.join(', ')}
+
+CONTENT STRUCTURE (RECOMMENDED OUTLINE):
+${contentBrief.outline.map((o) => `  ${o.level}: ${o.heading} (Purpose: ${o.purpose})`).join('\n')}
+
+INFORMATION GAIN PRIORITIES:
 ${contentBrief.information_gain_angles.map((a) => `  - ${a}`).join('\n')}
+
+EDITORIAL & SEO CONSTRAINTS:
+- Fulfill search intent immediately in the opening paragraph with concrete takeaway value.
+- Integrate primary keyword naturally in the title/H1 and intro; weave secondary keywords naturally across sections without keyword stuffing.
+- Use clean semantic markdown structure: exactly one H1 (#), followed by H2 (##) and H3 (###).
+- Keep paragraphs readable and concise (2-4 sentences).
+- Zero fluff, zero generic cliché openings, and zero fabricated statistics or quotes.
 `;
 
   let existingDraftToUse: string | undefined = undefined;
@@ -311,6 +328,8 @@ ${contentBrief.information_gain_angles.map((a) => `  - ${a}`).join('\n')}
     { role: 'user', content: userPrompt },
   ];
 
+
+  console.log(`[PIPELINE] Phase 2: WRITE (Content Style Skill) - Injected brief & style constraints. Target: ~${targetWords} words, Archetype: ${classification.content_type}, Niche: ${classification.niche}. Dispatching AI request to ${activeProvider ? activeProvider.name : 'Platform SDK'}...`);
 
   const numberOfDrafts = input.numberOfDrafts || 1;
   const rawDrafts: string[] = [];
@@ -357,6 +376,8 @@ ${contentBrief.information_gain_angles.map((a) => `  - ${a}`).join('\n')}
   }
 
   let primaryArticle = rawDrafts[0] || '';
+  const initialWordCount = primaryArticle.split(/\s+/).filter(Boolean).length;
+  console.log(`[PIPELINE] AI Generation complete. Output: ${rawDrafts.length} draft(s), ~${initialWordCount} words.`);
 
   // ============================================================
   // PHASE 3 & PHASE 4: VALIDATE & OPTIMIZE (Fix Loop - Max 2 Passes)
@@ -379,12 +400,15 @@ ${contentBrief.information_gain_angles.map((a) => `  - ${a}`).join('\n')}
     content_brief: contentBrief,
   });
 
+  console.log(`[PIPELINE] Phase 3: VALIDATE - Initial Editorial: ${editorialReport.verdict} (Score: ${editorialReport.score}/100, Issues: ${editorialReport.issues.length}) | Initial SEO: ${seoReport.verdict} (Score: ${seoReport.scores.content_score}/100, Issues: ${seoReport.issues.length})`);
+
   // OPTIMIZE: Auto-fix loop (up to 2 passes)
   for (let pass = 0; pass < 2; pass++) {
     const hasEditorialDefect = editorialReport.verdict !== 'PASS';
     const hasSeoDefect = seoReport.verdict !== 'PASS';
     if (!hasEditorialDefect && !hasSeoDefect) break;
 
+    console.log(`[PIPELINE] Phase 4: OPTIMIZE - Auto-fix loop pass ${pass + 1}...`);
     let modified = primaryArticle;
 
     // Fix 1: Ensure exactly one H1 at the top if missing
@@ -392,12 +416,15 @@ ${contentBrief.information_gain_angles.map((a) => `  - ${a}`).join('\n')}
       modified = `# ${input.title}\n\n${modified}`;
     }
 
-    // Fix 2: Remove generic AI opener phrases if flagged in CS-02
+    // Fix 2: Remove generic AI opener phrases and buzzwords if flagged in CS-02 or CS-19
     const cs02 = editorialReport.checks.find((c) => c.id === 'CS-02');
-    if (cs02 && cs02.result !== 'PASS') {
+    const cs19 = editorialReport.checks.find((c) => c.id === 'CS-19');
+    if ((cs02 && cs02.result !== 'PASS') || (cs19 && cs19.result !== 'PASS')) {
       modified = modified
         .replace(/In today's fast-paced world,?\s*/gi, '')
         .replace(/In today's world,?\s*/gi, '')
+        .replace(/When it comes to (?:choosing|buying|selecting)\s+/gi, 'Choosing ')
+        .replace(/When it comes to\s+/gi, 'For ')
         .replace(/Whether you're a beginner or[^,.]*[,.]\s*/gi, '')
         .replace(/Look no further[^,.]*[,.]\s*/gi, '')
         .replace(/Let's dive in[^,.]*[,.]\s*/gi, '');
@@ -476,13 +503,16 @@ ${contentBrief.information_gain_angles.map((a) => `  - ${a}`).join('\n')}
     authorName: input.authorName,
   });
 
+  const primaryHtml = markdownToEditorHtml(primaryArticle);
   const draftsOutput: GeneratedDraftOutput[] = rawDrafts.map((d) => ({
-    content: d,
+    content: markdownToEditorHtml(d),
+    markdownContent: d,
     wordCount: d.split(/\s+/).filter(Boolean).length,
   }));
   // Replace primary draft with polished output
   if (draftsOutput[0]) {
-    draftsOutput[0].content = primaryArticle;
+    draftsOutput[0].content = primaryHtml;
+    draftsOutput[0].markdownContent = primaryArticle;
     draftsOutput[0].wordCount = primaryArticle.split(/\s+/).filter(Boolean).length;
   }
 
@@ -493,6 +523,7 @@ ${contentBrief.information_gain_angles.map((a) => `  - ${a}`).join('\n')}
     operation,
     drafts: draftsOutput,
     primaryContent: primaryArticle,
+    htmlContent: primaryHtml,
     seoFields: {
       seoTitle: contentBrief.title_options.recommended,
       seoDescription: contentBrief.recommended_meta_description,

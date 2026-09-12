@@ -25,7 +25,14 @@ export function buildContentBrief(input: BuildContentBriefInput): ContentBrief {
     : input.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
   const recommendedTitle = input.title.length <= 60 ? input.title : `${primaryKw}: Practical Guide`;
-  const metaDescription = `Learn how to ${primaryKw} with clear, step-by-step guidance. Discover recommended methods, key thresholds, and mistakes to avoid.`.slice(0, 155);
+  let metaDescription = '';
+  if (intent.primary_intent === 'commercial') {
+    metaDescription = `Compare the top options for ${primaryKw}. Review key evaluation criteria, real-world tradeoffs, and recommendations to find the right choice.`.slice(0, 155);
+  } else if (intent.primary_intent === 'informational') {
+    metaDescription = `Learn how to ${primaryKw} with clear, step-by-step guidance. Discover recommended methods, key thresholds, and mistakes to avoid.`.slice(0, 155);
+  } else {
+    metaDescription = `Comprehensive guide to ${primaryKw}. Discover key considerations, practical tips, and essential insights.`.slice(0, 155);
+  }
 
   const outline: ContentBrief['outline'] = [];
 

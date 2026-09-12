@@ -35,6 +35,7 @@ const schema = z.object({
   siteId: z.string().optional().nullable(),
   niche: z.string().optional(),
   contentType: z.string().optional(),
+  stream: z.boolean().optional().default(false),
 });
 
 export async function POST(request: NextRequest) {
@@ -72,7 +73,13 @@ export async function POST(request: NextRequest) {
       siteId,
       niche,
       contentType,
+      stream: requestedStream,
     } = parsed.data;
+
+    const wantsStream =
+      requestedStream ||
+      request.headers.get('accept') === 'text/event-stream' ||
+      request.nextUrl.searchParams.get('stream') === 'true';
 
     const lengthMap: Record<string, string> = {
       'Short (300-600 words)': '300-600',
@@ -81,9 +88,89 @@ export async function POST(request: NextRequest) {
       'Comprehensive (3000+ words)': '3000+',
     };
     const wordCount = lengthMap[targetLength] || targetLength;
-
-    // Run the ONE centralized Article Pipeline
     const operation = mode === 'regenerate' ? 'regenerate' : mode === 'improve' ? 'improve' : 'generate';
+
+    if (wantsStream) {
+      const encoder = new TextEncoder();
+      const customStream = new ReadableStream({
+        async start(controller) {
+          const sendEvent = (event: string, data: any) => {
+            try {
+              controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+            } catch {}
+          };
+
+          try {
+            const pipelineResult = await runArticlePipeline(
+              operation,
+              {
+                title,
+                brief: brief || undefined,
+                keywords: keywords || undefined,
+                writingStyle,
+                targetLength: wordCount,
+                numberOfDrafts,
+                includeCta,
+                originalArticle,
+                authorName: auth.user.name || undefined,
+                siteId: siteId || undefined,
+                niche,
+                contentType,
+              },
+              {
+                userId: auth.user.id,
+                interactive: true,
+                onChunk: (delta, accumulated) => {
+                  sendEvent('chunk', { delta, accumulated });
+                },
+                signal: request.signal,
+              }
+            );
+
+            sendEvent('done', {
+              drafts: pipelineResult.drafts,
+              seo: {
+                seoTitle: pipelineResult.seoFields.seoTitle,
+                metaDescription: pipelineResult.seoFields.seoDescription,
+                seoDescription: pipelineResult.seoFields.seoDescription,
+                slug: pipelineResult.seoFields.slug,
+                focusKeyword: pipelineResult.seoFields.focusKeyword,
+                schemaJsonLd: pipelineResult.seoFields.schemaJsonLd,
+                overallScore: pipelineResult.seoReport.scores.content_score,
+                verdict: pipelineResult.verdict,
+                scores: pipelineResult.seoReport.scores,
+                issues: pipelineResult.seoReport.issues,
+                nextActions: pipelineResult.seoReport.next_actions,
+              },
+              seoReport: pipelineResult.seoReport,
+              editorialReport: pipelineResult.editorialReport,
+              contentBrief: pipelineResult.contentBrief,
+              cannibalization: pipelineResult.cannibalization,
+              verdict: pipelineResult.verdict,
+              warnings: pipelineResult.warnings,
+              quarantined: pipelineResult.quarantined,
+            });
+
+            controller.close();
+          } catch (error) {
+            const msg = error instanceof Error ? error.message : 'Failed to generate article';
+            sendEvent('error', { message: msg });
+            controller.close();
+          }
+        },
+      });
+
+      return new Response(customStream, {
+        headers: {
+          'Content-Type': 'text/event-stream; charset=utf-8',
+          'Cache-Control': 'no-cache, no-transform',
+          'Connection': 'keep-alive',
+          'X-Accel-Buffering': 'no',
+        },
+      });
+    }
+
+    // Run the ONE centralized Article Pipeline non-streaming
     const pipelineResult = await runArticlePipeline(
       operation,
       {

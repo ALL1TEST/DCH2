@@ -255,12 +255,16 @@ export async function POST(request: NextRequest) {
     // ---- Internally select the Platform Admin prompt (Prompt
     // Library slot "ideas") and inject the tool variables — the
     // client never sees the prompt templates. ----
-    const platformPrompt = await resolvePlatformPrompt('ideas', {
-      niche: niche ?? '',
-      keywords: keywords ?? '',
-      count: String(count),
-      existingTitles: (existingTitles ?? []).join('\n'),
-    });
+    const platformPrompt = await resolvePlatformPrompt(
+      'ideas',
+      {
+        niche: niche ?? '',
+        keywords: keywords ?? '',
+        count: String(count),
+        existingTitles: (existingTitles ?? []).join('\n'),
+      },
+      { userId: auth.user.id },
+    );
 
     const systemPrompt = platformPrompt?.systemPrompt || buildSystemPrompt(count, existingTitles);
     const userPrompt = platformPrompt?.userPrompt || buildUserPrompt(niche ?? '', keywords ?? '', count);

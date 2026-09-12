@@ -415,6 +415,8 @@ function mapUserToCustomer(
     status: string;
     billingMode: string;
     createdAt: Date;
+    bio?: string | null;
+    website?: string | null;
   },
   sub: {
     planId: string;
@@ -432,6 +434,26 @@ function mapUserToCustomer(
   const billingInterval: BillingInterval = sub && sub.billingInterval === 'yearly' ? 'yearly' : 'monthly';
   const userStatus: CustomerStatus =
     user.status === 'SUSPENDED' ? 'SUSPENDED' : user.status === 'DEACTIVATED' ? 'DEACTIVATED' : 'ACTIVE';
+
+  let company: string | null = null;
+  let country = '—';
+  if (user.bio) {
+    try {
+      if (user.bio.startsWith('{')) {
+        const parsed = JSON.parse(user.bio);
+        if (parsed.company) company = parsed.company;
+        if (parsed.country) country = parsed.country;
+      } else {
+        company = user.bio;
+      }
+    } catch {
+      company = user.bio;
+    }
+  }
+  if (user.website && country === '—') {
+    country = user.website;
+  }
+
   return {
     id: user.id,
     name: user.name ?? user.email,
@@ -444,8 +466,8 @@ function mapUserToCustomer(
     subscriptionStart: sub ? sub.startDate.toISOString() : user.createdAt.toISOString(),
     nextBillingAt: sub?.currentPeriodEnd?.toISOString() ?? null,
     trialEnd: sub?.trialEnd?.toISOString() ?? null,
-    company: null,
-    country: '—',
+    company,
+    country,
     storageLimitBytes: storageLimitBytesForPlan(planId),
   };
 }
@@ -646,7 +668,20 @@ export async function listCustomers(opts?: {
     take: 500,
   });
 
-  return users.map((u) => ({ ...mapUserToCustomer(u, u.subscription), siteCount: 0 }));
+  const userIds = users.map((u) => u.id);
+  const siteCounts = await db.site.groupBy({
+    by: ['ownerId'],
+    where: { ownerId: { in: userIds } },
+    _count: { id: true },
+  }).catch(() => []);
+  const siteCountMap = Object.fromEntries(
+    siteCounts.map((sc) => [sc.ownerId ?? '', sc._count.id])
+  );
+
+  return users.map((u) => ({
+    ...mapUserToCustomer(u, u.subscription),
+    siteCount: siteCountMap[u.id] ?? 0,
+  }));
 }
 
 /** SYNC mock-store version of listCustomers — kept private so the
@@ -708,10 +743,37 @@ export async function getCustomer(id: string): Promise<CustomerDetail | null> {
 
   const customer = mapUserToCustomer(user, user.subscription);
 
-  // No real Sites-per-customer table populated — return empty (UI
-  // handles with EmptyState). siteCount stays 0 to match.
-  const sites: PlatformSite[] = [];
-  const siteCount = 0;
+  // Real Sites owned by this customer
+  const dbSites = await db.site.findMany({
+    where: { ownerId: user.id },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      domain: true,
+      status: true,
+      createdAt: true,
+      _count: {
+        select: {
+          contentItems: { where: { deletedAt: null } },
+          media: true,
+        },
+      },
+    },
+  });
+  const sites: PlatformSite[] = dbSites.map((s) => ({
+    id: s.id,
+    customerId: user.id,
+    name: s.name,
+    slug: s.slug,
+    domain: s.domain ?? `${s.slug}.platform.local`,
+    status: s.status as 'ACTIVE' | 'MAINTENANCE' | 'SUSPENDED' | 'ARCHIVED',
+    articles: s._count?.contentItems ?? 0,
+    media: s._count?.media ?? 0,
+    storageBytes: (s._count?.media ?? 0) * 1024 * 1024 * 2,
+    createdAt: s.createdAt.toISOString(),
+  }));
+  const siteCount = sites.length;
 
   // Real Payment rows — synthesize the user field so the existing
   // mapper works, then strip the customerName/customerEmail extras

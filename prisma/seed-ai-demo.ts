@@ -338,113 +338,68 @@ async function main() {
     isFavorite: boolean;
   };
 
-  const promptSpecs: PromptSpec[] = [
-    {
-      id: 'p-blog-article-writer',
-      name: 'Blog Article Writer',
-      category: 'CONTENT_GENERATION',
-      description: 'Generate a complete, SEO-optimized blog article from a topic and target audience.',
-      tags: ['blog', 'seo', 'writing'],
-      variables: { topic: '', audience: 'general', tone: 'professional', wordCount: 800 },
-      systemPrompt: 'You are an expert blog writer who creates engaging, well-structured, SEO-optimized articles. Always include a compelling headline, an introduction that hooks the reader, clear section headings, and a strong conclusion with a call to action.',
-      userPrompt: 'Write a {{wordCount}}-word blog article about "{{topic}}" for a {{audience}} audience. Use a {{tone}} tone. Include 3-5 section headings and a conclusion.',
-      providerId: providers.openai.id,
-      modelId: 'm-openai-gpt5',
-      temperature: 0.7,
-      maxTokens: 2048,
-      isFavorite: true,
-    },
-    {
-      id: 'p-seo-meta-description',
-      name: 'SEO Meta Description',
-      category: 'SEO',
-      description: 'Generate a concise, keyword-rich meta description for a given page title and target keyword.',
-      tags: ['seo', 'meta', 'description'],
-      variables: { pageTitle: '', targetKeyword: '', maxLength: 160 },
-      systemPrompt: 'You are an SEO specialist. Write compelling meta descriptions that are exactly between 150-160 characters, include the target keyword naturally, and encourage click-through. Return only the meta description text, no quotes or extra commentary.',
-      userPrompt: 'Write a meta description (max {{maxLength}} characters) for a page titled "{{pageTitle}}" targeting the keyword "{{targetKeyword}}".',
-      providerId: providers.openai.id,
-      modelId: 'm-openai-gpt5-mini',
-      temperature: 0.4,
-      maxTokens: 100,
-      isFavorite: false,
-    },
-    {
-      id: 'p-image-prompt-generator',
-      name: 'Image Prompt Generator',
-      category: 'IMAGE_GENERATION',
-      description: 'Transform a simple concept into a detailed, vivid image generation prompt.',
-      tags: ['image', 'generation'],
-      variables: { concept: '', style: 'photorealistic', aspectRatio: '16:9' },
-      systemPrompt: 'You are a prompt engineer specializing in image generation. Transform simple concepts into detailed, vivid prompts that produce high-quality images. Include details about composition, lighting, style, mood, and technical specs.',
-      userPrompt: 'Create a detailed image generation prompt for: "{{concept}}". Style: {{style}}. Aspect ratio: {{aspectRatio}}. Return only the prompt text.',
-      providerId: providers.gemini.id,
-      modelId: 'm-gemini-pro',
-      temperature: 0.8,
-      maxTokens: 300,
-      isFavorite: true,
-    },
-  ];
+  const { UNIVERSAL_OPERATIONS } = await import('../src/lib/ai/universal-prompt-engine');
 
-  for (const p of promptSpecs) {
-    // Delete existing versions first (can't upsert nested create with unique constraint easily)
-    await db.promptTemplateVersion.deleteMany({ where: { templateId: p.id } }).catch(() => {});
+  for (const [key, op] of Object.entries(UNIVERSAL_OPERATIONS)) {
+    const promptId = `p-${key}`;
+    const varsObj: Record<string, unknown> = {};
+    for (const v of op.variables) {
+      varsObj[v.name] = v.default !== undefined ? v.default : '';
+    }
+
+    await db.promptTemplateVersion.deleteMany({ where: { templateId: promptId } }).catch(() => {});
 
     await db.promptTemplate.upsert({
-      where: { id: p.id },
+      where: { id: promptId },
       update: {
-        name: p.name,
-        category: p.category,
-        description: p.description,
-        tags: JSON.stringify(p.tags),
-        variables: JSON.stringify(p.variables),
-        systemPrompt: p.systemPrompt,
-        userPrompt: p.userPrompt,
-        providerId: p.providerId,
-        modelId: p.modelId,
-        temperature: p.temperature,
-        maxTokens: p.maxTokens,
+        name: op.name,
+        category: op.category,
+        description: op.description,
+        tags: JSON.stringify(op.tags),
+        variables: JSON.stringify(varsObj),
+        systemPrompt: op.defaultSystemPrompt,
+        userPrompt: op.defaultUserPrompt,
+        temperature: op.defaultTemperature,
+        maxTokens: op.defaultMaxTokens,
         isActive: true,
-        isFavorite: p.isFavorite,
         isShared: true,
+        sourceType: 'PLATFORM',
+        ownerId: null,
       },
       create: {
-        id: p.id,
-        name: p.name,
-        category: p.category,
-        description: p.description,
-        tags: JSON.stringify(p.tags),
-        variables: JSON.stringify(p.variables),
-        systemPrompt: p.systemPrompt,
-        userPrompt: p.userPrompt,
-        providerId: p.providerId,
-        modelId: p.modelId,
-        temperature: p.temperature,
-        maxTokens: p.maxTokens,
+        id: promptId,
+        name: op.name,
+        category: op.category,
+        description: op.description,
+        tags: JSON.stringify(op.tags),
+        variables: JSON.stringify(varsObj),
+        systemPrompt: op.defaultSystemPrompt,
+        userPrompt: op.defaultUserPrompt,
+        temperature: op.defaultTemperature,
+        maxTokens: op.defaultMaxTokens,
         isActive: true,
-        isFavorite: p.isFavorite,
+        isFavorite: false,
         isShared: true,
+        sourceType: 'PLATFORM',
+        ownerId: null,
         version: 1,
-        usageCount: Math.floor(Math.random() * 50) + 1,
+        usageCount: Math.floor(Math.random() * 20) + 1,
         createdById,
         versions: {
           create: {
             version: 1,
-            systemPrompt: p.systemPrompt,
-            userPrompt: p.userPrompt,
-            variables: JSON.stringify(p.variables),
-            temperature: p.temperature,
-            maxTokens: p.maxTokens,
+            systemPrompt: op.defaultSystemPrompt,
+            userPrompt: op.defaultUserPrompt,
+            variables: JSON.stringify(varsObj),
+            temperature: op.defaultTemperature,
+            maxTokens: op.defaultMaxTokens,
             createdById,
           },
         },
       },
     });
+    console.log(`  ✓ [${op.category}] ${op.name}`);
   }
-
-  console.log('  ✓ Blog Article Writer (Content Generation) → OpenAI Test / GPT-5');
-  console.log('  ✓ SEO Meta Description (SEO) → OpenAI Test / GPT-5 mini');
-  console.log('  ✓ Image Prompt Generator (Image Generation) → Google Gemini Test / Gemini 2.5 Pro');
 
   // ============================================================
   // SUMMARY

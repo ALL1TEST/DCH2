@@ -4,7 +4,7 @@
 // ============================================================
 
 import { db } from '@/lib/db';
-import { executeChat, type ChatMessage } from '@/lib/ai/ai-service';
+import { executeChat, executeChatStream, type ChatMessage } from '@/lib/ai/ai-service';
 import { resolveAiProviderForUser, resolvePlatformPrompt, getOperationMaxTokens, slotForAction } from '@/lib/ai/platform-ai';
 import { buildContentStylePrompts, buildContentStyleSelectionPrompts } from '@/lib/skills/content-style/prompts';
 import { validateContentStyle } from '@/lib/skills/content-style/validator';
@@ -173,11 +173,15 @@ export async function runArticlePipeline(
     });
 
     const slot = slotForAction(action);
-    const platformPrompt = await resolvePlatformPrompt(slot, {
-      text: textToEdit,
-      action,
-      context: input.selectionContext ?? '',
-    });
+    const platformPrompt = await resolvePlatformPrompt(
+      slot,
+      {
+        text: textToEdit,
+        action,
+        context: input.selectionContext ?? '',
+      },
+      { userId: context.userId, siteId: input.siteId },
+    );
 
     const systemPrompt = platformPrompt?.systemPrompt
       ? `${editorialPrompts.systemPrompt}\n\nADDITIONAL PLATFORM INSTRUCTIONS:\n${platformPrompt.systemPrompt}`
@@ -306,14 +310,22 @@ EDITORIAL & SEO CONSTRAINTS:
     existing_draft: existingDraftToUse,
   });
 
-  const platformPrompt = await resolvePlatformPrompt('article', {
-    title: input.title,
-    brief: input.brief ?? '',
-    keywords: input.keywords ?? '',
-    style: input.writingStyle ?? 'Professional',
-    length: String(targetWords),
-    cta: input.includeCta ? 'Include a natural, helpful conclusion with next steps.' : '',
-  });
+  const platformPrompt = await resolvePlatformPrompt(
+    'article',
+    {
+      topic: input.title,
+      title: input.title,
+      brief: input.brief ?? '',
+      keywords: input.keywords ?? '',
+      primary_keyword: primaryKw,
+      secondary_keywords: secondaryKws.join(', '),
+      style: input.writingStyle ?? 'Professional',
+      length: String(targetWords),
+      word_count: String(targetWords),
+      cta: input.includeCta ? 'Include a natural, helpful conclusion with next steps.' : '',
+    },
+    { userId: context.userId, siteId: input.siteId },
+  );
 
   const systemPrompt = platformPrompt?.systemPrompt
     ? `${editorialPrompts.systemPrompt}\n\nADDITIONAL PLATFORM INSTRUCTIONS:\n${platformPrompt.systemPrompt}`
@@ -350,28 +362,76 @@ EDITORIAL & SEO CONSTRAINTS:
     const genTemperature = platformPrompt?.temperature ?? effectiveSettings?.defaultTemperature ?? 0.7;
     const genMaxTokens = getOperationMaxTokens('article', platformPrompt?.maxTokens ?? 4000);
 
-    for (let i = 0; i < numberOfDrafts; i++) {
-      const result = await executeChat({
-        providerId: activeProvider.id,
-        messages,
-        temperature: genTemperature + i * 0.1,
-        maxTokens: genMaxTokens,
-        ...(modelId ? { modelId } : {}),
-        userId: context.userId,
-      });
+    if (context.onChunk) {
+      // Interactive real-time streaming mode
+      const result = await executeChatStream(
+        {
+          providerId: activeProvider.id,
+          messages,
+          temperature: genTemperature,
+          maxTokens: genMaxTokens,
+          ...(modelId ? { modelId } : {}),
+          userId: context.userId,
+          signal: context.signal,
+        },
+        (delta, accumulated) => {
+          context.onChunk?.(delta, accumulated);
+        }
+      );
       rawDrafts.push(result.content);
+    } else {
+      for (let i = 0; i < numberOfDrafts; i++) {
+        const result = await executeChat({
+          providerId: activeProvider.id,
+          messages,
+          temperature: genTemperature + i * 0.1,
+          maxTokens: genMaxTokens,
+          ...(modelId ? { modelId } : {}),
+          userId: context.userId,
+        });
+        rawDrafts.push(result.content);
+      }
     }
   } else {
     // Platform SDK fallback
     const ZAI = (await import('z-ai-web-dev-sdk')).default;
     const zai = await ZAI.create();
-    for (let i = 0; i < numberOfDrafts; i++) {
-      const response = await zai.chat.completions.create({
-        messages,
-        thinking: { type: 'disabled' },
-      });
-      const content = response?.choices?.[0]?.message?.content ?? '';
-      rawDrafts.push(content);
+
+    if (context.onChunk) {
+      try {
+        const stream = await zai.chat.completions.create({
+          messages,
+          thinking: { type: 'disabled' },
+          stream: true,
+        });
+        let accumulated = '';
+        for await (const chunk of stream) {
+          if (context.signal?.aborted) break;
+          const delta = chunk?.choices?.[0]?.delta?.content || '';
+          if (delta) {
+            accumulated += delta;
+            context.onChunk(delta, accumulated);
+          }
+        }
+        rawDrafts.push(accumulated);
+      } catch {
+        const response = await zai.chat.completions.create({
+          messages,
+          thinking: { type: 'disabled' },
+        });
+        const content = response?.choices?.[0]?.message?.content ?? '';
+        rawDrafts.push(content);
+        context.onChunk(content, content);
+      }
+    } else {
+      for (let i = 0; i < numberOfDrafts; i++) {
+        const response = await zai.chat.completions.create({
+          messages,
+          thinking: { type: 'disabled' },
+        });
+        const content = response?.choices?.[0]?.message?.content ?? '';
+        rawDrafts.push(content);
+      }
     }
   }
 

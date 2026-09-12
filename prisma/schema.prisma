@@ -735,6 +735,7 @@ model User {
   aiJobs            AiJob[] @relation("AiJobCreator")
   aiLogs            AiLog[]
   promptTemplates   PromptTemplate[] @relation("PromptCreator")
+  ownedPrompts      PromptTemplate[] @relation("PromptOwner")
   contentContributions ContentContributor[]
   promptTemplateVersions PromptTemplateVersion[] @relation("PromptVersionAuthor")
   webhooks          Webhook[] @relation("WebhookCreator")
@@ -2591,6 +2592,8 @@ model PromptTemplate {
   isFavorite    Boolean          @default(false)
   isShared      Boolean          @default(true)
   usageCount    Int              @default(0)
+  sourceType    String           @default("PLATFORM") // PLATFORM | CLIENT
+  ownerId       String?          // null for PLATFORM; User ID for CLIENT
   siteId        String?
   createdById   String
   createdAt     DateTime         @default(now())
@@ -2598,11 +2601,14 @@ model PromptTemplate {
 
   site        Site?                   @relation(fields: [siteId], references: [id])
   createdBy    User                    @relation("PromptCreator", fields: [createdById], references: [id])
+  owner       User?                   @relation("PromptOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   provider    AiProvider?             @relation(fields: [providerId], references: [id])
   versions    PromptTemplateVersion[]
 
   @@index([category])
   @@index([isActive])
+  @@index([sourceType])
+  @@index([ownerId])
   @@index([siteId])
   @@index([createdById])
 }

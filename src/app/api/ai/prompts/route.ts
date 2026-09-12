@@ -4,27 +4,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { z } from 'zod/v4';
 import type { ApiResponse, ApiError } from '@/shared/types';
-import { requireFeatureAllowStaff } from '@/lib/platform/platform-auth';
+import { getAuthUser, isPlatformStaff } from '@/lib/platform/platform-auth';
+import { hasFeature } from '@/lib/platform/entitlements';
 
 // ============================================================
-// PROMPT LIBRARY.
-// The Prompt Library is part of the internal AI system — its
-// prompts are used internally by Platform AI (the system
-// internally selects the appropriate active prompt when an AI
-// tool runs). It is managed from the normal Admin User → AI page
-// (Prompt Library tab) and is NOT exposed as a visible page/tab
-// in the Platform Admin dashboard.
-//
-// ENTITLEMENT: the Prompt Library tab lives on the Admin User → AI
-// page, which belongs to the plan's "Client's Own AI API" feature
-// (ai_client) — NEVER to Platform AI (ai_platform). Platform AI only
-// gates the AI generation tools and their AI Articles/month +
-// AI Images/month limits. Server-side the gate is
-// requireFeatureAllowStaff('ai_client'): platform staff bypass (they
-// configure the platform's own AI stack), clients need the plan
-// feature — exactly like the Providers/Models routes of the same
-// page. The internal Platform AI usage of prompts
-// (resolvePlatformPrompt) reads the DB directly and is unaffected.
+// PROMPT LIBRARY API
+// Governed by the 3-layer architecture & plan-based ownership:
+// 1. "Platform AI" (ai_platform):
+//    - Read-only access to PLATFORM-managed universal prompts.
+// 2. "Client's Own AI API" (ai_client):
+//    - Full CRUD access to CLIENT-owned prompts (isolated by ownerId).
+// 3. Platform Staff (OWNER / PLATFORM_ADMIN):
+//    - Full management of PLATFORM prompts.
 // ============================================================
 
 // ---------- helpers ---------------------------------------------------
@@ -33,18 +24,12 @@ function reqId() {
   return 'req_' + crypto.randomUUID().slice(0, 8);
 }
 
-function ok<T>(data: T, meta?: Record<string, unknown>) {
-  return NextResponse.json({ data, meta: { requestId: reqId(), timestamp: new Date().toISOString(), ...meta } } satisfies ApiResponse<T>);
-}
-
 function err(message: string, status = 400, code = 'VALIDATION_ERROR') {
-  return NextResponse.json({ error: { code, message }, meta: { requestId: reqId(), timestamp: new Date().toISOString() } } satisfies ApiError, { status });
+  return NextResponse.json(
+    { error: { code, message }, meta: { requestId: reqId(), timestamp: new Date().toISOString() } } satisfies ApiError,
+    { status },
+  );
 }
-
-// ---------- parsing helpers ------------------------------------------
-// The Prisma schema stores `tags` and `variables` as JSON strings.
-// The frontend expects them as parsed objects/arrays. These helpers
-// normalize both the request body (incoming) and the response (outgoing).
 
 function parseTags(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw.filter((t): t is string => typeof t === 'string');
@@ -85,7 +70,18 @@ function serializePrompt<T extends Record<string, unknown>>(item: T): T {
 
 // ---------- validation ------------------------------------------------
 
-const CATEGORIES = ['CONTENT_GENERATION', 'IMAGE_GENERATION', 'SEO', 'TRANSLATION', 'SUMMARIZATION', 'MARKETING', 'SOCIAL_MEDIA', 'EMAIL', 'CODING', 'ANALYSIS'] as const;
+const CATEGORIES = [
+  'CONTENT_GENERATION',
+  'IMAGE_GENERATION',
+  'SEO',
+  'TRANSLATION',
+  'SUMMARIZATION',
+  'MARKETING',
+  'SOCIAL_MEDIA',
+  'EMAIL',
+  'CODING',
+  'ANALYSIS',
+] as const;
 
 const createSchema = z.object({
   name: z.string().min(1, 'Name is required').max(200).trim(),
@@ -101,19 +97,31 @@ const createSchema = z.object({
   maxTokens: z.number().int().positive().max(100000).optional(),
   siteId: z.string().optional().or(z.literal('')),
   isActive: z.boolean().optional(),
+  sourceType: z.enum(['PLATFORM', 'CLIENT']).optional(),
 });
 
 const SORTABLE = new Set(['createdAt', 'updatedAt', 'name', 'category', 'isActive', 'isFavorite', 'usageCount', 'version']);
 
 // =====================================================================
-// GET — list prompts
+// GET — list prompts (plan-entitlement aware)
 // =====================================================================
 
 export async function GET(request: NextRequest) {
   const id = reqId();
+  const user = await getAuthUser(request);
+  if (!user) return err('Authentication required', 401, 'UNAUTHORIZED');
 
-  const auth = await requireFeatureAllowStaff(request, 'ai_client');
-  if ('response' in auth) return auth.response;
+  const staff = isPlatformStaff(user);
+  const hasPlatformAi = staff || (await hasFeature(user, 'ai_platform'));
+  const hasClientAi = staff || (await hasFeature(user, 'ai_client'));
+
+  if (!staff && !hasPlatformAi && !hasClientAi) {
+    return err(
+      'Prompt Library requires Platform AI or Client\'s Own AI API access in your plan.',
+      403,
+      'FORBIDDEN',
+    );
+  }
 
   try {
     const sp = new URL(request.url).searchParams;
@@ -126,6 +134,7 @@ export async function GET(request: NextRequest) {
     const isActive = sp.get('isActive');
     const isFavorite = sp.get('isFavorite');
     const providerId = sp.get('providerId')?.trim();
+    const source = sp.get('source')?.trim()?.toLowerCase(); // 'all' | 'platform' | 'client'
 
     const where: Record<string, unknown> = {};
     if (search) where.name = { contains: search };
@@ -133,6 +142,39 @@ export async function GET(request: NextRequest) {
     if (providerId) where.providerId = providerId;
     if (isActive !== null && isActive !== undefined && isActive !== '') where.isActive = isActive === 'true';
     if (isFavorite !== null && isFavorite !== undefined && isFavorite !== '') where.isFavorite = isFavorite === 'true';
+
+    // Apply strict ownership filtering based on user entitlements
+    if (staff) {
+      if (source === 'client') {
+        where.sourceType = 'CLIENT';
+      } else if (source === 'all') {
+        // Staff can inspect all sources if explicitly requested
+      } else {
+        // Default for Platform Admin is PLATFORM prompts
+        where.sourceType = 'PLATFORM';
+      }
+    } else if (hasPlatformAi && hasClientAi) {
+      // User has access to both Platform and Client-owned prompts
+      if (source === 'platform') {
+        where.sourceType = 'PLATFORM';
+      } else if (source === 'client') {
+        where.sourceType = 'CLIENT';
+        where.ownerId = user.id;
+      } else {
+        // 'all' or default -> show both platform prompts and user's client prompts
+        where.OR = [
+          { sourceType: 'PLATFORM' },
+          { sourceType: 'CLIENT', ownerId: user.id },
+        ];
+      }
+    } else if (hasPlatformAi) {
+      // Platform AI only -> strictly platform-managed prompts
+      where.sourceType = 'PLATFORM';
+    } else if (hasClientAi) {
+      // Client's Own AI API only -> strictly client-owned prompts
+      where.sourceType = 'CLIENT';
+      where.ownerId = user.id;
+    }
 
     const orderBy: Record<string, string> = { [sort]: order };
 
@@ -145,16 +187,34 @@ export async function GET(request: NextRequest) {
         include: {
           provider: { select: { id: true, name: true, kind: true } },
           createdBy: { select: { id: true, name: true, email: true } },
+          owner: { select: { id: true, name: true, email: true } },
           _count: { select: { versions: true } },
         },
       }),
       db.promptTemplate.count({ where }),
     ]);
 
-    const serialized = items.map((item) => serializePrompt(item as unknown as Record<string, unknown>));
+    const serialized = items.map((item) => {
+      const s = serializePrompt(item as unknown as Record<string, unknown>);
+      const canEdit = staff || (item.sourceType === 'CLIENT' && item.ownerId === user.id);
+      return {
+        ...s,
+        canEdit,
+        isPlatformManaged: item.sourceType === 'PLATFORM',
+      };
+    });
 
     return NextResponse.json({
-      data: { data: serialized, pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } },
+      data: {
+        data: serialized,
+        pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+        entitlements: {
+          hasPlatformAi,
+          hasClientAi,
+          isStaff: staff,
+          canCreateCustom: staff || hasClientAi,
+        },
+      },
       meta: {
         requestId: id,
         timestamp: new Date().toISOString(),
@@ -167,14 +227,25 @@ export async function GET(request: NextRequest) {
 }
 
 // =====================================================================
-// POST — create prompt with version 1
+// POST — create prompt (plan-entitlement aware)
 // =====================================================================
 
 export async function POST(request: NextRequest) {
   const id = reqId();
+  const user = await getAuthUser(request);
+  if (!user) return err('Authentication required', 401, 'UNAUTHORIZED');
 
-  const auth = await requireFeatureAllowStaff(request, 'ai_client');
-  if ('response' in auth) return auth.response;
+  const staff = isPlatformStaff(user);
+  const hasClientAi = staff || (await hasFeature(user, 'ai_client'));
+
+  // Normal CMS users MUST have ai_client to create custom prompts
+  if (!staff && !hasClientAi) {
+    return err(
+      'Creating custom prompts requires the Client\'s Own AI API plan feature. With Platform AI, you can use active platform prompts in workflows.',
+      403,
+      'FORBIDDEN',
+    );
+  }
 
   try {
     let body: unknown;
@@ -187,20 +258,21 @@ export async function POST(request: NextRequest) {
     const parsed = createSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
-        { error: { code: 'VALIDATION_ERROR', message: parsed.error.issues[0]?.message ?? 'Invalid input', details: parsed.error.issues.map((i) => ({ field: i.path.join('.'), message: i.message })) }, meta: { requestId: id, timestamp: new Date().toISOString() } },
+        {
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: parsed.error.issues[0]?.message ?? 'Invalid input',
+            details: parsed.error.issues.map((i) => ({ field: i.path.join('.'), message: i.message })),
+          },
+          meta: { requestId: id, timestamp: new Date().toISOString() },
+        },
         { status: 400 },
       );
     }
 
     const d = parsed.data;
 
-    // Attribute the prompt to the authenticated user.
-    let creator = await db.user.findUnique({ where: { id: auth.user.id }, select: { id: true } });
-    if (!creator) creator = await db.user.findFirst({ where: { role: 'ADMIN' }, select: { id: true } });
-    if (!creator) creator = await db.user.findFirst({ select: { id: true } });
-    if (!creator) return err('No user exists to attribute the prompt to', 500, 'NO_USER');
-
-    // Validate provider/model FK references + relationship
+    // Validate provider/model FK references if specified
     if (d.providerId && d.providerId !== '') {
       const provider = await db.aiProvider.findUnique({ where: { id: d.providerId } });
       if (!provider) return err('Selected provider not found', 404, 'NOT_FOUND');
@@ -215,21 +287,27 @@ export async function POST(request: NextRequest) {
         if (!model.isActive) {
           return err('Cannot use an inactive model for a prompt', 400, 'MODEL_INACTIVE');
         }
-        // Prompts execute as TEXT (chat) — reject IMAGE-type models
         if (model.type?.toUpperCase() === 'IMAGE') {
           return err('Image models cannot be used for text prompts. Please select a TEXT model.', 400, 'MODEL_TYPE_MISMATCH');
         }
       }
     } else if (d.modelId && d.modelId !== '') {
-      // Model without provider — invalid
       return err('A provider must be selected when a model is specified', 400, 'MODEL_WITHOUT_PROVIDER');
     }
 
-    // Serialize tags/variables back to JSON strings for storage
     const tagsJson = Array.isArray(d.tags) ? JSON.stringify(d.tags) : (d.tags ?? null);
-    const variablesJson = (typeof d.variables === 'object' && d.variables !== null)
-      ? JSON.stringify(d.variables)
-      : (typeof d.variables === 'string' && d.variables !== '' ? d.variables : null);
+    const variablesJson =
+      typeof d.variables === 'object' && d.variables !== null
+        ? JSON.stringify(d.variables)
+        : typeof d.variables === 'string' && d.variables !== ''
+          ? d.variables
+          : null;
+
+    // Ownership attribution:
+    // Platform staff create PLATFORM prompts (ownerId: null)
+    // CMS users create CLIENT prompts (ownerId: user.id)
+    const sourceType = staff ? (d.sourceType || 'PLATFORM') : 'CLIENT';
+    const ownerId = sourceType === 'CLIENT' ? user.id : null;
 
     const item = await db.promptTemplate.create({
       data: {
@@ -246,8 +324,10 @@ export async function POST(request: NextRequest) {
         maxTokens: d.maxTokens,
         siteId: d.siteId === '' ? null : d.siteId ?? null,
         isActive: d.isActive ?? true,
+        sourceType,
+        ownerId,
         version: 1,
-        createdById: creator.id,
+        createdById: user.id,
         versions: {
           create: {
             version: 1,
@@ -256,13 +336,30 @@ export async function POST(request: NextRequest) {
             variables: variablesJson,
             temperature: d.temperature,
             maxTokens: d.maxTokens,
-            createdById: creator.id,
+            createdById: user.id,
           },
         },
       },
+      include: {
+        provider: { select: { id: true, name: true, kind: true } },
+        createdBy: { select: { id: true, name: true, email: true } },
+        owner: { select: { id: true, name: true, email: true } },
+        _count: { select: { versions: true } },
+      },
     });
 
-    return ok(serializePrompt(item as unknown as Record<string, unknown>), { _status: 201 });
+    const serialized = serializePrompt(item as unknown as Record<string, unknown>);
+    return NextResponse.json({
+      data: {
+        ...serialized,
+        canEdit: true,
+        isPlatformManaged: sourceType === 'PLATFORM',
+      },
+      meta: {
+        requestId: id,
+        timestamp: new Date().toISOString(),
+      },
+    });
   } catch (error) {
     console.error(`[AI/PROMPTS:CREATE] ${id} —`, error);
     return err('Failed to create prompt', 500, 'INTERNAL_ERROR');

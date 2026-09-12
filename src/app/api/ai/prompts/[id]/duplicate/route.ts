@@ -3,12 +3,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import type { ApiResponse, ApiError } from '@/shared/types';
-import { requireFeatureAllowStaff } from '@/lib/platform/platform-auth';
-
-// Prompt library management — same rule as /api/ai/prompts: gated by
-// the plan's "Client's Own AI API" feature (ai_client) for clients,
-// platform staff bypass (the Prompt Library is not exposed as a tab
-// in Platform Admin, but the backend functionality is kept).
+import { getAuthUser, isPlatformStaff } from '@/lib/platform/platform-auth';
+import { hasFeature } from '@/lib/platform/entitlements';
 
 // ---------- helpers ---------------------------------------------------
 
@@ -23,8 +19,6 @@ function ok<T>(data: T, meta?: Record<string, unknown>) {
 function err(message: string, status = 400, code = 'VALIDATION_ERROR') {
   return NextResponse.json({ error: { code, message }, meta: { requestId: reqId(), timestamp: new Date().toISOString() } } satisfies ApiError, { status });
 }
-
-// ---------- serialization helpers (must match prompts/route.ts) ------
 
 function parseTags(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw.filter((t): t is string => typeof t === 'string');
@@ -65,13 +59,25 @@ function serializePrompt<T extends Record<string, unknown>>(item: T): T {
 
 // =====================================================================
 // POST — duplicate a prompt
+// When a CMS client duplicates a prompt, it creates a personal
+// CLIENT-owned copy that they can freely customize.
 // =====================================================================
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const id = reqId();
+  const user = await getAuthUser(request);
+  if (!user) return err('Authentication required', 401, 'UNAUTHORIZED');
 
-  const auth = await requireFeatureAllowStaff(request, 'ai_client');
-  if ('response' in auth) return auth.response;
+  const staff = isPlatformStaff(user);
+  const hasClientAi = staff || (await hasFeature(user, 'ai_client'));
+
+  if (!staff && !hasClientAi) {
+    return err(
+      'Duplicating prompts to create your own custom copies requires the Client\'s Own AI API plan feature.',
+      403,
+      'FORBIDDEN',
+    );
+  }
 
   try {
     const { id: promptId } = await params;
@@ -79,41 +85,53 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const existing = await db.promptTemplate.findUnique({ where: { id: promptId } });
     if (!existing) return err('Prompt not found', 404, 'NOT_FOUND');
 
-    // Validate the provider/model still exist + are active (same rules as PATCH)
-    if (existing.providerId) {
-      const provider = await db.aiProvider.findUnique({ where: { id: existing.providerId } });
+    // Tenant isolation: if existing is CLIENT prompt from another user, deny
+    if (existing.sourceType === 'CLIENT' && !staff && existing.ownerId !== user.id) {
+      return err('Prompt not found', 404, 'NOT_FOUND');
+    }
+
+    // Validate the provider/model still exist + are active
+    let effectiveProviderId = existing.providerId;
+    let effectiveModelId = existing.modelId;
+
+    if (effectiveProviderId) {
+      const provider = await db.aiProvider.findUnique({ where: { id: effectiveProviderId } });
       if (!provider || !provider.isActive) {
-        // Drop the references — duplicated prompt will use defaults instead
-        existing.providerId = null;
-        existing.modelId = null;
-      } else if (existing.modelId) {
-        const model = await db.aiModel.findUnique({ where: { id: existing.modelId } });
-        if (!model || !model.isActive || model.providerId !== existing.providerId) {
-          existing.modelId = null;
+        effectiveProviderId = null;
+        effectiveModelId = null;
+      } else if (effectiveModelId) {
+        const model = await db.aiModel.findUnique({ where: { id: effectiveModelId } });
+        if (!model || !model.isActive || model.providerId !== effectiveProviderId) {
+          effectiveModelId = null;
         }
       }
     }
 
+    const targetSourceType = staff ? 'PLATFORM' : 'CLIENT';
+    const targetOwnerId = targetSourceType === 'CLIENT' ? user.id : null;
+
     const item = await db.promptTemplate.create({
       data: {
-        name: existing.name + ' (Copy)',
+        name: `${existing.name} (Copy)`,
         category: existing.category,
         description: existing.description,
         tags: existing.tags,
         variables: existing.variables,
         systemPrompt: existing.systemPrompt,
         userPrompt: existing.userPrompt,
-        providerId: existing.providerId,
-        modelId: existing.modelId,
+        providerId: effectiveProviderId,
+        modelId: effectiveModelId,
         temperature: existing.temperature,
         maxTokens: existing.maxTokens,
-        version: 1,
-        isActive: true,
-        isFavorite: false,
-        isShared: existing.isShared,
         siteId: existing.siteId,
-        usageCount: 0, // reset — duplicated prompt has never been used
-        createdById: existing.createdById,
+        isActive: existing.isActive,
+        isFavorite: false,
+        isShared: true,
+        sourceType: targetSourceType,
+        ownerId: targetOwnerId,
+        version: 1,
+        usageCount: 0,
+        createdById: user.id,
         versions: {
           create: {
             version: 1,
@@ -122,21 +140,24 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             variables: existing.variables,
             temperature: existing.temperature,
             maxTokens: existing.maxTokens,
-            createdById: existing.createdById,
+            createdById: user.id,
           },
         },
       },
       include: {
         provider: { select: { id: true, name: true, kind: true } },
         createdBy: { select: { id: true, name: true, email: true } },
+        owner: { select: { id: true, name: true, email: true } },
         _count: { select: { versions: true } },
       },
     });
 
-    return NextResponse.json(
-      { data: serializePrompt(item as unknown as Record<string, unknown>), meta: { requestId: id, timestamp: new Date().toISOString() } },
-      { status: 201 },
-    );
+    const serialized = serializePrompt(item as unknown as Record<string, unknown>);
+    return ok({
+      ...serialized,
+      canEdit: true,
+      isPlatformManaged: targetSourceType === 'PLATFORM',
+    });
   } catch (error) {
     console.error(`[AI/PROMPTS:DUPLICATE] ${id} —`, error);
     return err('Failed to duplicate prompt', 500, 'INTERNAL_ERROR');

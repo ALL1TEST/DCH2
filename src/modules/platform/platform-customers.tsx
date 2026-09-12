@@ -12,7 +12,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { useNavigationStore } from '@/lib/stores/navigation-store';
 import { useT } from '@/lib/i18n';
 import {
@@ -29,7 +28,6 @@ import {
   formatDate,
 } from './shared';
 import type { Customer, PlanId, SubscriptionStatus } from '@/lib/platform/platform-data';
-import { Eye } from 'lucide-react';
 
 type CustomerRow = Customer & { siteCount: number };
 
@@ -122,15 +120,15 @@ export function PlatformCustomersModule() {
                       <th className="pb-2 pr-4 font-medium text-xs text-muted-foreground">{t('platformCustomers.account')}</th>
                       <th className="pb-2 pr-4 font-medium text-xs text-muted-foreground text-center">{t('platformCustomers.sites')}</th>
                       <th className="pb-2 pr-4 font-medium text-xs text-muted-foreground">{t('platformCustomers.country')}</th>
-                      <th className="pb-2 pr-4 font-medium text-xs text-muted-foreground">{t('platformCustomers.created')}</th>
-                      <th className="pb-2 font-medium text-xs text-muted-foreground text-right">{t('common.actions')}</th>
+                      <th className="pb-2 font-medium text-xs text-muted-foreground">{t('platformCustomers.created')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
                     {data.map((c) => (
                       <tr
                         key={c.id}
-                        className="hover:bg-accent/30 transition-colors"
+                        onClick={() => navigate('platform-customer-detail', c.id)}
+                        className="hover:bg-accent/40 cursor-pointer transition-colors"
                       >
                         <td className="py-2.5 pr-4">
                           <p className="font-medium truncate max-w-[180px]">{c.name}</p>
@@ -146,17 +144,6 @@ export function PlatformCustomersModule() {
                         <td className="py-2.5 pr-4 text-xs text-muted-foreground whitespace-nowrap">{c.country}</td>
                         <td className="py-2.5 pr-4 text-xs text-muted-foreground whitespace-nowrap">
                           {formatDate(c.createdAt)}
-                        </td>
-                        <td className="py-2.5 text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7"
-                            onClick={() => navigate('platform-customer-detail', c.id)}
-                          >
-                            <Eye className="h-3.5 w-3.5 mr-1" />
-                            {t('common.view')}
-                          </Button>
                         </td>
                       </tr>
                     ))}

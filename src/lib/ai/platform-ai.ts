@@ -288,58 +288,46 @@ function renderTemplate(
   );
 }
 
-/** Internally resolve the Platform Admin prompt for a tool slot.
- *  Returns null when no active prompt is bound to the slot (the
- *  caller then uses its built-in default prompt) or when a required
- *  variable cannot be satisfied. NEVER exposed to clients — used
- *  exclusively inside server-side generation routes. */
+import {
+  mapSlotToUniversalOperation,
+  resolveUniversalPrompt,
+  UNIVERSAL_OPERATIONS,
+  type UniversalOperationKey,
+} from './universal-prompt-engine';
+
+/** Internally resolve the prompt for a tool slot using the 3-layer engine.
+ *  Maintains backward compatibility for callers passing (slot, vars). */
 export async function resolvePlatformPrompt(
   slot: PlatformPromptSlot,
   vars: Record<string, string>,
+  options?: { userId?: string | null; siteId?: string | null },
 ): Promise<ResolvedPlatformPrompt | null> {
-  const rows = await db.promptTemplate.findMany({
-    where: { isActive: true },
-    select: {
-      id: true, name: true, tags: true, variables: true,
-      systemPrompt: true, userPrompt: true,
-      temperature: true, maxTokens: true,
-      isActive: true, isFavorite: true, updatedAt: true,
-    },
-  });
-
-  // 1. Exact tag match (case-insensitive) — favorites first, then
-  //    most recently updated.
-  const tagMatches = rows
-    .filter((r) => parseTags(r.tags).some((t) => t.trim().toLowerCase() === slot))
-    .sort((a, b) => Number(b.isFavorite) - Number(a.isFavorite) || b.updatedAt.getTime() - a.updatedAt.getTime());
-
-  // 2. Name-slug fallback — the slot appears as a whole segment of
-  //    the slugified prompt name.
-  const nameMatches = rows
-    .filter((r) => {
-      const slug = slugify(r.name);
-      return new RegExp(`(^|-)${slot.replace(/-[a-z]+$/, '')}(-|$)`).test(slug) || slug.includes(slot);
-    })
-    .sort((a, b) => Number(b.isFavorite) - Number(a.isFavorite) || b.updatedAt.getTime() - a.updatedAt.getTime());
-
-  const candidates: PromptRow[] = [...tagMatches, ...nameMatches.filter((m) => !tagMatches.includes(m))];
-
-  for (const row of candidates) {
-    const system = row.systemPrompt ?? '';
-    const user = row.userPrompt ?? '';
-    if (!system.trim() && !user.trim()) continue;
-    const descriptors = parseVariableDescriptors(row.variables);
-    const renderedSystem = system.trim() ? renderTemplate(system, vars, descriptors) : '';
-    const renderedUser = user.trim() ? renderTemplate(user, vars, descriptors) : '';
-    if (renderedSystem === null || renderedUser === null) continue; // required var missing
+  const opKey = mapSlotToUniversalOperation(slot);
+  try {
+    const resolved = await resolveUniversalPrompt({
+      operation: opKey,
+      userId: options?.userId,
+      siteId: options?.siteId,
+      variables: vars,
+    });
     return {
-      systemPrompt: renderedSystem,
-      userPrompt: renderedUser,
-      ...(row.temperature != null ? { temperature: row.temperature } : {}),
-      ...(row.maxTokens != null ? { maxTokens: row.maxTokens } : {}),
+      systemPrompt: resolved.systemPrompt,
+      userPrompt: resolved.userPrompt,
+      temperature: resolved.temperature,
+      maxTokens: resolved.maxTokens,
+    };
+  } catch (error) {
+    console.error(`[UNIVERSAL_PROMPT:RESOLVE] Error resolving prompt for slot "${slot}":`, error);
+    // Fallback to built-in universal default
+    const def = UNIVERSAL_OPERATIONS[opKey];
+    if (!def) return null;
+    return {
+      systemPrompt: def.defaultSystemPrompt,
+      userPrompt: def.defaultUserPrompt,
+      temperature: def.defaultTemperature,
+      maxTokens: def.defaultMaxTokens,
     };
   }
-  return null;
 }
 
 /** Map a free-text editor action (e.g. "Generate SEO Title") to its
@@ -358,21 +346,16 @@ export function slotForAction(action: string): PlatformPromptSlot {
 
 /**
  * Sensible max output token limits configured appropriately per AI operation/use case:
- * - AI Ideas: small/appropriate limit (1,200 tokens)
- * - SEO generation: appropriate limit (300 for title, 400 for description)
- * - Article generation: larger limit (5,000 tokens)
- * - Article editing/rewrite: appropriate limit (2,500 tokens)
- * - Other AI operations: their own sensible limits (outline: 1,500, title: 300, general text action: 2,000, images: 500)
  */
 export const OPERATION_DEFAULT_MAX_TOKENS: Record<PlatformPromptSlot, number> = {
-  ideas: 1200,
+  ideas: 2000,
   'seo-title': 300,
   'seo-description': 400,
   title: 300,
   outline: 1500,
-  rewrite: 2500,
+  rewrite: 3000,
   improve: 2500,
-  'text-action': 2000,
+  'text-action': 2500,
   article: 5000,
   images: 500,
 };
@@ -389,6 +372,9 @@ export function getOperationMaxTokens(
   if (promptMaxTokens != null && promptMaxTokens > 0) {
     return promptMaxTokens;
   }
-  return OPERATION_DEFAULT_MAX_TOKENS[slot] ?? 2048;
+  const opKey = mapSlotToUniversalOperation(slot);
+  const def = UNIVERSAL_OPERATIONS[opKey];
+  return def?.defaultMaxTokens ?? OPERATION_DEFAULT_MAX_TOKENS[slot] ?? 2048;
 }
+
 

@@ -38,6 +38,10 @@ export interface ChatRequest {
   userId?: string;
 }
 
+export interface ChatStreamRequest extends ChatRequest {
+  signal?: AbortSignal;
+}
+
 export interface ChatResponse {
   content: string;
   model: string;
@@ -374,6 +378,165 @@ export async function executeChat(req: ChatRequest): Promise<ChatResponse> {
   };
 }
 
+export async function executeChatStream(
+  req: ChatStreamRequest,
+  onChunk: (delta: string, cumulative: string) => void,
+): Promise<ChatResponse> {
+  const provider = await db.aiProvider.findUnique({
+    where: { id: req.providerId },
+    include: { models: true },
+  });
+
+  if (!provider) throw new Error('Provider not found');
+  if (!provider.isActive) throw new Error('Provider is disabled. Please activate it first.');
+  if (!provider.apiKeyEncrypted) throw new Error('API key not configured for this provider.');
+
+  const resolved = await resolveModel(req.providerId, req.modelId, 'TEXT_GENERATION', provider.models, req.userId);
+  const modelId = resolved.modelId;
+
+  const userSettings = req.userId ? await db.aiSettings.findUnique({ where: { scope: `user:${req.userId}` } }) : null;
+  const globalSettings = await db.aiSettings.findUnique({ where: { scope: 'global' } });
+  const effectiveSettings = userSettings ?? globalSettings;
+  const temperature = req.temperature ?? effectiveSettings?.defaultTemperature ?? 0.7;
+  const maxTokens = req.maxTokens ?? effectiveSettings?.defaultMaxTokens ?? 2048;
+
+  const apiKey = await decrypt(provider.apiKeyEncrypted);
+  const config = getProviderConfig(provider.kind);
+  const baseUrl = provider.baseUrl || config.defaultBaseUrl;
+  if (!baseUrl) {
+    throw new Error('No Base URL configured for this custom provider. Please edit the provider and set a Base URL.');
+  }
+
+  const startTime = Date.now();
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let content = '';
+  let usedProvider = provider;
+  let usedModelId = modelId;
+  let usedResolved = resolved;
+
+  try {
+    if (provider.kind === 'ANTHROPIC') {
+      const result = await callAnthropicStream(baseUrl, apiKey, modelId, req.messages, onChunk, {
+        temperature, maxTokens, signal: req.signal,
+      });
+      inputTokens = result.inputTokens;
+      outputTokens = result.outputTokens;
+      content = result.content;
+    } else if (provider.kind === 'GEMINI') {
+      const result = await callGeminiStream(baseUrl, apiKey, modelId, req.messages, onChunk, {
+        temperature, maxTokens, signal: req.signal,
+      });
+      inputTokens = result.inputTokens;
+      outputTokens = result.outputTokens;
+      content = result.content;
+    } else {
+      const result = await callOpenAIStream(baseUrl, apiKey, modelId, req.messages, onChunk, {
+        temperature, maxTokens,
+        topP: req.topP,
+        frequencyPenalty: req.frequencyPenalty,
+        presencePenalty: req.presencePenalty,
+        jsonMode: req.jsonMode,
+        signal: req.signal,
+      });
+      inputTokens = result.inputTokens;
+      outputTokens = result.outputTokens;
+      content = result.content;
+    }
+  } catch (err) {
+    if (req.signal?.aborted) {
+      throw err;
+    }
+
+    const fallbacks = await db.aiProviderFallback.findMany({
+      where: { providerId: provider.id },
+      include: { fallback: { include: { models: true } } },
+      orderBy: { priority: 'asc' },
+    });
+
+    let lastError = err instanceof Error ? err : new Error('Unknown error');
+
+    for (const fb of fallbacks) {
+      if (!fb.fallback.isActive || !fb.fallback.apiKeyEncrypted) continue;
+      try {
+        const fbResolved = await resolveModel(fb.fallback.id, undefined, 'TEXT_GENERATION', fb.fallback.models);
+        const fbApiKey = await decrypt(fb.fallback.apiKeyEncrypted);
+        const fbConfig = getProviderConfig(fb.fallback.kind);
+        const fbBaseUrl = fb.fallback.baseUrl || fbConfig.defaultBaseUrl;
+        if (!fbBaseUrl) continue;
+
+        let fbResult: { content: string; inputTokens: number; outputTokens: number };
+        if (fb.fallback.kind === 'ANTHROPIC') {
+          fbResult = await callAnthropicStream(fbBaseUrl, fbApiKey, fbResolved.modelId, req.messages, onChunk, { temperature, maxTokens, signal: req.signal });
+        } else if (fb.fallback.kind === 'GEMINI') {
+          fbResult = await callGeminiStream(fbBaseUrl, fbApiKey, fbResolved.modelId, req.messages, onChunk, { temperature, maxTokens, signal: req.signal });
+        } else {
+          fbResult = await callOpenAIStream(fbBaseUrl, fbApiKey, fbResolved.modelId, req.messages, onChunk, { temperature, maxTokens, signal: req.signal });
+        }
+        inputTokens = fbResult.inputTokens;
+        outputTokens = fbResult.outputTokens;
+        content = fbResult.content;
+        usedProvider = fb.fallback;
+        usedModelId = fbResolved.modelId;
+        usedResolved = fbResolved;
+        lastError = null as unknown as Error;
+        break;
+      } catch (fbErr) {
+        lastError = fbErr instanceof Error ? fbErr : new Error('Fallback failed');
+        continue;
+      }
+    }
+
+    if (!content && lastError) {
+      throw lastError;
+    }
+  }
+
+  const durationMs = Date.now() - startTime;
+  const totalTokens = inputTokens + outputTokens;
+  const costUsd = (inputTokens / 1000) * (usedResolved.inputCostPer1k || 0)
+    + (outputTokens / 1000) * (usedResolved.outputCostPer1k || 0);
+
+  db.aiProvider.update({
+    where: { id: usedProvider.id },
+    data: {
+      lastUsedAt: new Date(),
+      latencyMs: durationMs,
+      connectionStatus: 'CONNECTED',
+      lastError: null,
+    },
+  }).catch(() => {});
+
+  db.aiLog.create({
+    data: {
+      providerId: usedProvider.id,
+      providerName: usedProvider.name,
+      modelId: usedModelId,
+      question: req.messages.map((m) => m.content).join('\n'),
+      response: content,
+      inputTokens,
+      outputTokens,
+      totalTokens,
+      costUsd,
+      durationMs,
+      status: 'success',
+      siteId: req.siteId,
+      userId: req.userId,
+    },
+  }).catch(() => {});
+
+  return {
+    content,
+    model: usedModelId,
+    inputTokens,
+    outputTokens,
+    totalTokens,
+    costUsd,
+    durationMs,
+    providerName: usedProvider.name,
+  };
+}
+
 // -------------------- Provider-specific call implementations --------------------
 
 async function callOpenAI(
@@ -579,6 +742,300 @@ async function callGemini(
     inputTokens: data.usageMetadata?.promptTokenCount || 0,
     outputTokens: data.usageMetadata?.candidatesTokenCount || 0,
   };
+}
+
+async function callOpenAIStream(
+  baseUrl: string,
+  apiKey: string,
+  model: string,
+  messages: ChatMessage[],
+  onChunk: (delta: string, cumulative: string) => void,
+  opts: {
+    temperature?: number;
+    maxTokens?: number;
+    topP?: number;
+    frequencyPenalty?: number;
+    presencePenalty?: number;
+    jsonMode?: boolean;
+    apiVersion?: string;
+    signal?: AbortSignal;
+  } = {},
+): Promise<{ content: string; inputTokens: number; outputTokens: number }> {
+  const url = opts.apiVersion
+    ? `${baseUrl}?api-version=${opts.apiVersion}`
+    : buildEndpointUrl(baseUrl, '/chat/completions');
+
+  const body: Record<string, unknown> = {
+    model,
+    messages,
+    temperature: opts.temperature ?? 0.7,
+    max_tokens: opts.maxTokens ?? 2048,
+    stream: true,
+  };
+  if (opts.topP !== undefined) body.top_p = opts.topP;
+  if (opts.frequencyPenalty !== undefined) body.frequency_penalty = opts.frequencyPenalty;
+  if (opts.presencePenalty !== undefined) body.presence_penalty = opts.presencePenalty;
+  if (opts.jsonMode) {
+    body.response_format = { type: 'json_object' };
+  }
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+      'Accept': 'text/event-stream',
+    },
+    body: JSON.stringify(body),
+    signal: opts.signal,
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    let cleanErr = '';
+    try {
+      const errJson = JSON.parse(errText);
+      cleanErr = errJson?.error?.message || errJson?.message || (typeof errJson?.error === 'string' ? errJson.error : '');
+    } catch {}
+    if (!cleanErr) {
+      const titleMatch = errText.match(/<title>(.*?)<\/title>/i);
+      cleanErr = titleMatch ? titleMatch[1].trim() : (errText.slice(0, 300).trim() || res.statusText);
+    }
+    throw new Error(`Provider API error: ${res.status} — ${cleanErr}`);
+  }
+
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error('Response body is not readable');
+
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let accumulated = '';
+  let inputTokens = 0;
+  let outputTokens = 0;
+
+  try {
+    while (true) {
+      if (opts.signal?.aborted) {
+        await reader.cancel().catch(() => {});
+        break;
+      }
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith('data:')) continue;
+        const dataStr = trimmed.slice(5).trim();
+        if (dataStr === '[DONE]') break;
+        try {
+          const parsed = JSON.parse(dataStr);
+          if (parsed.error) {
+            throw new Error(`Provider API error: ${parsed.error.message || JSON.stringify(parsed.error)}`);
+          }
+          if (parsed.usage) {
+            if (parsed.usage.prompt_tokens) inputTokens = parsed.usage.prompt_tokens;
+            if (parsed.usage.completion_tokens) outputTokens = parsed.usage.completion_tokens;
+          }
+          const delta = parsed.choices?.[0]?.delta?.content || parsed.choices?.[0]?.delta?.reasoning_content || '';
+          if (delta) {
+            accumulated += delta;
+            onChunk(delta, accumulated);
+          }
+        } catch (e: any) {
+          if (e?.message?.startsWith('Provider API error:')) throw e;
+        }
+      }
+    }
+
+    if (buffer.trim().startsWith('data:')) {
+      const dataStr = buffer.trim().slice(5).trim();
+      if (dataStr !== '[DONE]') {
+        try {
+          const parsed = JSON.parse(dataStr);
+          const delta = parsed.choices?.[0]?.delta?.content || parsed.choices?.[0]?.delta?.reasoning_content || '';
+          if (delta) {
+            accumulated += delta;
+            onChunk(delta, accumulated);
+          }
+        } catch {}
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return { content: accumulated, inputTokens, outputTokens };
+}
+
+async function callAnthropicStream(
+  baseUrl: string,
+  apiKey: string,
+  model: string,
+  messages: ChatMessage[],
+  onChunk: (delta: string, cumulative: string) => void,
+  opts: { temperature?: number; maxTokens?: number; signal?: AbortSignal } = {},
+): Promise<{ content: string; inputTokens: number; outputTokens: number }> {
+  const systemMsg = messages.find((m) => m.role === 'system');
+  const chatMsgs = messages.filter((m) => m.role !== 'system');
+
+  const body: Record<string, unknown> = {
+    model,
+    messages: chatMsgs.map((m) => ({ role: m.role, content: m.content })),
+    max_tokens: opts.maxTokens ?? 2048,
+    temperature: opts.temperature ?? 0.7,
+    stream: true,
+  };
+  if (systemMsg) body.system = systemMsg.content;
+
+  const res = await fetch(`${baseUrl}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'Accept': 'text/event-stream',
+    },
+    body: JSON.stringify(body),
+    signal: opts.signal,
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Anthropic API error: ${res.status} — ${err}`);
+  }
+
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error('Response body is not readable');
+
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let accumulated = '';
+  let inputTokens = 0;
+  let outputTokens = 0;
+
+  try {
+    while (true) {
+      if (opts.signal?.aborted) {
+        await reader.cancel().catch(() => {});
+        break;
+      }
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data:')) continue;
+        const dataStr = trimmed.slice(5).trim();
+        try {
+          const parsed = JSON.parse(dataStr);
+          if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+            accumulated += parsed.delta.text;
+            onChunk(parsed.delta.text, accumulated);
+          } else if (parsed.type === 'message_delta' && parsed.usage?.output_tokens) {
+            outputTokens = parsed.usage.output_tokens;
+          } else if (parsed.type === 'message_start' && parsed.message?.usage?.input_tokens) {
+            inputTokens = parsed.message.usage.input_tokens;
+          }
+        } catch {}
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return { content: accumulated, inputTokens, outputTokens };
+}
+
+async function callGeminiStream(
+  baseUrl: string,
+  apiKey: string,
+  model: string,
+  messages: ChatMessage[],
+  onChunk: (delta: string, cumulative: string) => void,
+  opts: { temperature?: number; maxTokens?: number; signal?: AbortSignal } = {},
+): Promise<{ content: string; inputTokens: number; outputTokens: number }> {
+  const systemMsg = messages.find((m) => m.role === 'system');
+  const chatMsgs = messages.filter((m) => m.role !== 'system');
+
+  const body: Record<string, unknown> = {
+    contents: chatMsgs.map((m) => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    })),
+    generationConfig: {
+      temperature: opts.temperature ?? 0.7,
+      maxOutputTokens: opts.maxTokens ?? 2048,
+    },
+  };
+  if (systemMsg) {
+    body.systemInstruction = { parts: [{ text: systemMsg.content }] };
+  }
+
+  const res = await fetch(
+    `${baseUrl}/models/${model}:streamGenerateContent?key=${apiKey}&alt=sse`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: opts.signal,
+    },
+  );
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Gemini API error: ${res.status} — ${err}`);
+  }
+
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error('Response body is not readable');
+
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let accumulated = '';
+  let inputTokens = 0;
+  let outputTokens = 0;
+
+  try {
+    while (true) {
+      if (opts.signal?.aborted) {
+        await reader.cancel().catch(() => {});
+        break;
+      }
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data:')) continue;
+        const dataStr = trimmed.slice(5).trim();
+        try {
+          const parsed = JSON.parse(dataStr);
+          const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          if (text) {
+            accumulated += text;
+            onChunk(text, accumulated);
+          }
+          if (parsed.usageMetadata) {
+            inputTokens = parsed.usageMetadata.promptTokenCount || 0;
+            outputTokens = parsed.usageMetadata.candidatesTokenCount || 0;
+          }
+        } catch {}
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return { content: accumulated, inputTokens, outputTokens };
 }
 
 // -------------------- Health Check --------------------

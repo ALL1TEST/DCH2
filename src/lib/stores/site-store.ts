@@ -68,9 +68,16 @@ interface SiteState {
   /** Get the canonical site context */
   getSiteContext: () => SiteContext;
   /** Get the DB id to send in API calls (null for All Sites) */
-  getSiteDbId: () => string | null;
-  createSite: (data: { name: string; slug: string; domain?: string; description?: string; planId?: string }) => Promise<Site>;
-  updateSite: (id: string, data: { name?: string; slug?: string; domain?: string; description?: string; status?: string; planId?: string }) => Promise<void>;
+  createSite: (data: {
+    name: string;
+    slug: string;
+    domain?: string;
+    description?: string;
+    planId?: string;
+    siteType?: 'standard' | 'wordpress';
+    config?: Record<string, unknown>;
+  }) => Promise<Site>;
+  updateSite: (id: string, data: { name?: string; slug?: string; domain?: string; description?: string; status?: string; planId?: string; config?: Record<string, unknown> }) => Promise<void>;
   deleteSite: (id: string) => Promise<void>;
   reset: () => void;
 }

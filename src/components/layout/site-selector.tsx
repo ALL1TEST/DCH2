@@ -9,6 +9,7 @@ import {
   Loader2,
   Trash2,
   Settings,
+  Globe,
 } from 'lucide-react';
 import { useSiteStore, type Site } from '@/lib/stores/site-store';
 import { useNavigationStore } from '@/lib/stores/navigation-store';
@@ -35,6 +36,15 @@ import { Label } from '@/components/ui/label';
 import { SidebarMenuButton, useSidebar } from '@/components/ui/sidebar';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
+
+// -------------------- WordPress Icon ----------------
+function WordPressIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 0C5.373 0 0 5.373 0 12c0 5.373 3.528 9.92 8.427 11.474L2.83 8.85A11.95 11.95 0 0 1 12 0zm10.742 7.747c.28.986.438 2.03.438 3.111a11.97 11.97 0 0 1-2.905 7.828l3.197-9.255c-.247-.565-.494-1.127-.73-1.684zM12 24c-1.396 0-2.73-.24-3.968-.68l4.494-13.06 4.57 12.518A11.94 11.94 0 0 1 12 24zM1.168 12c0-.528.056-1.043.16-1.543l5.59 15.309A11.96 11.96 0 0 1 1.168 12z" />
+    </svg>
+  );
+}
 
 // -------------------- Site Colors ----------------
 
@@ -83,10 +93,14 @@ interface CreateSiteDialogProps {
 
 function CreateSiteDialog({ open, onOpenChange, onCreated }: CreateSiteDialogProps) {
   const { t } = useT();
+  const [siteType, setSiteType] = useState<'standard' | 'wordpress'>('standard');
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [domain, setDomain] = useState('');
   const [description, setDescription] = useState('');
+  const [wpUrl, setWpUrl] = useState('');
+  const [wpUsername, setWpUsername] = useState('');
+  const [wpPassword, setWpPassword] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState('');
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -94,10 +108,14 @@ function CreateSiteDialog({ open, onOpenChange, onCreated }: CreateSiteDialogPro
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
+      setSiteType('standard');
       setName('');
       setSlug('');
       setDomain('');
       setDescription('');
+      setWpUrl('');
+      setWpUsername('');
+      setWpPassword('');
       setError('');
       setSubmitAttempted(false);
     }
@@ -127,6 +145,11 @@ function CreateSiteDialog({ open, onOpenChange, onCreated }: CreateSiteDialogPro
       setSubmitAttempted(true);
       return;
     }
+    if (siteType === 'wordpress' && !wpUrl.trim()) {
+      setError('Please provide your WordPress Site URL');
+      setSubmitAttempted(true);
+      return;
+    }
     setSubmitAttempted(false);
     setError('');
     setIsCreating(true);
@@ -134,8 +157,17 @@ function CreateSiteDialog({ open, onOpenChange, onCreated }: CreateSiteDialogPro
       const site = await createSite({
         name: name.trim(),
         slug: slug.trim(),
-        domain: domain.trim() || undefined,
+        domain: domain.trim() || (siteType === 'wordpress' && wpUrl.trim() ? wpUrl.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '') : undefined),
         description: description.trim() || undefined,
+        siteType,
+        config: siteType === 'wordpress' ? {
+          type: 'wordpress',
+          wordpressUrl: wpUrl.trim(),
+          wordpressUsername: wpUsername.trim() || undefined,
+          wordpressAppPassword: wpPassword.trim() || undefined,
+        } : {
+          type: 'standard',
+        },
       });
       handleOpenChange(false);
       onCreated(site);
@@ -148,64 +180,162 @@ function CreateSiteDialog({ open, onOpenChange, onCreated }: CreateSiteDialogPro
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{t('siteSelector.createTitle')}</DialogTitle>
           <DialogDescription>
             {t('siteSelector.createDescription')}
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-3">
-          <div className="grid gap-2">
-            <Label htmlFor="site-name">{t('siteSelector.siteNameLabel')}</Label>
-            <Input
-              id="site-name"
-              placeholder={t('siteSelector.siteNamePlaceholder')}
-              value={name}
-              onChange={(e) => handleNameChange(e.target.value)}
-              autoFocus
-              aria-invalid={!!nameError}
-            />
-            {nameError && (
-              <p className="text-xs text-destructive">{nameError}</p>
-            )}
+        <div className="grid gap-4 py-2">
+          {/* Site Platform Option */}
+          <div className="grid gap-1.5">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Platform Type
+            </Label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setSiteType('standard')}
+                className={`flex items-start gap-3 p-3 rounded-lg border text-left transition-all cursor-pointer ${
+                  siteType === 'standard'
+                    ? 'border-primary bg-primary/5 ring-1 ring-primary shadow-xs'
+                    : 'border-border/70 hover:border-muted-foreground/40 hover:bg-accent/30'
+                }`}
+              >
+                <div className={`p-2 rounded-md shrink-0 ${siteType === 'standard' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+                  <Globe className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold leading-tight">Standard CMS</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">Built-in headless publication</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSiteType('wordpress')}
+                className={`flex items-start gap-3 p-3 rounded-lg border text-left transition-all cursor-pointer ${
+                  siteType === 'wordpress'
+                    ? 'border-[#21759b] bg-[#21759b]/5 ring-1 ring-[#21759b] shadow-xs'
+                    : 'border-border/70 hover:border-muted-foreground/40 hover:bg-accent/30'
+                }`}
+              >
+                <div className={`p-2 rounded-md shrink-0 ${siteType === 'wordpress' ? 'bg-[#21759b] text-white' : 'bg-muted text-muted-foreground'}`}>
+                  <WordPressIcon className="h-4 w-4 fill-current" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold leading-tight">WordPress</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">External WordPress site</div>
+                </div>
+              </button>
+            </div>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="site-slug">{t('siteSelector.slugLabel')}</Label>
-            <Input
-              id="site-slug"
-              placeholder={t('siteSelector.slugPlaceholder')}
-              value={slug}
-              onChange={(e) => setSlug(e.target.value)}
-              aria-invalid={!!slugError}
-            />
-            {slugError && (
-              <p className="text-xs text-destructive">{slugError}</p>
-            )}
+
+          {/* Row 1: Site Name & Slug */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid gap-1.5">
+              <Label htmlFor="site-name">{t('siteSelector.siteNameLabel')}</Label>
+              <Input
+                id="site-name"
+                placeholder={t('siteSelector.siteNamePlaceholder')}
+                value={name}
+                onChange={(e) => handleNameChange(e.target.value)}
+                autoFocus
+                aria-invalid={!!nameError}
+              />
+              {nameError && (
+                <p className="text-xs text-destructive">{nameError}</p>
+              )}
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="site-slug">{t('siteSelector.slugLabel')}</Label>
+              <Input
+                id="site-slug"
+                placeholder={t('siteSelector.slugPlaceholder')}
+                value={slug}
+                onChange={(e) => setSlug(e.target.value)}
+                aria-invalid={!!slugError}
+              />
+              {slugError && (
+                <p className="text-xs text-destructive">{slugError}</p>
+              )}
+            </div>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="site-domain">{t('siteSelector.domainOptionalLabel')}</Label>
-            <Input
-              id="site-domain"
-              placeholder={t('siteSelector.domainPlaceholder')}
-              value={domain}
-              onChange={(e) => setDomain(e.target.value)}
-            />
+
+          {siteType === 'wordpress' && (
+            <div className="space-y-3 p-3.5 rounded-lg border border-[#21759b]/30 bg-[#21759b]/5 animate-in fade-in-50 duration-200">
+              <div className="flex items-center gap-2 pb-1 border-b border-border/40">
+                <WordPressIcon className="h-4 w-4 text-[#21759b] fill-current" />
+                <span className="text-xs font-semibold text-foreground">WordPress Connection</span>
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="wp-url" className="text-xs font-medium">WordPress Site URL <span className="text-destructive">*</span></Label>
+                <Input
+                  id="wp-url"
+                  placeholder="https://myblog.com"
+                  value={wpUrl}
+                  onChange={(e) => {
+                    setWpUrl(e.target.value);
+                    if (!domain) {
+                      const cleaned = e.target.value.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+                      setDomain(cleaned);
+                    }
+                  }}
+                />
+                <p className="text-[11px] text-muted-foreground">The full URL of your existing WordPress instance.</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="wp-user" className="text-xs font-medium">Username (Optional)</Label>
+                  <Input
+                    id="wp-user"
+                    placeholder="admin"
+                    value={wpUsername}
+                    onChange={(e) => setWpUsername(e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="wp-pwd" className="text-xs font-medium">App Password (Optional)</Label>
+                  <Input
+                    id="wp-pwd"
+                    type="password"
+                    placeholder="•••• •••• ••••"
+                    value={wpPassword}
+                    onChange={(e) => setWpPassword(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Row 2: Custom Domain & Description */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid gap-1.5">
+              <Label htmlFor="site-domain">{t('siteSelector.domainOptionalLabel')}</Label>
+              <Input
+                id="site-domain"
+                placeholder={t('siteSelector.domainPlaceholder')}
+                value={domain}
+                onChange={(e) => setDomain(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="site-desc">{t('siteSelector.descriptionOptionalLabel')}</Label>
+              <Input
+                id="site-desc"
+                placeholder={t('siteSelector.descriptionPlaceholder')}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </div>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="site-desc">{t('siteSelector.descriptionOptionalLabel')}</Label>
-            <Input
-              id="site-desc"
-              placeholder={t('siteSelector.descriptionPlaceholder')}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </div>
+
           {error && (
             <p className="text-sm text-destructive">{error}</p>
           )}
         </div>
-        <DialogFooter>
+        <DialogFooter className="pt-2">
           <Button variant="outline" onClick={() => handleOpenChange(false)}>
             {t('common.cancel')}
           </Button>
@@ -239,11 +369,29 @@ function EditSiteDialog({ open, onOpenChange, site }: EditSiteDialogProps) {
   const updateSite = useSiteStore((s) => s.updateSite);
   const deleteSite = useSiteStore((s) => s.deleteSite);
 
+  const getParsedConfig = (raw: unknown): Record<string, unknown> => {
+    if (!raw) return {};
+    if (typeof raw === 'string') {
+      try { return JSON.parse(raw); } catch { return {}; }
+    }
+    return (raw as Record<string, unknown>) || {};
+  };
+
+  const initialConfig = getParsedConfig(site.config);
+  const isWordPress = initialConfig?.type === 'wordpress';
+  const [wpUrl, setWpUrl] = useState(String(initialConfig?.wordpressUrl || ''));
+  const [wpUsername, setWpUsername] = useState(String(initialConfig?.wordpressUsername || ''));
+  const [wpPassword, setWpPassword] = useState(String(initialConfig?.wordpressAppPassword || ''));
+
   useEffect(() => {
     setName(site.name);
     setSlug(site.slug);
     setDomain(site.domain || '');
     setDescription(site.description || '');
+    const cfg = getParsedConfig(site.config);
+    setWpUrl(String(cfg?.wordpressUrl || ''));
+    setWpUsername(String(cfg?.wordpressUsername || ''));
+    setWpPassword(String(cfg?.wordpressAppPassword || ''));
     setError('');
     setSubmitAttempted(false);
   }, [site]);
@@ -262,11 +410,22 @@ function EditSiteDialog({ open, onOpenChange, site }: EditSiteDialogProps) {
     setError('');
     setIsSaving(true);
     try {
+      const currentConfig = getParsedConfig(site.config);
+      const newConfig = {
+        ...currentConfig,
+        ...(isWordPress ? {
+          type: 'wordpress',
+          wordpressUrl: wpUrl.trim(),
+          wordpressUsername: wpUsername.trim() || undefined,
+          wordpressAppPassword: wpPassword.trim() || undefined,
+        } : {}),
+      };
       await updateSite(site.id, {
         name: name.trim(),
         slug: slug.trim(),
         domain: domain.trim() || undefined,
         description: description.trim() || undefined,
+        config: newConfig,
       });
       toast.success(t('siteSelector.siteUpdated'));
       onOpenChange(false);
@@ -293,56 +452,111 @@ function EditSiteDialog({ open, onOpenChange, site }: EditSiteDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{t('siteSelector.editSiteTitle')}</DialogTitle>
+          <div className="flex items-center justify-between gap-2">
+            <DialogTitle>{t('siteSelector.editSiteTitle')}</DialogTitle>
+            {isWordPress && (
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#21759b]/15 text-[#21759b] text-[11px] font-semibold">
+                <WordPressIcon className="h-3.5 w-3.5 fill-current" />
+                WordPress
+              </span>
+            )}
+          </div>
           <DialogDescription>
             {t('siteSelector.editSiteDescriptionPrefix')} {site.name}.
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-3">
-          <div className="grid gap-2">
-            <Label htmlFor="edit-site-name">{t('siteSelector.siteNameLabel')}</Label>
-            <Input
-              id="edit-site-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              autoFocus
-              aria-invalid={!!nameError}
-            />
-            {nameError && (
-              <p className="text-xs text-destructive">{nameError}</p>
-            )}
+        <div className="grid gap-4 py-2">
+          {/* Row 1: Site Name & Slug */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid gap-1.5">
+              <Label htmlFor="edit-site-name">{t('siteSelector.siteNameLabel')}</Label>
+              <Input
+                id="edit-site-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoFocus
+                aria-invalid={!!nameError}
+              />
+              {nameError && (
+                <p className="text-xs text-destructive">{nameError}</p>
+              )}
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="edit-site-slug">{t('siteSelector.editSiteSlugLabel')}</Label>
+              <Input
+                id="edit-site-slug"
+                value={slug}
+                onChange={(e) => setSlug(e.target.value)}
+                aria-invalid={!!slugError}
+              />
+              {slugError && (
+                <p className="text-xs text-destructive">{slugError}</p>
+              )}
+            </div>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="edit-site-slug">{t('siteSelector.editSiteSlugLabel')}</Label>
-            <Input
-              id="edit-site-slug"
-              value={slug}
-              onChange={(e) => setSlug(e.target.value)}
-              aria-invalid={!!slugError}
-            />
-            {slugError && (
-              <p className="text-xs text-destructive">{slugError}</p>
-            )}
+
+          {isWordPress && (
+            <div className="space-y-3 p-3.5 rounded-lg border border-[#21759b]/30 bg-[#21759b]/5">
+              <div className="flex items-center gap-2 pb-1 border-b border-border/40">
+                <WordPressIcon className="h-3.5 w-3.5 text-[#21759b] fill-current" />
+                <span className="text-xs font-semibold text-foreground">WordPress Connection Settings</span>
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="edit-wp-url" className="text-xs font-medium">WordPress Site URL</Label>
+                <Input
+                  id="edit-wp-url"
+                  value={wpUrl}
+                  onChange={(e) => setWpUrl(e.target.value)}
+                  placeholder="https://example.com"
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="edit-wp-user" className="text-xs font-medium">Username</Label>
+                  <Input
+                    id="edit-wp-user"
+                    value={wpUsername}
+                    onChange={(e) => setWpUsername(e.target.value)}
+                    placeholder="admin"
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="edit-wp-pwd" className="text-xs font-medium">App Password</Label>
+                  <Input
+                    id="edit-wp-pwd"
+                    type="password"
+                    value={wpPassword}
+                    onChange={(e) => setWpPassword(e.target.value)}
+                    placeholder="•••• •••• ••••"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Row 2: Custom Domain & Description */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid gap-1.5">
+              <Label htmlFor="edit-site-domain">{t('siteSelector.domainLabel')}</Label>
+              <Input
+                id="edit-site-domain"
+                placeholder={t('siteSelector.domainPlaceholder')}
+                value={domain}
+                onChange={(e) => setDomain(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="edit-site-desc">{t('siteSelector.descriptionLabel')}</Label>
+              <Input
+                id="edit-site-desc"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </div>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="edit-site-domain">{t('siteSelector.domainLabel')}</Label>
-            <Input
-              id="edit-site-domain"
-              placeholder={t('siteSelector.domainPlaceholder')}
-              value={domain}
-              onChange={(e) => setDomain(e.target.value)}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="edit-site-desc">{t('siteSelector.descriptionLabel')}</Label>
-            <Input
-              id="edit-site-desc"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </div>
+
           {error && (
             <p className="text-sm text-destructive">{error}</p>
           )}
@@ -499,6 +713,10 @@ export function SiteSelector() {
           <DropdownMenuSeparator />
           {/* Individual sites */}
           {sites.filter((s) => s.status === 'ACTIVE').map((s) => {
+            const rawCfg = typeof s.config === 'string'
+              ? (() => { try { return JSON.parse(s.config); } catch { return {}; } })()
+              : (s.config || {});
+            const isWp = (rawCfg as Record<string, unknown>)?.type === 'wordpress';
             return (
               <DropdownMenuItem
                 key={s.id}
@@ -514,6 +732,12 @@ export function SiteSelector() {
                   aria-hidden="true"
                 />
                 <span className="flex-1 truncate">{s.name}</span>
+                {isWp && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[#21759b]/15 text-[#21759b] mr-1.5 shrink-0">
+                    <WordPressIcon className="h-2.5 w-2.5 fill-current" />
+                    WP
+                  </span>
+                )}
                 {activeSite?.id === s.id && (
                   <Check className="h-4 w-4 text-primary shrink-0 mr-1" />
                 )}

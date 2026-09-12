@@ -4,14 +4,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { z } from 'zod/v4';
 import type { ApiResponse, ApiError } from '@/shared/types';
-import { requireFeatureAllowStaff } from '@/lib/platform/platform-auth';
+import { getAuthUser, isPlatformStaff } from '@/lib/platform/platform-auth';
+import { hasFeature } from '@/lib/platform/entitlements';
 
 // ============================================================
-// PROMPT LIBRARY [id]. Same rule as /api/ai/prompts: gated by the
-// plan's "Client's Own AI API" feature (ai_client) for clients,
-// platform staff bypass (managed from the Admin User → AI page);
-// the Prompt Library is not exposed as a tab in Platform Admin,
-// but the backend functionality/data is kept.
+// PROMPT LIBRARY [id]
+// Strict ownership & plan enforcement:
+// - PLATFORM prompts: editable/deletable ONLY by platform staff.
+// - CLIENT prompts: editable/deletable ONLY by prompt owner (or staff).
 // ============================================================
 
 // ---------- helpers ---------------------------------------------------
@@ -27,10 +27,6 @@ function ok<T>(data: T, meta?: Record<string, unknown>) {
 function err(message: string, status = 400, code = 'VALIDATION_ERROR') {
   return NextResponse.json({ error: { code, message }, meta: { requestId: reqId(), timestamp: new Date().toISOString() } } satisfies ApiError, { status });
 }
-
-// ---------- parsing helpers ------------------------------------------
-// The Prisma schema stores `tags` and `variables` as JSON strings.
-// The frontend expects them as parsed objects/arrays.
 
 function parseTags(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw.filter((t): t is string => typeof t === 'string');
@@ -93,9 +89,16 @@ const updateSchema = z.object({
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const id = reqId();
+  const user = await getAuthUser(request);
+  if (!user) return err('Authentication required', 401, 'UNAUTHORIZED');
 
-  const auth = await requireFeatureAllowStaff(request, 'ai_client');
-  if ('response' in auth) return auth.response;
+  const staff = isPlatformStaff(user);
+  const hasPlatformAi = staff || (await hasFeature(user, 'ai_platform'));
+  const hasClientAi = staff || (await hasFeature(user, 'ai_client'));
+
+  if (!staff && !hasPlatformAi && !hasClientAi) {
+    return err('Prompt Library requires Platform AI or Client\'s Own AI API access.', 403, 'FORBIDDEN');
+  }
 
   try {
     const { id: promptId } = await params;
@@ -105,12 +108,26 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       include: {
         provider: { select: { id: true, name: true, kind: true } },
         createdBy: { select: { id: true, name: true, email: true } },
+        owner: { select: { id: true, name: true, email: true } },
         _count: { select: { versions: true } },
       },
     });
 
     if (!item) return err('Prompt not found', 404, 'NOT_FOUND');
-    return ok(serializePrompt(item as unknown as Record<string, unknown>));
+
+    // Tenant isolation: if CLIENT prompt, only the owner or staff can view it
+    if (item.sourceType === 'CLIENT' && !staff && item.ownerId !== user.id) {
+      return err('Prompt not found', 404, 'NOT_FOUND');
+    }
+
+    const canEdit = staff || (item.sourceType === 'CLIENT' && item.ownerId === user.id);
+    const serialized = serializePrompt(item as unknown as Record<string, unknown>);
+
+    return ok({
+      ...serialized,
+      canEdit,
+      isPlatformManaged: item.sourceType === 'PLATFORM',
+    });
   } catch (error) {
     console.error(`[AI/PROMPTS:GET] ${id} —`, error);
     return err('Failed to fetch prompt', 500, 'INTERNAL_ERROR');
@@ -118,20 +135,32 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 // =====================================================================
-// PATCH — update prompt (create version if content changed)
+// PATCH — update prompt (ownership & plan enforced)
 // =====================================================================
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const id = reqId();
+  const user = await getAuthUser(request);
+  if (!user) return err('Authentication required', 401, 'UNAUTHORIZED');
 
-  const auth = await requireFeatureAllowStaff(request, 'ai_client');
-  if ('response' in auth) return auth.response;
+  const staff = isPlatformStaff(user);
 
   try {
     const { id: promptId } = await params;
 
     const existing = await db.promptTemplate.findUnique({ where: { id: promptId } });
     if (!existing) return err('Prompt not found', 404, 'NOT_FOUND');
+
+    // Ownership check:
+    // PLATFORM prompts -> ONLY platform staff can edit. Normal CMS users get 403.
+    if (existing.sourceType === 'PLATFORM' && !staff) {
+      return err('Platform-managed prompts are read-only for CMS users.', 403, 'FORBIDDEN');
+    }
+
+    // CLIENT prompts -> ONLY the owner or staff can edit.
+    if (existing.sourceType === 'CLIENT' && !staff && existing.ownerId !== user.id) {
+      return err('You do not have permission to edit this prompt.', 403, 'FORBIDDEN');
+    }
 
     let body: unknown;
     try {
@@ -143,7 +172,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const parsed = updateSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
-        { error: { code: 'VALIDATION_ERROR', message: parsed.error.issues[0]?.message ?? 'Invalid input', details: parsed.error.issues.map((i) => ({ field: i.path.join('.'), message: i.message })) }, meta: { requestId: id, timestamp: new Date().toISOString() } },
+        {
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: parsed.error.issues[0]?.message ?? 'Invalid input',
+            details: parsed.error.issues.map((i) => ({ field: i.path.join('.'), message: i.message })),
+          },
+          meta: { requestId: id, timestamp: new Date().toISOString() },
+        },
         { status: 400 },
       );
     }
@@ -157,9 +193,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       data.tags = Array.isArray(d.tags) ? JSON.stringify(d.tags) : (d.tags === '' ? null : d.tags);
     }
     if (d.variables !== undefined) {
-      data.variables = (typeof d.variables === 'object' && d.variables !== null)
-        ? JSON.stringify(d.variables)
-        : (d.variables === '' ? null : d.variables);
+      data.variables =
+        typeof d.variables === 'object' && d.variables !== null
+          ? JSON.stringify(d.variables)
+          : d.variables === ''
+            ? null
+            : d.variables;
     }
 
     // Validate provider/model FK references + relationship if either is changing
@@ -180,7 +219,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         if (!model.isActive) {
           return err('Cannot use an inactive model for a prompt', 400, 'MODEL_INACTIVE');
         }
-        // Prompts execute as TEXT (chat) — reject IMAGE-type models
         if (model.type?.toUpperCase() === 'IMAGE') {
           return err('Image models cannot be used for text prompts. Please select a TEXT model.', 400, 'MODEL_TYPE_MISMATCH');
         }
@@ -204,7 +242,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (d.systemPrompt !== undefined) data.systemPrompt = d.systemPrompt === '' ? null : d.systemPrompt;
     if (d.userPrompt !== undefined) data.userPrompt = d.userPrompt === '' ? null : d.userPrompt;
 
-    // If content changed, create a new version
     if (contentChanged) {
       const newVersion = existing.version + 1;
       data.version = newVersion;
@@ -218,7 +255,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           variables: (data.variables as string | null) ?? existing.variables,
           temperature: (data.temperature as number | undefined) ?? existing.temperature,
           maxTokens: (data.maxTokens as number | undefined) ?? existing.maxTokens,
-          createdById: existing.createdById,
+          createdById: user.id,
         },
       });
     }
@@ -228,17 +265,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       data,
     });
 
-    // Re-fetch with the same includes as GET so the response shape is consistent.
     const item = await db.promptTemplate.findUnique({
       where: { id: promptId },
       include: {
         provider: { select: { id: true, name: true, kind: true } },
         createdBy: { select: { id: true, name: true, email: true } },
+        owner: { select: { id: true, name: true, email: true } },
         _count: { select: { versions: true } },
       },
     });
 
-    return ok(serializePrompt(item as unknown as Record<string, unknown>));
+    const serialized = serializePrompt(item as unknown as Record<string, unknown>);
+    return ok({
+      ...serialized,
+      canEdit: true,
+      isPlatformManaged: existing.sourceType === 'PLATFORM',
+    });
   } catch (error) {
     console.error(`[AI/PROMPTS:UPDATE] ${id} —`, error);
     return err('Failed to update prompt', 500, 'INTERNAL_ERROR');
@@ -246,20 +288,32 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 }
 
 // =====================================================================
-// DELETE — delete prompt
+// DELETE — delete prompt (ownership & plan enforced)
 // =====================================================================
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const id = reqId();
+  const user = await getAuthUser(request);
+  if (!user) return err('Authentication required', 401, 'UNAUTHORIZED');
 
-  const auth = await requireFeatureAllowStaff(request, 'ai_client');
-  if ('response' in auth) return auth.response;
+  const staff = isPlatformStaff(user);
 
   try {
     const { id: promptId } = await params;
 
     const existing = await db.promptTemplate.findUnique({ where: { id: promptId } });
     if (!existing) return err('Prompt not found', 404, 'NOT_FOUND');
+
+    // Ownership check:
+    // PLATFORM prompts -> ONLY staff can delete.
+    if (existing.sourceType === 'PLATFORM' && !staff) {
+      return err('Platform-managed prompts cannot be deleted by CMS users.', 403, 'FORBIDDEN');
+    }
+
+    // CLIENT prompts -> ONLY owner or staff can delete.
+    if (existing.sourceType === 'CLIENT' && !staff && existing.ownerId !== user.id) {
+      return err('You do not have permission to delete this prompt.', 403, 'FORBIDDEN');
+    }
 
     await db.promptTemplate.delete({ where: { id: promptId } });
     return ok({ deleted: true });

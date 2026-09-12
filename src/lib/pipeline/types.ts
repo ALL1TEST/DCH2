@@ -32,6 +32,8 @@ export interface ArticlePipelineContext {
   interactive?: boolean; // false for automation / headless
   batch?: boolean; // true for bulk generation
   skipCannibalization?: boolean;
+  onChunk?: (delta: string, accumulated: string) => void;
+  signal?: AbortSignal;
 }
 
 export interface GeneratedDraftOutput {

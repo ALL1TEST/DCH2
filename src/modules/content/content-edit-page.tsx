@@ -61,6 +61,7 @@ import { TiptapEditor, type TiptapEditorRef } from '@/components/editor/tiptap-e
 import { getApi, postApi, patchApi, deleteApi } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
 import { useNavigationStore } from '@/lib/stores/navigation-store';
+import { markdownToEditorHtml } from '@/lib/pipeline/markdown-to-html';
 import { useAiWorkspace } from '@/hooks/use-ai-workspace';
 import { useT } from '@/lib/i18n';
 import { cn, normalizeContentToHtml, truncate } from '@/lib/utils';
@@ -671,43 +672,102 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
     };
   }, []);
 
-  // AI content generation (full article)
-  const aiGenerateMutation = useMutation({
-    mutationFn: (prompt: string) => {
-      abortControllerRef.current = new AbortController();
-      return postApi<{ drafts?: Array<{ content: string; wordCount: number }> }>(
-        '/api/content/ai-generate',
-        {
+  const [isAiStreaming, setIsAiStreaming] = useState(false);
+
+  // AI content generation via SSE streaming (full article)
+  const generateAiArticleStream = useCallback(async (prompt: string) => {
+    abortControllerRef.current = new AbortController();
+    setIsAiStreaming(true);
+
+    try {
+      const response = await fetch('/api/content/ai-generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream',
+        },
+        body: JSON.stringify({
           title: watchedTitle || t('articles.untitled'),
           brief: prompt,
           writingStyle: 'Professional',
           targetLength: 'Medium (800-1200 words)',
           numberOfDrafts: 1,
-        },
-        { signal: abortControllerRef.current.signal },
-      );
-    },
-    onSuccess: (result: any) => {
-      abortControllerRef.current = null;
-      // postApi unwraps the ApiResponse envelope → result IS the data object.
-      const draft = result?.drafts?.[0];
-      const seo = result?.seo || result?.data?.seo;
-      if (draft) {
-        setEditorContent(draft.content);
-        toast.success(t('articles.aiGeneratedToast'));
+          stream: true,
+        }),
+        signal: abortControllerRef.current.signal,
+      });
+
+      if (!response.ok) {
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson?.error?.message || errJson?.message || `HTTP ${response.status}`);
       }
-      if (seo) {
-        setGeneratedSeoReport(seo);
-        if (seo.seoTitle && !getValues('seoTitle')) {
-          setValue('seoTitle', seo.seoTitle, { shouldDirty: true });
-        }
-        if (seo.metaDescription && !getValues('seoDescription')) {
-          setValue('seoDescription', seo.metaDescription, { shouldDirty: true });
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('Response stream not readable');
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() || '';
+
+        for (const part of parts) {
+          const lines = part.split('\n');
+          let eventType = 'message';
+          let dataStr = '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('event:')) {
+              eventType = trimmed.slice(6).trim();
+            } else if (trimmed.startsWith('data:')) {
+              dataStr = trimmed.slice(5).trim();
+            }
+          }
+
+          if (!dataStr) continue;
+
+          try {
+            const parsed = JSON.parse(dataStr);
+            if (eventType === 'chunk') {
+              const accumulated = parsed.accumulated || '';
+              if (accumulated) {
+                const html = markdownToEditorHtml(accumulated);
+                setEditorContent(html);
+              }
+            } else if (eventType === 'done') {
+              const draft = parsed.drafts?.[0];
+              const seo = parsed.seo;
+
+              if (draft?.content) {
+                setEditorContent(draft.content);
+              }
+              if (seo) {
+                setGeneratedSeoReport(seo);
+                if (seo.seoTitle && !getValues('seoTitle')) {
+                  setValue('seoTitle', seo.seoTitle, { shouldDirty: true });
+                }
+                if (seo.metaDescription && !getValues('seoDescription')) {
+                  setValue('seoDescription', seo.metaDescription, { shouldDirty: true });
+                }
+              }
+              toast.success(t('articles.aiGeneratedToast'));
+            } else if (eventType === 'error') {
+              throw new Error(parsed.message || 'Generation failed');
+            }
+          } catch (jsonErr: any) {
+            if (eventType === 'error' || (jsonErr.message && !jsonErr.message.includes('JSON'))) {
+              throw jsonErr;
+            }
+          }
         }
       }
-    },
-    onError: (err: Error) => {
-      abortControllerRef.current = null;
+    } catch (err: any) {
       if (
         err.name === 'AbortError' ||
         err.message?.toLowerCase().includes('cancel') ||
@@ -717,8 +777,11 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
         return;
       }
       toast.error(err.message || t('articles.aiGenerationFailedToast'));
-    },
-  });
+    } finally {
+      setIsAiStreaming(false);
+      abortControllerRef.current = null;
+    }
+  }, [watchedTitle, t, getValues, setValue]);
 
   // AI edit selected text
   const aiEditSelectionMutation = useMutation({
@@ -753,7 +816,7 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
     },
   });
 
-  const isAiGenerating = aiGenerateMutation.isPending || aiEditSelectionMutation.isPending;
+  const isAiGenerating = isAiStreaming || aiEditSelectionMutation.isPending;
 
   // Selection-aware action handler
   const captureAndHandleQuickAction = useCallback((action: string) => {
@@ -772,9 +835,9 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
     if (savedText) {
       aiEditSelectionMutation.mutate({ text: savedText, action });
     } else {
-      aiGenerateMutation.mutate(action);
+      generateAiArticleStream(action);
     }
-  }, [aiEditSelectionMutation, aiGenerateMutation, t]);
+  }, [aiEditSelectionMutation, generateAiArticleStream, t]);
 
   const captureSelectionOnMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -786,9 +849,9 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
     if (sel) {
       aiEditSelectionMutation.mutate({ text: sel, action: prompt });
     } else {
-      aiGenerateMutation.mutate(prompt);
+      generateAiArticleStream(prompt);
     }
-  }, [aiEditSelectionMutation, aiGenerateMutation]);
+  }, [aiEditSelectionMutation, generateAiArticleStream]);
 
   const submitWithStatus = useCallback(
     (status: string, scheduledAt?: string) => {
@@ -1065,14 +1128,14 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
                             }}
                             className={
                               isAiGenerating
-                                ? 'size-7 rounded-full bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center shrink-0 transition-all active:scale-95'
+                                ? 'size-7 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:opacity-90 flex items-center justify-center shrink-0 transition-all active:scale-95 shadow-xs'
                                 : 'size-7 rounded-full flex items-center justify-center shrink-0 transition-all text-muted-foreground hover:text-foreground'
                             }
                             title={isAiGenerating ? t('articles.stopGeneration') : t('articles.sendToAi')}
                             aria-label={isAiGenerating ? t('articles.stopGeneration') : t('articles.sendToAi')}
                           >
                             {isAiGenerating ? (
-                              <Loader2 className="size-3.5 animate-spin" />
+                              <Square className="size-3 fill-current" />
                             ) : (
                               <Send className="size-3.5" />
                             )}
@@ -1360,7 +1423,7 @@ export function ContentEditPage({ contentId }: { contentId: string }) {
         open={aiAssistOpen}
         onOpenChange={setAiAssistOpen}
         onGenerate={handleAiSubmit}
-        isPending={aiGenerateMutation.isPending || aiEditSelectionMutation.isPending}
+        isPending={isAiGenerating}
       />
 
       {/* AI Featured Image Dialog */}

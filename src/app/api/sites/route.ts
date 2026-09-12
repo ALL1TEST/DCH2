@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { name, slug, domain, description, logo, favicon, planId: rawPlanId } = body;
+    const { name, slug, domain, description, logo, favicon, planId: rawPlanId, config: inputConfig, siteType } = body;
 
     if (!name || !slug) {
       return NextResponse.json(
@@ -229,6 +229,17 @@ export async function POST(request: NextRequest) {
       : (activePlanId || 'free').toLowerCase();
     const planScope = chosenPlanId;
 
+    const initialConfig = {
+      type: siteType || (inputConfig && typeof inputConfig === 'object' ? inputConfig.type : 'standard') || 'standard',
+      theme: { primaryColor: '#000000' },
+      seo: {
+        defaultTitle: name,
+        titleTemplate: '%s | ' + name,
+      },
+      ...(inputConfig && typeof inputConfig === 'object' ? inputConfig : {}),
+    };
+    if (siteType) initialConfig.type = siteType;
+
     const site = await db.site.create({
       data: {
         name,
@@ -239,13 +250,7 @@ export async function POST(request: NextRequest) {
         favicon: favicon || null,
         ownerId: user.id,
         planScope,
-        config: JSON.stringify({
-          theme: { primaryColor: '#000000' },
-          seo: {
-            defaultTitle: name,
-            titleTemplate: '%s | ' + name,
-          },
-        }),
+        config: JSON.stringify(initialConfig),
       },
       include: {
         _count: {

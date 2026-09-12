@@ -61,7 +61,11 @@ export async function POST(request: NextRequest) {
     const aiLimit = await checkAiLimit(auth.user, { images: clampedCount });
     if (aiLimit && !aiLimit.ok) return aiLimitExceededResponse(aiLimit);
 
-    const platformPrompt = await resolvePlatformPrompt('images', { prompt: prompt.trim() });
+    const platformPrompt = await resolvePlatformPrompt(
+      'images',
+      { prompt: prompt.trim(), concept: prompt.trim() },
+      { userId: auth.user.id },
+    );
     const effectivePrompt = platformPrompt?.userPrompt?.trim() || prompt.trim();
 
     const siteFilter = await getSiteWhere(request);

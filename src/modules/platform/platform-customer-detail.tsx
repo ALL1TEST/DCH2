@@ -103,8 +103,8 @@ export function PlatformCustomerDetailModule() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <PlatformKpi label={t('platformCustomerDetail.sites')} value={data.siteCount} sublabel={t('platformCustomerDetail.activePublications')} icon={<Globe className="h-4 w-4" />} color="violet" />
         <PlatformKpi label={t('platformCustomerDetail.plan')} value={data.planId.charAt(0).toUpperCase() + data.planId.slice(1)} sublabel={data.billingInterval === 'yearly' ? t('platformCustomerDetail.yearlyBilling') : t('platformCustomerDetail.monthlyBilling')} icon={<CreditCard className="h-4 w-4" />} color="amber" />
-        <PlatformKpi label={t('platformCustomerDetail.storageUsed')} value={formatBytes(data.sites.reduce((a, s) => a + s.storageBytes, 0))} sublabel={`${t('platformCustomerDetail.limit')} ${formatBytes(data.storageLimitBytes)}`} icon={<HardDrive className="h-4 w-4" />} color="sky" />
-        <PlatformKpi label={t('platformCustomerDetail.articles')} value={data.sites.reduce((a, s) => a + s.articles, 0)} sublabel={t('platformCustomerDetail.acrossAllSites')} icon={<FileText className="h-4 w-4" />} color="emerald" />
+        <PlatformKpi label={t('platformCustomerDetail.storageUsed')} value={formatBytes(data.sites.reduce((a, s) => a + (s.storageBytes || 0), 0))} sublabel={`${t('platformCustomerDetail.limit')} ${formatBytes(data.storageLimitBytes)}`} icon={<HardDrive className="h-4 w-4" />} color="sky" />
+        <PlatformKpi label={t('platformCustomerDetail.articles')} value={data.sites.reduce((a, s) => a + (s.articles || 0), 0)} sublabel={t('platformCustomerDetail.acrossAllSites')} icon={<FileText className="h-4 w-4" />} color="emerald" />
       </div>
 
       {/* Account + billing (merged) */}
@@ -123,10 +123,6 @@ export function PlatformCustomerDetailModule() {
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">{t('platformCustomerDetail.country')}</span>
               <span className="text-foreground">{data.country}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">{t('platformCustomerDetail.created')}</span>
-              <span className="text-foreground">{formatDate(data.createdAt)}</span>
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">{t('platformCustomerDetail.subscriptionStatus')}</span>

@@ -52,6 +52,7 @@ const createSchema = z.object({
   focusKeyword: z.string().trim().optional().or(z.literal('')),
   scheduledAt: z.string().datetime({ offset: true }).optional().or(z.literal('')),
   expiresAt: z.string().datetime({ offset: true }).optional().or(z.literal('')),
+  siteId: z.string().optional().or(z.literal('')),
   tagIds: z.array(z.string()).optional(),
   seoReport: z.union([z.string(), z.record(z.string(), z.any())]).optional(),
   editorialReport: z.union([z.string(), z.record(z.string(), z.any())]).optional(),
@@ -177,8 +178,8 @@ export async function POST(request: NextRequest) {
     });
     const finalSlug = existing ? `${slug}-${nanoid(4)}` : slug;
 
-    // Resolve siteId from request or fallback to active plan site
-    let siteId = await getSiteFromRequest(request);
+    // Resolve siteId from request body, query params, or fallback to active plan site
+    let siteId = (d.siteId && d.siteId !== 'all') ? d.siteId : await getSiteFromRequest(request);
     if (!siteId) {
       const authUser = await getAuthUser(request);
       if (authUser) {

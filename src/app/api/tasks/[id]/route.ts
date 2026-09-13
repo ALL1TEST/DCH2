@@ -75,18 +75,35 @@ const updateSchema = z.object({
   status: z.enum(STATUSES).optional(),
   priority: z.enum(PRIORITIES).optional(),
   labels: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
-  dueDate: z.string().datetime().nullable().optional(),
-  assigneeId: z.string().trim().nullable().optional(),
-  siteId: z.string().trim().nullable().optional(),
+  dueDate: z.string().datetime().nullable().optional().or(z.literal('')),
+  assigneeId: z.string().trim().nullable().optional().or(z.literal('')),
+  siteId: z.string().trim().nullable().optional().or(z.literal('')),
   sortOrder: z.number().int().min(0).optional(),
 });
 
 /** Fetch the task, enforcing ownership. Returns null if not owned (→ 404). */
 async function getOwnedTask(taskId: string, userId: string) {
-  return db.task.findFirst({
-    where: { id: taskId, ownerId: userId, deletedAt: null },
-    include: taskIncludes,
-  });
+  if ((db as any).task?.findFirst) {
+    return (db as any).task.findFirst({
+      where: { id: taskId, ownerId: userId, deletedAt: null },
+      include: taskIncludes,
+    });
+  }
+  const rows: any[] = await (db as any).$queryRawUnsafe(
+    `SELECT t.*, u.name as assigneeName, u.email as assigneeEmail, u.avatar as assigneeAvatar FROM "Task" t LEFT JOIN "User" u ON t.assigneeId = u.id WHERE t.id = ? AND t.ownerId = ? AND t.deletedAt IS NULL`,
+    taskId,
+    userId
+  );
+  if (!rows.length) return null;
+  const r = rows[0];
+  return {
+    ...r,
+    createdAt: new Date(r.createdAt),
+    updatedAt: new Date(r.updatedAt),
+    dueDate: r.dueDate ? new Date(r.dueDate) : null,
+    completedAt: r.completedAt ? new Date(r.completedAt) : null,
+    assignee: r.assigneeId ? { id: r.assigneeId, name: r.assigneeName, email: r.assigneeEmail, avatar: r.assigneeAvatar } : null,
+  };
 }
 
 // =====================================================================
@@ -195,11 +212,40 @@ export async function PATCH(
       }
     }
 
-    const updated = await db.task.update({
-      where: { id: taskId },
-      data: updateData,
-      include: taskIncludes,
-    });
+    let updated: any;
+    if ((db as any).task?.update) {
+      try {
+        updated = await (db as any).task.update({
+          where: { id: taskId },
+          data: updateData,
+          include: taskIncludes,
+        });
+      } catch (err) {
+        console.warn('[TASKS:PATCH] Prisma update failed, falling back to raw SQLite:', err);
+        updated = null;
+      }
+    }
+    if (!updated) {
+      const sets: string[] = [];
+      const params: any[] = [];
+      for (const [k, v] of Object.entries(updateData)) {
+        if (k === 'dueDate' || k === 'completedAt') {
+          sets.push(`"${k}" = ?`);
+          params.push(v instanceof Date ? v.toISOString() : (v || null));
+        } else {
+          sets.push(`"${k}" = ?`);
+          params.push(v);
+        }
+      }
+      sets.push(`"updatedAt" = ?`);
+      params.push(new Date().toISOString());
+      params.push(taskId);
+      await (db as any).$executeRawUnsafe(
+        `UPDATE "Task" SET ${sets.join(', ')} WHERE "id" = ?`,
+        ...params
+      );
+      updated = await getOwnedTask(taskId, user.id);
+    }
 
     return NextResponse.json({ data: toDto(updated), meta: { requestId: id } });
   } catch (error) {
@@ -234,10 +280,27 @@ export async function DELETE(
       );
     }
 
-    await db.task.update({
-      where: { id: taskId },
-      data: { deletedAt: new Date() },
-    });
+    let deleted = false;
+    if ((db as any).task?.update) {
+      try {
+        await (db as any).task.update({
+          where: { id: taskId },
+          data: { deletedAt: new Date() },
+        });
+        deleted = true;
+      } catch (err) {
+        console.warn('[TASKS:DELETE] Prisma update failed, falling back to raw SQLite:', err);
+      }
+    }
+    if (!deleted) {
+      const nowStr = new Date().toISOString();
+      await (db as any).$executeRawUnsafe(
+        `UPDATE "Task" SET "deletedAt" = ?, "updatedAt" = ? WHERE "id" = ?`,
+        nowStr,
+        nowStr,
+        taskId
+      );
+    }
 
     return NextResponse.json({ data: { id: taskId, deleted: true }, meta: { requestId: id } });
   } catch (error) {

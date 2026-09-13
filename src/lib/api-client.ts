@@ -79,7 +79,6 @@ function getActiveSiteId(): string | null {
 const GLOBAL_ROUTES = new Set([
   '/api/sites',
   '/api/auth',
-  '/api/users',
   '/api/backups',
   '/api/audit-logs',
   '/api/jobs',

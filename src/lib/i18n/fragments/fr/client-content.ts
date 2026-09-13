@@ -59,7 +59,7 @@ export const clientContentFr: Record<string, string> = {
   'dashboard.noContentData': 'Aucune donnée de contenu pour le moment.',
 
   // ---- Articles (content-list-page.tsx) ----
-  'articles.description': 'Gérez les articles de votre blog The Efficient You',
+  'articles.description': 'Gérez les articles de votre blog',
   'articles.generateAiIdeas': 'Générer des idées d’articles avec l’IA',
   'articles.aiIdeas': 'Idées IA',
   'articles.manageCategoriesTags': 'Gérer les catégories et les tags',

@@ -8,6 +8,7 @@ import { nanoid } from 'nanoid';
 import { z } from 'zod/v4';
 import crypto from 'crypto';
 import { parsePagePermissions, serializePagePermissions } from '@/lib/permissions';
+import { getSiteFromRequest } from '@/lib/site-context';
 
 // ---------- helpers ---------------------------------------------------
 
@@ -101,6 +102,11 @@ export async function POST(request: NextRequest) {
         ? null
         : serializePagePermissions(d.pagePermissions);
 
+    const siteFromReq = await getSiteFromRequest(request);
+    const assignedSitesArray = (d.assignedSites && d.assignedSites.length > 0)
+      ? d.assignedSites
+      : (siteFromReq ? [siteFromReq] : []);
+
     const item = await db.user.create({
       data: {
         email: d.email,
@@ -108,7 +114,7 @@ export async function POST(request: NextRequest) {
         role: effectiveRole,
         status: 'INVITED',
         password: randomPassword,
-        assignedSites: d.assignedSites && d.assignedSites.length > 0 ? JSON.stringify(d.assignedSites) : null,
+        assignedSites: assignedSitesArray.length > 0 ? JSON.stringify(assignedSitesArray) : null,
         sitePermissions: d.sitePermissions && d.sitePermissions.length > 0 ? JSON.stringify(d.sitePermissions) : null,
         pagePermissions: serializedPagePerms,
       },

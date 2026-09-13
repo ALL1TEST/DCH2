@@ -1,13 +1,39 @@
-import { PrismaClient } from '@prisma/client'
+import path from 'path';
+import type { PrismaClient } from '@prisma/client';
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined
-  _schemaVersion?: string
+function getResolvedDatabaseUrl(): string | undefined {
+  const url = process.env.DATABASE_URL;
+  if (!url || !url.startsWith('file:')) return url;
+  const filePath = url.slice(5);
+  if (path.isAbsolute(filePath)) return url;
+  const normalized = filePath.replace(/^\.\.\//, '').replace(/^\.\//, '');
+  const abs = path.resolve(process.cwd(), normalized).replace(/\\/g, '/');
+  return `file:${abs}`;
 }
 
-// Bump version when schema changes to force refresh in dev mode
-const CURRENT_SCHEMA_VER = 'v4_clear_require';
+function createFreshClient(): any {
+  let ClientClass: any;
+  try {
+    // eval('require') bypasses Next.js / Webpack static bundle cache and loads directly from disk
+    const prismaModule = eval('require')('@prisma/client');
+    ClientClass = prismaModule.PrismaClient;
+  } catch {
+    const { PrismaClient: BundledClient } = require('@prisma/client');
+    ClientClass = BundledClient;
+  }
+  const resolvedUrl = getResolvedDatabaseUrl();
+  return new ClientClass({
+    ...(resolvedUrl ? { datasources: { db: { url: resolvedUrl } } } : {}),
+    log: ['query'],
+  });
+}
 
+const globalForPrisma = globalThis as unknown as {
+  prisma: any;
+  _schemaVersion?: string;
+};
+
+const CURRENT_SCHEMA_VER = 'v9_db_path_resolved';
 
 if (globalForPrisma._schemaVersion !== CURRENT_SCHEMA_VER) {
   if (globalForPrisma.prisma) {
@@ -19,27 +45,26 @@ if (globalForPrisma._schemaVersion !== CURRENT_SCHEMA_VER) {
   globalForPrisma._schemaVersion = CURRENT_SCHEMA_VER;
 }
 
-function getPrismaClient(): PrismaClient {
-  if (process.env.NODE_ENV !== 'production' && typeof require !== 'undefined' && require.cache) {
-    try {
-      for (const key of Object.keys(require.cache)) {
-        if (key.includes('.prisma') || key.includes('@prisma')) {
-          delete require.cache[key];
-        }
-      }
-    } catch {}
+function getClient(): any {
+  if (!globalForPrisma.prisma || !globalForPrisma.prisma.task) {
+    if (globalForPrisma.prisma) {
+      try {
+        globalForPrisma.prisma.$disconnect();
+      } catch {}
+    }
+    globalForPrisma.prisma = createFreshClient();
+    globalForPrisma._schemaVersion = CURRENT_SCHEMA_VER;
   }
-  const { PrismaClient: FreshClient } = require('@prisma/client');
-  return new FreshClient({
-    log: ['query'],
-  });
+  return globalForPrisma.prisma;
 }
 
-export const db =
-  globalForPrisma.prisma ??
-  getPrismaClient();
-
-if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = db;
-  globalForPrisma._schemaVersion = CURRENT_SCHEMA_VER;
-}
+export const db: PrismaClient = new Proxy({} as any, {
+  get(_target, prop) {
+    const client = getClient();
+    const value = client[prop];
+    if (typeof value === 'function') {
+      return value.bind(client);
+    }
+    return value;
+  },
+}) as unknown as PrismaClient;

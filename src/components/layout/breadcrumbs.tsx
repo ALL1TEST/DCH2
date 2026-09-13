@@ -188,7 +188,7 @@ const SUBPAGE_LABELS: Record<string, Record<string, string>> = {
 // Modules that should NOT render a topbar breadcrumb — see the comment
 // inside `Breadcrumbs` for the full rationale.
 const NO_BREADCRUMB_MODULES = new Set([
-  'dashboard', 'calendar', 'users', 'comments', 'settings', 'media',
+  'dashboard', 'calendar', 'tasks', 'users', 'comments', 'settings', 'media',
   'email-templates', 'notifications',
   'backups', 'content', 'seo', 'ai', 'automation', 'newsletter',
   // Client account pages — no breadcrumb, topbar hidden on desktop so the

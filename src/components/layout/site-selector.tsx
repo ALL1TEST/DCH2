@@ -10,6 +10,17 @@ import {
   Trash2,
   Settings,
   Globe,
+  CheckCircle2,
+  AlertTriangle,
+  WifiOff,
+  AlertCircle,
+  Key,
+  ShieldCheck,
+  Eye,
+  EyeOff,
+  RefreshCw,
+  Copy,
+  CheckCheck,
 } from 'lucide-react';
 import { useSiteStore, type Site } from '@/lib/stores/site-store';
 import { useNavigationStore } from '@/lib/stores/navigation-store';
@@ -91,33 +102,116 @@ interface CreateSiteDialogProps {
   onCreated: (site: Site) => void;
 }
 
+type VerificationStatus =
+  | 'IDLE'
+  | 'VERIFYING'
+  | 'CONNECTED'
+  | 'INVALID_CREDENTIALS'
+  | 'UNREACHABLE'
+  | 'INVALID_API'
+  | 'UNSUPPORTED_PLATFORM';
+
+interface VerificationState {
+  status: VerificationStatus;
+  message: string;
+  details?: {
+    responseTimeMs?: number;
+    siteName?: string;
+    version?: string;
+    username?: string;
+    roles?: string[];
+    [key: string]: unknown;
+  } | null;
+  capabilities?: string[];
+}
+
+// -------------------- Create Site Dialog --------------------
+
+interface CreateSiteDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreated: (site: Site) => void;
+}
+
+type VerificationStatus =
+  | 'IDLE'
+  | 'VERIFYING'
+  | 'CONNECTED'
+  | 'INVALID_CREDENTIALS'
+  | 'UNREACHABLE'
+  | 'INVALID_API'
+  | 'UNSUPPORTED_PLATFORM';
+
+interface VerificationState {
+  status: VerificationStatus;
+  message: string;
+  details?: {
+    responseTimeMs?: number;
+    siteName?: string;
+    version?: string;
+    username?: string;
+    roles?: string[];
+    [key: string]: unknown;
+  } | null;
+  capabilities?: string[];
+}
+
 function CreateSiteDialog({ open, onOpenChange, onCreated }: CreateSiteDialogProps) {
   const { t } = useT();
   const [siteType, setSiteType] = useState<'standard' | 'wordpress'>('standard');
+
+  // Basic Info (Public Domain / URL removed completely; Site URL is the single canonical URL)
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
-  const [domain, setDomain] = useState('');
+  const [siteUrl, setSiteUrl] = useState('');
   const [description, setDescription] = useState('');
-  const [wpUrl, setWpUrl] = useState('');
+
+  // Connection Configuration
+  const [apiBaseUrl, setApiBaseUrl] = useState('');
+  const [connectionToken, setConnectionToken] = useState('');
+  const [isGeneratingToken, setIsGeneratingToken] = useState(false);
+  const [showToken, setShowToken] = useState(false);
+  const [copiedToken, setCopiedToken] = useState(false);
+
+  // WordPress Specific
   const [wpUsername, setWpUsername] = useState('');
   const [wpPassword, setWpPassword] = useState('');
+  const [showWpPassword, setShowWpPassword] = useState(false);
+
+  // Verification & Submission state
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verification, setVerification] = useState<VerificationState>({
+    status: 'IDLE',
+    message: '',
+  });
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState('');
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const createSite = useSiteStore((s) => s.createSite);
 
+  const resetForm = () => {
+    setSiteType('standard');
+    setName('');
+    setSlug('');
+    setSiteUrl('');
+    setDescription('');
+    setApiBaseUrl('');
+    setConnectionToken('');
+    setIsGeneratingToken(false);
+    setShowToken(false);
+    setCopiedToken(false);
+    setWpUsername('');
+    setWpPassword('');
+    setShowWpPassword(false);
+    setIsVerifying(false);
+    setVerification({ status: 'IDLE', message: '' });
+    setError('');
+    setSubmitAttempted(false);
+  };
+
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
-      setSiteType('standard');
-      setName('');
-      setSlug('');
-      setDomain('');
-      setDescription('');
-      setWpUrl('');
-      setWpUsername('');
-      setWpPassword('');
-      setError('');
-      setSubmitAttempted(false);
+      resetForm();
     }
     onOpenChange(nextOpen);
   };
@@ -139,36 +233,170 @@ function CreateSiteDialog({ open, onOpenChange, onCreated }: CreateSiteDialogPro
     setSlug(generateSlug(val));
   };
 
+  // When site URL changes, auto-derive default API Base URL if user hasn't customized it
+  const handleSiteUrlChange = (val: string) => {
+    setSiteUrl(val);
+    invalidateVerification();
+    const trimmed = val.trim().replace(/\/+$/, '');
+    if (trimmed) {
+      setApiBaseUrl(siteType === 'wordpress' ? `${trimmed}/wp-json` : `${trimmed}/api`);
+    }
+  };
+
+  // Invalidate verification state whenever connection settings change
+  const invalidateVerification = () => {
+    if (verification.status !== 'IDLE') {
+      setVerification({ status: 'IDLE', message: '' });
+    }
+  };
+
+  // Server-side cryptographic token generation
+  const handleGenerateToken = async () => {
+    setIsGeneratingToken(true);
+    setError('');
+    try {
+      const res = await fetch('/api/sites/generate-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      if (data.token) {
+        setConnectionToken(data.token);
+        invalidateVerification();
+        toast.success('Generated secure connection token');
+      } else {
+        setError(data.error?.message || 'Failed to generate token');
+      }
+    } catch {
+      setError('Failed to contact server to generate token');
+    } finally {
+      setIsGeneratingToken(false);
+    }
+  };
+
+  const handleCopyToken = () => {
+    if (!connectionToken) return;
+    navigator.clipboard.writeText(connectionToken);
+    setCopiedToken(true);
+    toast.success('Connection token copied to clipboard');
+    setTimeout(() => setCopiedToken(false), 2000);
+  };
+
+  // Run real server-side handshake verification
+  const handleVerify = async () => {
+    setError('');
+    const targetSiteUrl = siteUrl.trim();
+
+    if (!targetSiteUrl) {
+      setError('Please provide your Site URL.');
+      return;
+    }
+
+    if (siteType === 'standard' && !connectionToken.trim()) {
+      setError('Please click "Generate Token" before verifying the connection.');
+      return;
+    }
+
+    if (siteType === 'wordpress' && (!wpUsername.trim() || !wpPassword.trim())) {
+      setError('WordPress Username and Application Password are required for verification.');
+      return;
+    }
+
+    setIsVerifying(true);
+    setVerification({ status: 'VERIFYING', message: 'Testing remote connection...' });
+
+    const resolvedApiBaseUrl = apiBaseUrl.trim() || (
+      siteType === 'wordpress'
+        ? `${targetSiteUrl.replace(/\/+$/, '')}/wp-json`
+        : `${targetSiteUrl.replace(/\/+$/, '')}/api`
+    );
+
+    try {
+      const res = await fetch('/api/sites/verify-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platform: siteType,
+          siteUrl: targetSiteUrl,
+          apiBaseUrl: resolvedApiBaseUrl,
+          apiKey: siteType === 'standard' ? connectionToken.trim() : undefined,
+          restApiUrl: siteType === 'wordpress' ? resolvedApiBaseUrl : undefined,
+          username: siteType === 'wordpress' ? wpUsername.trim() : undefined,
+          appPassword: siteType === 'wordpress' ? wpPassword.trim() : undefined,
+        }),
+      });
+
+      const data = await res.json();
+      setVerification({
+        status: data.status as VerificationStatus,
+        message: data.message || '',
+        details: data.details,
+        capabilities: data.capabilities,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Network error during verification';
+      setVerification({
+        status: 'UNREACHABLE',
+        message: msg,
+      });
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
   const handleSubmit = async () => {
     const errors = validateSiteFields(name, slug, t);
     if (errors.name || errors.slug) {
       setSubmitAttempted(true);
       return;
     }
-    if (siteType === 'wordpress' && !wpUrl.trim()) {
-      setError('Please provide your WordPress Site URL');
+
+    if (!siteUrl.trim()) {
+      setError('Site URL is required.');
       setSubmitAttempted(true);
       return;
     }
+
+    // Strictly enforce real server-side verification before site creation
+    if (verification.status !== 'CONNECTED') {
+      setError('Please verify the connection before registering this site.');
+      setSubmitAttempted(true);
+      return;
+    }
+
     setSubmitAttempted(false);
     setError('');
     setIsCreating(true);
+
     try {
+      const targetSiteUrl = siteUrl.trim();
+      const resolvedApiBaseUrl = apiBaseUrl.trim() || (
+        siteType === 'wordpress'
+          ? `${targetSiteUrl.replace(/\/+$/, '')}/wp-json`
+          : `${targetSiteUrl.replace(/\/+$/, '')}/api`
+      );
+
       const site = await createSite({
         name: name.trim(),
         slug: slug.trim(),
-        domain: domain.trim() || (siteType === 'wordpress' && wpUrl.trim() ? wpUrl.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '') : undefined),
+        siteUrl: targetSiteUrl,
         description: description.trim() || undefined,
         siteType,
-        config: siteType === 'wordpress' ? {
-          type: 'wordpress',
-          wordpressUrl: wpUrl.trim(),
-          wordpressUsername: wpUsername.trim() || undefined,
-          wordpressAppPassword: wpPassword.trim() || undefined,
-        } : {
-          type: 'standard',
+        connection: {
+          platform: siteType,
+          siteUrl: targetSiteUrl,
+          apiBaseUrl: resolvedApiBaseUrl,
+          apiKey: siteType === 'standard' ? connectionToken.trim() : undefined,
+          restApiUrl: siteType === 'wordpress' ? resolvedApiBaseUrl : undefined,
+          username: siteType === 'wordpress' ? wpUsername.trim() : undefined,
+          appPassword: siteType === 'wordpress' ? wpPassword.trim() : undefined,
+          status: 'CONNECTED',
+          capabilities: verification.capabilities || ['articles', 'categories', 'media', 'comments', 'settings', 'seo'],
+          lastVerifiedAt: new Date().toISOString(),
         },
       });
+
+      toast.success(`Site "${site.name}" registered and connected!`);
       handleOpenChange(false);
       onCreated(site);
     } catch (err) {
@@ -180,167 +408,427 @@ function CreateSiteDialog({ open, onOpenChange, onCreated }: CreateSiteDialogPro
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-3xl max-h-[92vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle>{t('siteSelector.createTitle')}</DialogTitle>
           <DialogDescription>
-            {t('siteSelector.createDescription')}
+            Register an external website and connect it to the CMS through a secure API connection.
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-2">
-          {/* Site Platform Option */}
-          <div className="grid gap-1.5">
+
+        <div className="grid gap-5 py-2">
+          {/* Section 1: Platform Type */}
+          <div className="grid gap-2">
             <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Platform Type
             </Label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 type="button"
-                onClick={() => setSiteType('standard')}
-                className={`flex items-start gap-3 p-3 rounded-lg border text-left transition-all cursor-pointer ${
+                onClick={() => {
+                  if (siteType !== 'standard') {
+                    setSiteType('standard');
+                    if (siteUrl.trim()) {
+                      setApiBaseUrl(`${siteUrl.trim().replace(/\/+$/, '')}/api`);
+                    }
+                    invalidateVerification();
+                  }
+                }}
+                className={`flex items-start gap-3 p-3.5 rounded-lg border text-left transition-all cursor-pointer ${
                   siteType === 'standard'
                     ? 'border-primary bg-primary/5 ring-1 ring-primary shadow-xs'
                     : 'border-border/70 hover:border-muted-foreground/40 hover:bg-accent/30'
                 }`}
               >
-                <div className={`p-2 rounded-md shrink-0 ${siteType === 'standard' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+                <div
+                  className={`p-2.5 rounded-md shrink-0 ${
+                    siteType === 'standard' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                  }`}
+                >
                   <Globe className="h-4 w-4" />
                 </div>
                 <div className="min-w-0">
                   <div className="text-sm font-semibold leading-tight">Standard CMS</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">Built-in headless publication</div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Connect any custom website via standard REST API
+                  </div>
                 </div>
               </button>
 
               <button
                 type="button"
-                onClick={() => setSiteType('wordpress')}
-                className={`flex items-start gap-3 p-3 rounded-lg border text-left transition-all cursor-pointer ${
+                onClick={() => {
+                  if (siteType !== 'wordpress') {
+                    setSiteType('wordpress');
+                    if (siteUrl.trim()) {
+                      setApiBaseUrl(`${siteUrl.trim().replace(/\/+$/, '')}/wp-json`);
+                    }
+                    invalidateVerification();
+                  }
+                }}
+                className={`flex items-start gap-3 p-3.5 rounded-lg border text-left transition-all cursor-pointer ${
                   siteType === 'wordpress'
                     ? 'border-[#21759b] bg-[#21759b]/5 ring-1 ring-[#21759b] shadow-xs'
                     : 'border-border/70 hover:border-muted-foreground/40 hover:bg-accent/30'
                 }`}
               >
-                <div className={`p-2 rounded-md shrink-0 ${siteType === 'wordpress' ? 'bg-[#21759b] text-white' : 'bg-muted text-muted-foreground'}`}>
+                <div
+                  className={`p-2.5 rounded-md shrink-0 ${
+                    siteType === 'wordpress' ? 'bg-[#21759b] text-white' : 'bg-muted text-muted-foreground'
+                  }`}
+                >
                   <WordPressIcon className="h-4 w-4 fill-current" />
                 </div>
                 <div className="min-w-0">
                   <div className="text-sm font-semibold leading-tight">WordPress</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">External WordPress site</div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Connect an existing self-hosted or managed WordPress site
+                  </div>
                 </div>
               </button>
             </div>
           </div>
 
-          {/* Row 1: Site Name & Slug */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label htmlFor="site-name">{t('siteSelector.siteNameLabel')}</Label>
-              <Input
-                id="site-name"
-                placeholder={t('siteSelector.siteNamePlaceholder')}
-                value={name}
-                onChange={(e) => handleNameChange(e.target.value)}
-                autoFocus
-                aria-invalid={!!nameError}
-              />
-              {nameError && (
-                <p className="text-xs text-destructive">{nameError}</p>
-              )}
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="site-slug">{t('siteSelector.slugLabel')}</Label>
-              <Input
-                id="site-slug"
-                placeholder={t('siteSelector.slugPlaceholder')}
-                value={slug}
-                onChange={(e) => setSlug(e.target.value)}
-                aria-invalid={!!slugError}
-              />
-              {slugError && (
-                <p className="text-xs text-destructive">{slugError}</p>
-              )}
-            </div>
-          </div>
-
-          {siteType === 'wordpress' && (
-            <div className="space-y-3 p-3.5 rounded-lg border border-[#21759b]/30 bg-[#21759b]/5 animate-in fade-in-50 duration-200">
-              <div className="flex items-center gap-2 pb-1 border-b border-border/40">
-                <WordPressIcon className="h-4 w-4 text-[#21759b] fill-current" />
-                <span className="text-xs font-semibold text-foreground">WordPress Connection</span>
-              </div>
+          {/* Section 2: Basic Information */}
+          <div className="grid gap-3 pt-2 border-t border-border/40">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Basic Information
+            </Label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="grid gap-1.5">
-                <Label htmlFor="wp-url" className="text-xs font-medium">WordPress Site URL <span className="text-destructive">*</span></Label>
+                <Label htmlFor="site-name" className="text-xs font-medium">
+                  Site Name <span className="text-destructive">*</span>
+                </Label>
                 <Input
-                  id="wp-url"
-                  placeholder="https://myblog.com"
-                  value={wpUrl}
-                  onChange={(e) => {
-                    setWpUrl(e.target.value);
-                    if (!domain) {
-                      const cleaned = e.target.value.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-                      setDomain(cleaned);
-                    }
-                  }}
+                  id="site-name"
+                  placeholder="e.g. Acme Tech Blog"
+                  value={name}
+                  onChange={(e) => handleNameChange(e.target.value)}
+                  autoFocus
+                  aria-invalid={!!nameError}
                 />
-                <p className="text-[11px] text-muted-foreground">The full URL of your existing WordPress instance.</p>
+                {nameError && <p className="text-xs text-destructive">{nameError}</p>}
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="grid gap-1.5">
-                  <Label htmlFor="wp-user" className="text-xs font-medium">Username (Optional)</Label>
-                  <Input
-                    id="wp-user"
-                    placeholder="admin"
-                    value={wpUsername}
-                    onChange={(e) => setWpUsername(e.target.value)}
-                  />
-                </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor="wp-pwd" className="text-xs font-medium">App Password (Optional)</Label>
-                  <Input
-                    id="wp-pwd"
-                    type="password"
-                    placeholder="•••• •••• ••••"
-                    value={wpPassword}
-                    onChange={(e) => setWpPassword(e.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
 
-          {/* Row 2: Custom Domain & Description */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label htmlFor="site-domain">{t('siteSelector.domainOptionalLabel')}</Label>
-              <Input
-                id="site-domain"
-                placeholder={t('siteSelector.domainPlaceholder')}
-                value={domain}
-                onChange={(e) => setDomain(e.target.value)}
-              />
+              <div className="grid gap-1.5">
+                <Label htmlFor="site-slug" className="text-xs font-medium">
+                  Site Slug <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="site-slug"
+                  placeholder="acme-tech-blog"
+                  value={slug}
+                  onChange={(e) => setSlug(e.target.value)}
+                  aria-invalid={!!slugError}
+                />
+                {slugError && <p className="text-xs text-destructive">{slugError}</p>}
+              </div>
             </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="site-desc">{t('siteSelector.descriptionOptionalLabel')}</Label>
-              <Input
-                id="site-desc"
-                placeholder={t('siteSelector.descriptionPlaceholder')}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label htmlFor="site-url" className="text-xs font-medium">
+                  Site URL <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="site-url"
+                  placeholder="https://vertest-ten.vercel.app"
+                  value={siteUrl}
+                  onChange={(e) => handleSiteUrlChange(e.target.value)}
+                />
+                <p className="text-[11px] text-muted-foreground">The canonical URL of your website.</p>
+              </div>
+
+              <div className="grid gap-1.5">
+                <Label htmlFor="site-desc" className="text-xs font-medium">
+                  Description
+                </Label>
+                <Input
+                  id="site-desc"
+                  placeholder="Optional summary or notes"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </div>
             </div>
           </div>
 
-          {error && (
-            <p className="text-sm text-destructive">{error}</p>
-          )}
+          {/* Section 3: Connection Configuration */}
+          <div className="grid gap-3 pt-2 border-t border-border/40">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Connection Configuration
+            </Label>
+
+            {/* Standard CMS Fields */}
+            {siteType === 'standard' && (
+              <div className="space-y-3 p-4 rounded-lg border border-primary/20 bg-primary/[0.02]">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="api-base-url" className="text-xs font-medium">
+                    API Base URL
+                  </Label>
+                  <Input
+                    id="api-base-url"
+                    placeholder="https://vertest-ten.vercel.app/api"
+                    value={apiBaseUrl}
+                    onChange={(e) => {
+                      setApiBaseUrl(e.target.value);
+                      invalidateVerification();
+                    }}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Receives CMS requests. Probes <code>/api/cms/health</code> for verification.
+                  </p>
+                </div>
+
+                {/* Connection Token Field */}
+                <div className="grid gap-1.5 pt-1">
+                  <Label className="text-xs font-medium">Connection Token</Label>
+
+                  {!connectionToken ? (
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-3 rounded-md border border-dashed border-border bg-background/50">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleGenerateToken}
+                        disabled={isGeneratingToken}
+                        className="font-medium shrink-0"
+                      >
+                        {isGeneratingToken ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <Key className="h-3.5 w-3.5 mr-2 text-primary" />
+                            Generate Token
+                          </>
+                        )}
+                      </Button>
+                      <span className="text-xs text-muted-foreground">
+                        Generates a cryptographically secure 256-bit token to authenticate your external site.
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="relative flex-1">
+                          <Input
+                            type={showToken ? 'text' : 'password'}
+                            value={connectionToken}
+                            onChange={(e) => {
+                              setConnectionToken(e.target.value);
+                              invalidateVerification();
+                            }}
+                            placeholder="cms_live_..."
+                            className="font-mono text-xs pr-20"
+                          />
+                          <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                            <button
+                              type="button"
+                              onClick={() => setShowToken(!showToken)}
+                              className="text-muted-foreground hover:text-foreground p-1 rounded"
+                              title={showToken ? 'Hide token' : 'Reveal token'}
+                            >
+                              {showToken ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleCopyToken}
+                              className="text-muted-foreground hover:text-foreground p-1 rounded"
+                              title="Copy token"
+                            >
+                              {copiedToken ? (
+                                <CheckCheck className="h-3.5 w-3.5 text-emerald-500" />
+                              ) : (
+                                <Copy className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleGenerateToken}
+                          disabled={isGeneratingToken}
+                          className="text-xs h-9 shrink-0 text-muted-foreground hover:text-foreground"
+                          title="Generate a new token"
+                        >
+                          <RefreshCw className="h-3 w-3 mr-1.5" />
+                          Regenerate
+                        </Button>
+                      </div>
+
+                      {/* Configure External Site - Instruction only */}
+                      <div className="p-2.5 rounded-md bg-muted/60 border border-border text-xs text-muted-foreground flex items-start gap-2">
+                        <Key className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+                        <p className="text-[11px] leading-relaxed">
+                          Add this token to your external site&apos;s environment variables as <code className="text-foreground font-semibold px-1 py-0.5 rounded bg-background border border-border/80">CMS_CONNECTION_TOKEN</code>.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* WordPress Fields */}
+            {siteType === 'wordpress' && (
+              <div className="space-y-3.5 p-4 rounded-lg border border-[#21759b]/30 bg-[#21759b]/5">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="wp-rest-url" className="text-xs font-medium">
+                    WordPress REST API URL
+                  </Label>
+                  <Input
+                    id="wp-rest-url"
+                    placeholder="https://myblog.com/wp-json"
+                    value={apiBaseUrl}
+                    onChange={(e) => {
+                      setApiBaseUrl(e.target.value);
+                      invalidateVerification();
+                    }}
+                  />
+                  <p className="text-[11px] text-muted-foreground">Defaults to /wp-json.</p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="wp-user" className="text-xs font-medium">
+                      WordPress Username <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      id="wp-user"
+                      placeholder="admin"
+                      value={wpUsername}
+                      onChange={(e) => {
+                        setWpUsername(e.target.value);
+                        invalidateVerification();
+                      }}
+                    />
+                  </div>
+
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="wp-pwd" className="text-xs font-medium">
+                      Application Password <span className="text-destructive">*</span>
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="wp-pwd"
+                        type={showWpPassword ? 'text' : 'password'}
+                        placeholder="•••• •••• •••• ••••"
+                        value={wpPassword}
+                        onChange={(e) => {
+                          setWpPassword(e.target.value);
+                          invalidateVerification();
+                        }}
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowWpPassword(!showWpPassword)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1"
+                      >
+                        {showWpPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  💡 <strong>Tip:</strong> Generate an Application Password in your WordPress Admin: <em>Users → Profile → Application Passwords</em>.
+                </p>
+              </div>
+            )}
+
+            {/* Verify Connection Action & Status */}
+            <div className="space-y-2 pt-1">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleVerify}
+                  disabled={isVerifying}
+                  className="w-full sm:w-auto font-medium"
+                >
+                  {isVerifying ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" />
+                      Verifying...
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="h-3.5 w-3.5 mr-2 text-primary" />
+                      Verify Connection
+                    </>
+                  )}
+                </Button>
+
+                {/* Connection Status Pill beside button */}
+                <div>
+                  {verification.status === 'CONNECTED' && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                      Connected ✓
+                    </span>
+                  )}
+                  {verification.status === 'VERIFYING' && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" />
+                      Verifying...
+                    </span>
+                  )}
+                  {verification.status === 'IDLE' && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground border border-border/60">
+                      Not verified
+                    </span>
+                  )}
+                  {verification.status !== 'IDLE' &&
+                    verification.status !== 'VERIFYING' &&
+                    verification.status !== 'CONNECTED' && (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-destructive/15 text-destructive border border-destructive/20">
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                        Connection failed
+                      </span>
+                    )}
+                </div>
+              </div>
+
+              {/* Detailed failure message directly beneath the button */}
+              {verification.status !== 'IDLE' &&
+                verification.status !== 'VERIFYING' &&
+                verification.status !== 'CONNECTED' && (
+                  <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-xs text-destructive space-y-1 animate-in fade-in-50">
+                    <p className="font-semibold flex items-center gap-1.5">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      {verification.status === 'INVALID_CREDENTIALS' && 'Invalid Connection Token'}
+                      {verification.status === 'UNREACHABLE' && 'Endpoint Unreachable'}
+                      {verification.status === 'INVALID_API' && 'Invalid API Endpoint'}
+                      {verification.status === 'UNSUPPORTED_PLATFORM' && 'Unsupported Platform'}
+                    </p>
+                    <p className="text-[11px] opacity-90">{verification.message}</p>
+                  </div>
+                )}
+            </div>
+          </div>
+
+          {error && <p className="text-sm font-medium text-destructive">{error}</p>}
         </div>
-        <DialogFooter className="pt-2">
+
+        <DialogFooter className="pt-3 border-t border-border/40">
           <Button variant="outline" onClick={() => handleOpenChange(false)}>
             {t('common.cancel')}
           </Button>
-          <Button onClick={handleSubmit} disabled={isCreating}>
-            {isCreating ? t('siteSelector.creating') : t('siteSelector.createButton')}
+          <Button onClick={handleSubmit} disabled={isCreating || isVerifying || verification.status !== 'CONNECTED'}>
+            {isCreating ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Registering...
+              </>
+            ) : (
+              'Save & Register Site'
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -360,8 +848,40 @@ function EditSiteDialog({ open, onOpenChange, site }: EditSiteDialogProps) {
   const { t } = useT();
   const [name, setName] = useState(site.name);
   const [slug, setSlug] = useState(site.slug);
-  const [domain, setDomain] = useState(site.domain || '');
   const [description, setDescription] = useState(site.description || '');
+
+  const getParsedConfig = (raw: unknown): Record<string, unknown> => {
+    if (!raw) return {};
+    if (typeof raw === 'string') {
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return {};
+      }
+    }
+    return (raw as Record<string, unknown>) || {};
+  };
+
+  const initialConfig = getParsedConfig(site.config);
+  const connection = (initialConfig?.connection as Record<string, unknown>) || null;
+  const platform = (connection?.platform as string) || (initialConfig?.type === 'wordpress' ? 'wordpress' : 'standard');
+  const isWordPress = platform === 'wordpress';
+
+  // Canonical Site URL
+  const initialSiteUrl = String(connection?.siteUrl || site.domain || initialConfig?.wordpressUrl || '');
+  const [siteUrl, setSiteUrl] = useState(initialSiteUrl);
+  const [apiBaseUrl, setApiBaseUrl] = useState(String(connection?.apiBaseUrl || ''));
+  const [wpUsername, setWpUsername] = useState(String(connection?.username || initialConfig?.wordpressUsername || ''));
+  const [newPassword, setNewPassword] = useState('');
+  const [isGeneratingToken, setIsGeneratingToken] = useState(false);
+  const [copiedToken, setCopiedToken] = useState(false);
+
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verification, setVerification] = useState<VerificationState>({
+    status: (connection?.status as VerificationStatus) || 'CONNECTED',
+    message: connection?.status === 'CONNECTED' ? 'Connection registered' : '',
+  });
+
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState('');
@@ -369,29 +889,20 @@ function EditSiteDialog({ open, onOpenChange, site }: EditSiteDialogProps) {
   const updateSite = useSiteStore((s) => s.updateSite);
   const deleteSite = useSiteStore((s) => s.deleteSite);
 
-  const getParsedConfig = (raw: unknown): Record<string, unknown> => {
-    if (!raw) return {};
-    if (typeof raw === 'string') {
-      try { return JSON.parse(raw); } catch { return {}; }
-    }
-    return (raw as Record<string, unknown>) || {};
-  };
-
-  const initialConfig = getParsedConfig(site.config);
-  const isWordPress = initialConfig?.type === 'wordpress';
-  const [wpUrl, setWpUrl] = useState(String(initialConfig?.wordpressUrl || ''));
-  const [wpUsername, setWpUsername] = useState(String(initialConfig?.wordpressUsername || ''));
-  const [wpPassword, setWpPassword] = useState(String(initialConfig?.wordpressAppPassword || ''));
-
   useEffect(() => {
     setName(site.name);
     setSlug(site.slug);
-    setDomain(site.domain || '');
     setDescription(site.description || '');
     const cfg = getParsedConfig(site.config);
-    setWpUrl(String(cfg?.wordpressUrl || ''));
-    setWpUsername(String(cfg?.wordpressUsername || ''));
-    setWpPassword(String(cfg?.wordpressAppPassword || ''));
+    const conn = (cfg?.connection as Record<string, unknown>) || null;
+    setSiteUrl(String(conn?.siteUrl || site.domain || cfg?.wordpressUrl || ''));
+    setApiBaseUrl(String(conn?.apiBaseUrl || ''));
+    setWpUsername(String(conn?.username || cfg?.wordpressUsername || ''));
+    setNewPassword('');
+    setVerification({
+      status: (conn?.status as VerificationStatus) || 'CONNECTED',
+      message: conn?.status === 'CONNECTED' ? 'Connection registered' : '',
+    });
     setError('');
     setSubmitAttempted(false);
   }, [site]);
@@ -399,6 +910,65 @@ function EditSiteDialog({ open, onOpenChange, site }: EditSiteDialogProps) {
   const fieldErrors = validateSiteFields(name, slug, t);
   const nameError = submitAttempted ? fieldErrors.name : undefined;
   const slugError = submitAttempted ? fieldErrors.slug : undefined;
+
+  const handleGenerateNewToken = async () => {
+    setIsGeneratingToken(true);
+    try {
+      const res = await fetch('/api/sites/generate-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      if (data.token) {
+        setNewPassword(data.token);
+        toast.success('Generated new connection token. Remember to save.');
+      }
+    } catch {
+      toast.error('Failed to generate token');
+    } finally {
+      setIsGeneratingToken(false);
+    }
+  };
+
+  const handleReverify = async () => {
+    const targetUrl = siteUrl.trim();
+    if (!targetUrl) {
+      setError('Site URL is required to verify connection');
+      return;
+    }
+
+    setIsVerifying(true);
+    try {
+      const res = await fetch('/api/sites/verify-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platform,
+          siteUrl: targetUrl,
+          apiBaseUrl: platform === 'standard' ? apiBaseUrl.trim() : undefined,
+          apiKey: platform === 'standard' && newPassword.trim() ? newPassword.trim() : undefined,
+          restApiUrl: platform === 'wordpress' ? apiBaseUrl.trim() : undefined,
+          username: platform === 'wordpress' ? wpUsername.trim() : undefined,
+          appPassword: platform === 'wordpress' && newPassword.trim() ? newPassword.trim() : undefined,
+        }),
+      });
+
+      const data = await res.json();
+      setVerification({
+        status: data.status,
+        message: data.message,
+        details: data.details,
+        capabilities: data.capabilities,
+      });
+    } catch (err) {
+      setVerification({
+        status: 'UNREACHABLE',
+        message: err instanceof Error ? err.message : 'Failed to test connection',
+      });
+    } finally {
+      setIsVerifying(false);
+    }
+  };
 
   const handleSave = async () => {
     const errors = validateSiteFields(name, slug, t);
@@ -411,19 +981,35 @@ function EditSiteDialog({ open, onOpenChange, site }: EditSiteDialogProps) {
     setIsSaving(true);
     try {
       const currentConfig = getParsedConfig(site.config);
+      const existingConn = (currentConfig.connection as Record<string, unknown>) || {};
+
+      const updatedConn: Record<string, unknown> = {
+        ...existingConn,
+        platform,
+        siteUrl: siteUrl.trim() || existingConn.siteUrl,
+        apiBaseUrl: apiBaseUrl.trim() || existingConn.apiBaseUrl,
+        username: isWordPress ? wpUsername.trim() || existingConn.username : undefined,
+        status: verification.status === 'CONNECTED' ? 'CONNECTED' : existingConn.status || 'CONNECTED',
+        lastVerifiedAt: verification.status === 'CONNECTED' ? new Date().toISOString() : existingConn.lastVerifiedAt,
+      };
+
+      if (newPassword.trim()) {
+        if (isWordPress) {
+          updatedConn.appPassword = newPassword.trim();
+        } else {
+          updatedConn.apiKey = newPassword.trim();
+        }
+      }
+
       const newConfig = {
         ...currentConfig,
-        ...(isWordPress ? {
-          type: 'wordpress',
-          wordpressUrl: wpUrl.trim(),
-          wordpressUsername: wpUsername.trim() || undefined,
-          wordpressAppPassword: wpPassword.trim() || undefined,
-        } : {}),
+        connection: updatedConn,
       };
+
       await updateSite(site.id, {
         name: name.trim(),
         slug: slug.trim(),
-        domain: domain.trim() || undefined,
+        siteUrl: siteUrl.trim(),
         description: description.trim() || undefined,
         config: newConfig,
       });
@@ -452,21 +1038,14 @@ function EditSiteDialog({ open, onOpenChange, site }: EditSiteDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
-          <div className="flex items-center justify-between gap-2">
-            <DialogTitle>{t('siteSelector.editSiteTitle')}</DialogTitle>
-            {isWordPress && (
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#21759b]/15 text-[#21759b] text-[11px] font-semibold">
-                <WordPressIcon className="h-3.5 w-3.5 fill-current" />
-                WordPress
-              </span>
-            )}
-          </div>
+          <DialogTitle>{t('siteSelector.editSiteTitle')}</DialogTitle>
           <DialogDescription>
             {t('siteSelector.editSiteDescriptionPrefix')} {site.name}.
           </DialogDescription>
         </DialogHeader>
+
         <div className="grid gap-4 py-2">
           {/* Row 1: Site Name & Slug */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -479,9 +1058,7 @@ function EditSiteDialog({ open, onOpenChange, site }: EditSiteDialogProps) {
                 autoFocus
                 aria-invalid={!!nameError}
               />
-              {nameError && (
-                <p className="text-xs text-destructive">{nameError}</p>
-              )}
+              {nameError && <p className="text-xs text-destructive">{nameError}</p>}
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="edit-site-slug">{t('siteSelector.editSiteSlugLabel')}</Label>
@@ -491,60 +1068,21 @@ function EditSiteDialog({ open, onOpenChange, site }: EditSiteDialogProps) {
                 onChange={(e) => setSlug(e.target.value)}
                 aria-invalid={!!slugError}
               />
-              {slugError && (
-                <p className="text-xs text-destructive">{slugError}</p>
-              )}
+              {slugError && <p className="text-xs text-destructive">{slugError}</p>}
             </div>
           </div>
 
-          {isWordPress && (
-            <div className="space-y-3 p-3.5 rounded-lg border border-[#21759b]/30 bg-[#21759b]/5">
-              <div className="flex items-center gap-2 pb-1 border-b border-border/40">
-                <WordPressIcon className="h-3.5 w-3.5 text-[#21759b] fill-current" />
-                <span className="text-xs font-semibold text-foreground">WordPress Connection Settings</span>
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="edit-wp-url" className="text-xs font-medium">WordPress Site URL</Label>
-                <Input
-                  id="edit-wp-url"
-                  value={wpUrl}
-                  onChange={(e) => setWpUrl(e.target.value)}
-                  placeholder="https://example.com"
-                />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="grid gap-1.5">
-                  <Label htmlFor="edit-wp-user" className="text-xs font-medium">Username</Label>
-                  <Input
-                    id="edit-wp-user"
-                    value={wpUsername}
-                    onChange={(e) => setWpUsername(e.target.value)}
-                    placeholder="admin"
-                  />
-                </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor="edit-wp-pwd" className="text-xs font-medium">App Password</Label>
-                  <Input
-                    id="edit-wp-pwd"
-                    type="password"
-                    value={wpPassword}
-                    onChange={(e) => setWpPassword(e.target.value)}
-                    placeholder="•••• •••• ••••"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Row 2: Custom Domain & Description */}
+          {/* Row 2: Site URL & Description */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="grid gap-1.5">
-              <Label htmlFor="edit-site-domain">{t('siteSelector.domainLabel')}</Label>
+              <Label htmlFor="edit-site-url" className="text-xs font-medium">
+                Site URL
+              </Label>
               <Input
-                id="edit-site-domain"
-                placeholder={t('siteSelector.domainPlaceholder')}
-                value={domain}
-                onChange={(e) => setDomain(e.target.value)}
+                id="edit-site-url"
+                value={siteUrl}
+                onChange={(e) => setSiteUrl(e.target.value)}
+                placeholder="https://vertest-ten.vercel.app"
               />
             </div>
             <div className="grid gap-1.5">
@@ -557,10 +1095,141 @@ function EditSiteDialog({ open, onOpenChange, site }: EditSiteDialogProps) {
             </div>
           </div>
 
-          {error && (
-            <p className="text-sm text-destructive">{error}</p>
-          )}
+          {/* Connection Settings Box */}
+          <div className="space-y-3 p-3.5 rounded-lg border border-border/70 bg-accent/20">
+            <div className="flex items-center justify-between pb-1 border-b border-border/40">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-primary" />
+                <span className="text-xs font-semibold text-foreground">
+                  Connection Configuration
+                </span>
+              </div>
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+                Status: <strong className="text-foreground">{verification.status}</strong>
+              </span>
+            </div>
+
+            <div className="grid gap-1.5">
+              <Label htmlFor="edit-api-url" className="text-xs font-medium">
+                API Base URL
+              </Label>
+              <Input
+                id="edit-api-url"
+                value={apiBaseUrl}
+                onChange={(e) => setApiBaseUrl(e.target.value)}
+                placeholder={isWordPress ? 'https://example.com/wp-json' : 'https://example.com/api'}
+              />
+            </div>
+
+            {isWordPress && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="edit-wp-user" className="text-xs font-medium">
+                    Username
+                  </Label>
+                  <Input
+                    id="edit-wp-user"
+                    value={wpUsername}
+                    onChange={(e) => setWpUsername(e.target.value)}
+                    placeholder="admin"
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="edit-wp-pwd" className="text-xs font-medium">
+                    Update App Password (optional)
+                  </Label>
+                  <Input
+                    id="edit-wp-pwd"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Leave blank to keep existing"
+                  />
+                </div>
+              </div>
+            )}
+
+            {!isWordPress && (
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="edit-std-pwd" className="text-xs font-medium">
+                    Connection Token
+                  </Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleGenerateNewToken}
+                    disabled={isGeneratingToken}
+                    className="text-xs h-6 px-2 text-muted-foreground hover:text-foreground"
+                  >
+                    <Key className="h-3 w-3 mr-1 text-primary" />
+                    Generate New Token
+                  </Button>
+                </div>
+                {newPassword ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="edit-std-pwd"
+                      type="text"
+                      value={newPassword}
+                      onChange={(e) => {
+                        setNewPassword(e.target.value);
+                        setVerification({ status: 'IDLE', message: '' });
+                      }}
+                      className="font-mono text-xs"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(newPassword);
+                        setCopiedToken(true);
+                        toast.success('New token copied to clipboard');
+                        setTimeout(() => setCopiedToken(false), 2000);
+                      }}
+                      className="h-9 px-3 text-xs shrink-0"
+                    >
+                      {copiedToken ? <CheckCheck className="h-3.5 w-3.5 text-emerald-500 mr-1" /> : <Copy className="h-3.5 w-3.5 mr-1" />}
+                      {copiedToken ? 'Copied' : 'Copy'}
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Connected with stored token. Click &quot;Generate New Token&quot; above to rotate secrets.
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleReverify}
+                disabled={isVerifying}
+                className="text-xs h-7"
+              >
+                {isVerifying ? (
+                  <Loader2 className="h-3 w-3 animate-spin mr-1.5" />
+                ) : (
+                  <RefreshCw className="h-3 w-3 mr-1.5" />
+                )}
+                Test Connection
+              </Button>
+              {verification.message && (
+                <span className="text-[11px] text-muted-foreground truncate max-w-[280px]">
+                  {verification.message}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
+
         <DialogFooter className="gap-2">
           <Button
             variant="destructive"

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore, type CurrentUser } from '@/lib/stores/auth-store';
 import { useSubscriptionStore, getPlanBadgeClasses, getPlanBadgeStyle } from '@/lib/stores/subscription-store';
@@ -35,6 +35,9 @@ import {
   AlertTriangle,
   Copy,
   Building2,
+  Camera,
+  Upload,
+  Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getApi, postApi, patchApi } from '@/lib/api-client';
@@ -153,6 +156,72 @@ export function ProfilePage() {
     }
   };
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image size must be under 5MB');
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('uploadedById', user.id);
+
+      const res = await fetch('/api/media/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error?.message || 'Failed to upload image');
+      }
+
+      const json = await res.json();
+      const uploadedUrl = json.data?.url || (Array.isArray(json.data) ? json.data[0]?.url : null);
+      if (!uploadedUrl) throw new Error('No image URL returned from upload');
+
+      await patchApi(`/api/users/${user.id}`, { avatar: uploadedUrl });
+      const updatedUser: CurrentUser = { ...user, avatarUrl: uploadedUrl };
+      localStorage.setItem('cms_auth_user', JSON.stringify(updatedUser));
+      useAuthStore.setState({ user: updatedUser });
+      toast.success('Profile picture updated successfully');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to upload profile picture');
+    } finally {
+      setIsUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    if (!user) return;
+    setIsUploadingAvatar(true);
+    try {
+      await patchApi(`/api/users/${user.id}`, { avatar: '' });
+      const updatedUser: CurrentUser = { ...user, avatarUrl: null };
+      localStorage.setItem('cms_auth_user', JSON.stringify(updatedUser));
+      useAuthStore.setState({ user: updatedUser });
+      toast.success('Profile picture removed');
+    } catch {
+      toast.error('Failed to remove profile picture');
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
   if (!user) return null;
 
   const mfaEnabled = !!statusQuery.data?.mfaEnabled;
@@ -162,34 +231,86 @@ export function ProfilePage() {
       {/* Profile Header Card */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            {/* Avatar accent — the active plan's OWN ring color
-                (getPlanBadgeStyle().ring — the exact same design token
-                the sidebar profile-section plan badge uses: Pro →
-                ring-violet-500). Reuses the existing Pro/sidebar purple;
-                no new color is introduced. Platform staff have no
-                personal subscription → default avatar. */}
-            <Avatar
-              className={`h-16 w-16 ring-2 ring-offset-2 ${
-                hasPersonalSubscription ? getPlanBadgeStyle(currentPlan).ring : 'ring-transparent'
-              }`}
-            >
-              <AvatarImage src={user.avatarUrl ?? undefined} alt={user.name} />
-              <AvatarFallback className="text-lg">{getInitials(user.name)}</AvatarFallback>
-            </Avatar>
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-semibold">{user.name}</h2>
-                {hasPersonalSubscription && (
-                  <Badge
-                    variant="outline"
-                    className={`text-xs font-semibold ${getPlanBadgeClasses(currentPlan.badgeVariant)}`}
-                  >
-                    {currentPlan.name}
-                  </Badge>
-                )}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              {/* Avatar with click-to-upload hover overlay */}
+              <div className="relative group">
+                <Avatar
+                  className={`h-16 w-16 ring-2 ring-offset-2 ${
+                    hasPersonalSubscription ? getPlanBadgeStyle(currentPlan).ring : 'ring-transparent'
+                  }`}
+                >
+                  <AvatarImage src={user.avatarUrl ?? undefined} alt={user.name} />
+                  <AvatarFallback className="text-lg">{getInitials(user.name)}</AvatarFallback>
+                </Avatar>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploadingAvatar}
+                  className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer disabled:pointer-events-none"
+                  title="Change avatar"
+                >
+                  {isUploadingAvatar ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Camera className="h-5 w-5" />
+                  )}
+                </button>
               </div>
-              <p className="text-sm text-muted-foreground mt-0.5">{user.email}</p>
+
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-semibold">{user.name}</h2>
+                  {hasPersonalSubscription && (
+                    <Badge
+                      variant="outline"
+                      className={`text-xs font-semibold ${getPlanBadgeClasses(currentPlan.badgeVariant)}`}
+                    >
+                      {currentPlan.name}
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground mt-0.5">{user.email}</p>
+              </div>
+            </div>
+
+            {/* Avatar upload / remove controls */}
+            <div className="flex items-center gap-2 self-start sm:self-center">
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarUpload}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5 rounded-xl cursor-pointer"
+                disabled={isUploadingAvatar}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {isUploadingAvatar ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4" />
+                )}
+                <span>Upload Image</span>
+              </Button>
+              {user.avatarUrl && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1.5 rounded-xl text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                  disabled={isUploadingAvatar}
+                  onClick={handleRemoveAvatar}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span>Remove</span>
+                </Button>
+              )}
             </div>
           </div>
         </CardContent>

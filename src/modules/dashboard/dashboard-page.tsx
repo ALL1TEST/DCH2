@@ -14,6 +14,7 @@ import {
   Server,
   BarChart3,
   LayoutGrid,
+  CheckSquare,
 } from 'lucide-react';
 import {
   Card,
@@ -23,8 +24,10 @@ import {
   CardDescription,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/patterns';
+import type { TaskItem } from '@/modules/tasks/types';
 import { useSiteStore } from '@/lib/stores/site-store';
 import { useNavigationStore } from '@/lib/stores/navigation-store';
 import { useT } from '@/lib/i18n';
@@ -103,6 +106,8 @@ function KpiCard({
   icon,
   trend,
   color = 'default',
+  onClick,
+  className,
 }: {
   label: string;
   value: string | number;
@@ -110,6 +115,8 @@ function KpiCard({
   icon: React.ReactNode;
   trend?: 'up' | 'down' | 'neutral';
   color?: 'emerald' | 'amber' | 'violet' | 'rose' | 'default';
+  onClick?: () => void;
+  className?: string;
 }) {
   const { t } = useT();
 
@@ -122,8 +129,15 @@ function KpiCard({
   };
 
   return (
-    <Card className="relative overflow-hidden">
-      <CardContent className="p-4">
+    <Card
+      onClick={onClick}
+      className={cn(
+        'relative overflow-hidden h-full flex flex-col justify-between transition-all',
+        onClick && 'cursor-pointer hover:-translate-y-0.5 hover:shadow-sm',
+        className
+      )}
+    >
+      <CardContent className="p-4 flex flex-col justify-between h-full">
         <div className="flex items-start justify-between">
           <div className="space-y-1">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
@@ -132,16 +146,18 @@ function KpiCard({
               <p className="text-xs text-muted-foreground">{sublabel}</p>
             )}
           </div>
-          <div className={cn('h-9 w-9 rounded-lg flex items-center justify-center', colorMap[color])}>
+          <div className={cn('h-9 w-9 rounded-lg flex items-center justify-center shrink-0', colorMap[color])}>
             {icon}
           </div>
         </div>
-        {trend && (
+        {trend ? (
           <div className="flex items-center gap-1 mt-2">
             {trend === 'up' && <span className="text-xs font-medium text-emerald-500">{t('dashboard.trendingUp')}</span>}
             {trend === 'down' && <span className="text-xs font-medium text-rose-500">{t('dashboard.needsAttention')}</span>}
             {trend === 'neutral' && <span className="text-xs font-medium text-muted-foreground">{t('dashboard.stable')}</span>}
           </div>
+        ) : (
+          <div className="h-4 mt-2" />
         )}
       </CardContent>
     </Card>
@@ -278,6 +294,25 @@ export function DashboardWidgets() {
     staleTime: 15_000,
   });
 
+  // Fetch real live tasks from DB for the active site/plan
+  const { data: tasksRes } = useQuery({
+    queryKey: ['dashboard-tasks', siteScopeParam],
+    queryFn: () =>
+      getApi<any>('/api/tasks', {
+        ...(!isAllSites && activeSite?.id ? { siteId: activeSite.id } : {}),
+      }),
+    staleTime: 15_000,
+  });
+
+  const tasks: TaskItem[] = Array.isArray(tasksRes)
+    ? tasksRes
+    : Array.isArray((tasksRes as any)?.data)
+    ? (tasksRes as any).data
+    : [];
+
+  const activeTasks = tasks.filter((t) => t.status !== 'DONE');
+  const doneTasksCount = tasks.filter((t) => t.status === 'DONE').length;
+
   const rawData = (analyticsRes as any)?.data ?? (analyticsRes as any);
   const recentContentItems: any[] = Array.isArray(contentRes)
     ? contentRes
@@ -291,7 +326,7 @@ export function DashboardWidgets() {
     uniqueVisitors7d: rawData?.uniqueVisitors ?? 0,
     aiArticlesToday: rawData?.aiArticlesToday ?? 0,
     aiWordsToday: rawData?.aiWordsToday ?? 0,
-    healthScore: rawData?.healthScore ?? 100,
+    healthScore: (rawData?.totalContent ?? 0) === 0 ? 0 : (rawData?.healthScore ?? 0),
     totalSites: rawData?.totalSites ?? sites.length,
     activeSites: rawData?.activeSites ?? sites.filter((s) => s.status === 'ACTIVE').length,
     pendingActions: rawData?.pendingActionsList ?? [],
@@ -321,7 +356,7 @@ export function DashboardWidgets() {
       {isLoading ? (
         <KpiGridSkeleton />
       ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
           {isAllSites && (
             <KpiCard
               label={t('dashboard.networkHealth')}
@@ -347,6 +382,17 @@ export function DashboardWidgets() {
             icon={<FileText className="h-4 w-4" />}
             color="default"
           />
+          {!isAllSites && (
+            <KpiCard
+              label="Tasks"
+              value={`${activeTasks.length}`}
+              sublabel={`${doneTasksCount} completed`}
+              icon={<CheckSquare className="h-4 w-4" />}
+              trend="neutral"
+              color="amber"
+              onClick={() => navigate('tasks')}
+            />
+          )}
           <KpiCard
             label={t('dashboard.aiProduction')}
             value={`${data.aiArticlesToday}`}
@@ -359,8 +405,8 @@ export function DashboardWidgets() {
             value={`${data.healthScore}%`}
             sublabel={t('dashboard.healthScoreSub')}
             icon={<HeartPulse className="h-4 w-4" />}
-            trend="up"
-            color="emerald"
+            trend={data.healthScore > 0 ? 'up' : undefined}
+            color={data.healthScore > 0 ? 'emerald' : 'default'}
           />
         </div>
       )}
@@ -457,7 +503,7 @@ export function DashboardWidgets() {
         </Card>
       </div>
 
-      {/* Section 4: Recent Content + Content Pipeline */}
+      {/* Section 3: Recent Content + Content Pipeline */}
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
         {/* Recent Content (wider) */}
         <Card className="xl:col-span-3">

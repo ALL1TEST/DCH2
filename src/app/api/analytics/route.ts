@@ -121,7 +121,11 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const healthScore = siteCounts > 0 ? Math.round((activeSiteCount / siteCounts) * 100) : 100;
+    // Health score is 0 when the site has no content/activity yet
+    const healthScore =
+      totalContent === 0
+        ? 0
+        : Math.min(100, Math.round((publishedContent / totalContent) * 100));
 
     return NextResponse.json({
       data: {

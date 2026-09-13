@@ -384,6 +384,7 @@ export function UsersListPage() {
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const isAllSites = useSiteStore((s) => s.isAllSites());
   const isSiteInitialized = useSiteStore((s) => s.isInitialized);
+  const activeSiteDbId = useSiteStore((s) => s.activeSiteDbId);
 
   useEffect(() => {
     if (isSiteInitialized && isAllSites) {
@@ -410,6 +411,7 @@ export function UsersListPage() {
       search: table.searchValue || undefined,
       ...(roleFilter !== 'all' ? { role: roleFilter } : {}),
       ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
+      ...(!isAllSites && activeSiteDbId ? { siteId: activeSiteDbId } : {}),
     }),
     [
       table.currentPage,
@@ -419,12 +421,14 @@ export function UsersListPage() {
       table.searchValue,
       roleFilter,
       statusFilter,
+      isAllSites,
+      activeSiteDbId,
     ],
   );
 
   // Fetch users — use raw:true to get the full ApiResponse envelope
   const { data: rawData, isLoading } = useQuery({
-    queryKey: queryKeys.users.list(queryParams),
+    queryKey: ['users', 'list', isAllSites ? 'all' : activeSiteDbId, queryParams],
     queryFn: () =>
       getApi<{ data: UserRow[]; meta: { pagination: { page: number; pageSize: number; total: number; totalPages: number } } }>(
         '/api/users',
@@ -465,6 +469,7 @@ export function UsersListPage() {
         name: data.name || undefined,
         role: data.role,
         pagePermissions: data.pagePermissions,
+        assignedSites: !isAllSites && activeSiteDbId ? [activeSiteDbId] : [],
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.all });

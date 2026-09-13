@@ -38,6 +38,7 @@ import {
   List as ListIcon,
   X,
   CheckCircle2,
+  ArrowUpDown,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -74,6 +75,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import { ConfirmDialog } from '@/components/patterns';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -150,7 +153,7 @@ export function TasksKanbanPage() {
   const [priorityFilter, setPriorityFilter] = useState<TaskPriority | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all');
   const [createdFilter, setCreatedFilter] = useState<'all' | 'today' | '7d' | '30d'>('all');
-  const [sortBy, setSortBy] = useState<'manual' | 'newest' | 'oldest'>('manual');
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest'>('newest');
   const [view, setView] = useState<'board' | 'list'>('board');
 
   // --- dialog state ---
@@ -167,12 +170,13 @@ export function TasksKanbanPage() {
       priority: priorityFilter !== 'all' ? priorityFilter : undefined,
       status: statusFilter !== 'all' ? statusFilter : undefined,
       created: createdFilter !== 'all' ? createdFilter : undefined,
-      sort: sortBy === 'manual' ? 'sortOrder' : 'createdAt',
-      order: sortBy === 'oldest' ? 'asc' : sortBy === 'newest' ? 'desc' : 'asc',
-      // include the active site in the queryKey so switching sites refetches
+      sort: 'createdAt',
+      order: sortBy === 'oldest' ? 'asc' : 'desc',
+      // Pass siteId for site and plan isolation
+      ...(!isAllSites && activeSiteDbId ? { siteId: activeSiteDbId } : {}),
       _site: activeSiteDbId ?? 'all',
     }),
-    [search, priorityFilter, statusFilter, createdFilter, sortBy, activeSiteDbId],
+    [search, priorityFilter, statusFilter, createdFilter, sortBy, activeSiteDbId, isAllSites],
   );
 
   const { data: tasks = [], isLoading, isError, refetch } = useQuery({
@@ -199,13 +203,22 @@ export function TasksKanbanPage() {
   // -------------------- mutations --------------------
 
   const createMutation = useMutation({
-    mutationFn: (input: TaskCreateInput) => postApi<TaskItem>('/api/tasks', input),
+    mutationFn: (input: TaskCreateInput) => {
+      const payload: TaskCreateInput = {
+        ...input,
+        siteId: input.siteId || (activeSiteDbId && !isAllSites ? activeSiteDbId : undefined),
+      };
+      return postApi<TaskItem>('/api/tasks', payload);
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.tasks.all });
       toast.success(t('tasks.toastCreated'));
       setCreatingIn(null);
     },
-    onError: () => toast.error(t('tasks.toastCreateError')),
+    onError: (err: any) => {
+      console.error('[TASK_CREATE_ERROR]', err);
+      toast.error(err?.message || t('tasks.toastCreateError'));
+    },
   });
 
   const updateMutation = useMutation({
@@ -307,40 +320,8 @@ export function TasksKanbanPage() {
     );
   }
 
-  if (isError) {
-    return (
-      <div className="space-y-6">
-        <TasksHeader
-          title={t('tasks.pageTitle')}
-          subtitle={t('tasks.pageSubtitle')}
-          search={search}
-          onSearch={setSearch}
-          priorityFilter={priorityFilter}
-          onPriorityFilter={setPriorityFilter}
-          statusFilter={statusFilter}
-          onStatusFilter={setStatusFilter}
-          createdFilter={createdFilter}
-          onCreatedFilter={setCreatedFilter}
-          sortBy={sortBy}
-          onSortBy={setSortBy}
-          view={view}
-          onView={setView}
-          onNew={() => setCreatingIn('BACKLOG')}
-          isAllSites={isAllSites}
-        />
-        <Card>
-          <CardContent className="p-6">
-            <p className="text-sm text-muted-foreground">{t('tasks.toastLoadError')}</p>
-            <Button variant="outline" size="sm" className="mt-3" onClick={() => refetch()}>
-              {t('common.retry')}
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   const totalTasks = tasks.length;
+  const showEmpty = isError || totalTasks === 0;
 
   return (
     <div className="space-y-6">
@@ -363,8 +344,11 @@ export function TasksKanbanPage() {
         isAllSites={isAllSites}
       />
 
-      {totalTasks === 0 ? (
-        <EmptyState onCreate={() => setCreatingIn('BACKLOG')} />
+      {showEmpty ? (
+        <EmptyState
+          onCreate={() => setCreatingIn('BACKLOG')}
+          onRetry={isError ? () => refetch() : undefined}
+        />
       ) : view === 'board' ? (
         <BoardView
           byStatus={byStatus}
@@ -448,8 +432,8 @@ interface HeaderProps {
   onStatusFilter: (v: TaskStatus | 'all') => void;
   createdFilter: 'all' | 'today' | '7d' | '30d';
   onCreatedFilter: (v: 'all' | 'today' | '7d' | '30d') => void;
-  sortBy: 'manual' | 'newest' | 'oldest';
-  onSortBy: (v: 'manual' | 'newest' | 'oldest') => void;
+  sortBy: 'newest' | 'oldest';
+  onSortBy: (v: 'newest' | 'oldest') => void;
   view: 'board' | 'list';
   onView: (v: 'board' | 'list') => void;
   onNew: () => void;
@@ -500,43 +484,66 @@ function TasksHeader(props: HeaderProps) {
             )}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="inline-flex items-center rounded-md border bg-muted/40 p-0.5">
-            <Button
-              size="sm"
-              variant={view === 'board' ? 'secondary' : 'ghost'}
-              className="h-8 gap-1.5"
+        <div className="flex items-center gap-2 sm:gap-2.5">
+          {/* Direct Sort Toggle: Newest <-> Oldest (clicking toggles directly, no dropdown) */}
+          <button
+            type="button"
+            onClick={() => onSortBy(sortBy === 'newest' ? 'oldest' : 'newest')}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium text-foreground/80 hover:text-foreground hover:bg-muted/60 rounded-xl transition-colors cursor-pointer select-none"
+            title={sortBy === 'oldest' ? 'Oldest' : 'Newest'}
+          >
+            <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+            <span>{sortBy === 'oldest' ? 'Oldest' : 'Newest'}</span>
+          </button>
+
+          {/* View switcher matching Image 2 & New Task border/height */}
+          <div className="inline-flex h-9 items-center rounded-xl border border-border/70 bg-muted/40 p-1">
+            <button
+              type="button"
+              aria-label={t('tasks.viewBoard')}
+              title={t('tasks.viewBoard')}
               onClick={() => onView('board')}
+              className={cn(
+                'h-7 w-7 rounded-lg transition-all flex items-center justify-center cursor-pointer',
+                view === 'board'
+                  ? 'bg-background text-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
             >
               <LayoutGrid className="h-4 w-4" />
-              <span className="hidden sm:inline">{t('tasks.viewBoard')}</span>
-            </Button>
-            <Button
-              size="sm"
-              variant={view === 'list' ? 'secondary' : 'ghost'}
-              className="h-8 gap-1.5"
+            </button>
+            <button
+              type="button"
+              aria-label={t('tasks.viewList')}
+              title={t('tasks.viewList')}
               onClick={() => onView('list')}
+              className={cn(
+                'h-7 w-7 rounded-lg transition-all flex items-center justify-center cursor-pointer',
+                view === 'list'
+                  ? 'bg-background text-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
             >
               <ListIcon className="h-4 w-4" />
-              <span className="hidden sm:inline">{t('tasks.viewList')}</span>
-            </Button>
+            </button>
           </div>
-          <Button size="sm" className="h-8 gap-1.5" onClick={onNew}>
+
+          <Button size="sm" className="h-9 gap-1.5 rounded-xl px-3 sm:px-4" onClick={onNew}>
             <Plus className="h-4 w-4" />
-            {t('tasks.newTask')}
+            <span>{t('tasks.newTask')}</span>
           </Button>
         </div>
       </div>
 
       {/* toolbar */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:flex-wrap">
-        <div className="relative flex-1 min-w-[200px] max-w-md">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
             onChange={(e) => onSearch(e.target.value)}
             placeholder={t('tasks.searchPlaceholder')}
-            className="h-9 pl-9"
+            className="h-9 pl-9 w-full"
           />
           {search && (
             <button
@@ -549,7 +556,7 @@ function TasksHeader(props: HeaderProps) {
           )}
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
           <Select value={statusFilter} onValueChange={(v) => onStatusFilter(v as TaskStatus | 'all')}>
             <SelectTrigger className="h-9 w-[140px]">
               <SelectValue placeholder={t('tasks.filterStatus')} />
@@ -587,17 +594,6 @@ function TasksHeader(props: HeaderProps) {
               <SelectItem value="today">{t('tasks.createdToday')}</SelectItem>
               <SelectItem value="7d">{t('tasks.createdLast7')}</SelectItem>
               <SelectItem value="30d">{t('tasks.createdLast30')}</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select value={sortBy} onValueChange={(v) => onSortBy(v as 'manual' | 'newest' | 'oldest')}>
-            <SelectTrigger className="h-9 w-[120px]">
-              <SelectValue placeholder={t('tasks.sortLabel')} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="manual">{t('tasks.sortManual')}</SelectItem>
-              <SelectItem value="newest">{t('tasks.sortNewest')}</SelectItem>
-              <SelectItem value="oldest">{t('tasks.sortOldest')}</SelectItem>
             </SelectContent>
           </Select>
 
@@ -1005,20 +1001,29 @@ function ListView({ tasks, onEdit, onMove, onSetPriority, onDelete }: ListViewPr
 // Empty state
 // ============================================================
 
-function EmptyState({ onCreate }: { onCreate: () => void }) {
+function EmptyState({ onCreate, onRetry }: { onCreate: () => void; onRetry?: () => void }) {
   const { t } = useT();
   return (
-    <Card>
-      <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-        <div className="rounded-full bg-muted p-3 mb-3">
+    <Card className="border-border/60">
+      <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="rounded-full bg-muted p-3.5 mb-3.5">
           <CheckCircle2 className="h-6 w-6 text-muted-foreground" />
         </div>
-        <p className="text-sm font-medium">{t('tasks.emptyTitle')}</p>
-        <p className="text-xs text-muted-foreground mt-1 mb-4">{t('tasks.emptyDescription')}</p>
-        <Button size="sm" variant="outline" onClick={onCreate}>
-          <Plus className="h-4 w-4 mr-1.5" />
-          {t('tasks.emptyCreate')}
-        </Button>
+        <h3 className="text-base font-semibold tracking-tight text-foreground">{t('tasks.emptyTitle')}</h3>
+        <p className="text-xs text-muted-foreground mt-1 max-w-sm mb-5">
+          {t('tasks.emptyDescription')}
+        </p>
+        <div className="flex items-center gap-2">
+          <Button size="sm" onClick={onCreate} className="gap-1.5 rounded-xl px-4">
+            <Plus className="h-4 w-4" />
+            {t('tasks.newTask')}
+          </Button>
+          {onRetry && (
+            <Button size="sm" variant="outline" onClick={onRetry} className="rounded-xl px-4">
+              {t('common.retry')}
+            </Button>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
@@ -1048,6 +1053,7 @@ function TaskFormDialog({ mode, task, defaultStatus, open, onOpenChange, onSubmi
   const [labels, setLabels] = useState<string[]>(task?.labels ?? []);
   const [dueDate, setDueDate] = useState<string>(task?.dueDate ? formatISODate(task.dueDate) : '');
   const [customLabel, setCustomLabel] = useState('');
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   // re-sync local state when the target task changes (open the dialog on a different card)
   React.useEffect(() => {
@@ -1059,6 +1065,7 @@ function TaskFormDialog({ mode, task, defaultStatus, open, onOpenChange, onSubmi
       setLabels(task?.labels ?? []);
       setDueDate(task?.dueDate ? formatISODate(task.dueDate) : '');
       setCustomLabel('');
+      setCalendarOpen(false);
     }
   }, [open, task, defaultStatus]);
 
@@ -1171,23 +1178,54 @@ function TaskFormDialog({ mode, task, defaultStatus, open, onOpenChange, onSubmi
             </div>
           </div>
 
-          {/* Due date */}
+          {/* Due date with shadcn Calendar picker matching Image 3 */}
           <div className="space-y-1.5">
-            <Label htmlFor="task-due">{t('tasks.taskDueDate')}</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                id="task-due"
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className="flex-1"
-              />
-              {dueDate && (
-                <Button variant="ghost" size="sm" className="h-9 px-2" onClick={() => setDueDate('')}>
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
+            <Label>{t('tasks.taskDueDate')}</Label>
+            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+              <div className="relative">
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={cn(
+                      'w-full justify-start text-left font-normal h-10 px-3',
+                      !dueDate && 'text-muted-foreground'
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4 text-muted-foreground" />
+                    {dueDate ? formatDate(dueDate) : <span>{t('tasks.taskDueDate')}</span>}
+                  </Button>
+                </PopoverTrigger>
+                {dueDate && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDueDate('');
+                    }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:text-foreground hover:bg-muted"
+                    aria-label="clear date"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+              <PopoverContent className="w-auto p-0 rounded-2xl border border-border/80 shadow-xl" align="start">
+                <Calendar
+                  mode="single"
+                  selected={dueDate ? new Date(dueDate + 'T12:00:00') : undefined}
+                  onSelect={(d) => {
+                    if (d) {
+                      setDueDate(formatISODate(d));
+                    } else {
+                      setDueDate('');
+                    }
+                    setCalendarOpen(false);
+                  }}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
           </div>
 
           {/* Labels */}

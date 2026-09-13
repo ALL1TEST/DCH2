@@ -16,7 +16,7 @@ import { db } from '@/lib/db';
 import { nanoid } from 'nanoid';
 import { z } from 'zod/v4';
 import { requireAuth } from '@/lib/platform/platform-auth';
-import { getSiteWhereIncludeGlobal, getSiteFromRequest } from '@/lib/site-context';
+import { getSiteWhere, getSiteFromRequest, getActivePlanSiteId } from '@/lib/site-context';
 import type { TaskStatus, TaskPriority } from '@/modules/tasks/types';
 
 // ---------- helpers ---------------------------------------------------
@@ -56,9 +56,9 @@ const createSchema = z.object({
   status: z.enum(STATUSES).default('BACKLOG'),
   priority: z.enum(PRIORITIES).default('MEDIUM'),
   labels: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
-  dueDate: z.string().datetime().nullable().optional(),
-  assigneeId: z.string().trim().optional().nullable(),
-  siteId: z.string().trim().optional().nullable(),
+  dueDate: z.string().datetime().nullable().optional().or(z.literal('')),
+  assigneeId: z.string().trim().optional().nullable().or(z.literal('')),
+  siteId: z.string().trim().optional().nullable().or(z.literal('')),
   sortOrder: z.number().int().min(0).optional(),
 });
 
@@ -103,14 +103,8 @@ export async function GET(request: NextRequest) {
     const sort = SORTABLE.has(sp.get('sort') ?? '') ? sp.get('sort')! : 'sortOrder';
     const order = sp.get('order') === 'asc' ? 'asc' : sp.get('order') === 'desc' ? 'desc' : (sort === 'sortOrder' ? 'asc' : 'desc');
 
-    // --- Site scoping (All Sites vs specific site). ---
-    // getSiteWhereIncludeGlobal returns a clause that includes BOTH
-    // site-scoped AND global (null siteId) records, while still
-    // enforcing plan isolation. This way a user's global tasks (created
-    // in All Sites mode) stay visible even if they have no sites yet,
-    // and a user never sees another workspace's tasks (ownerId filter
-    // below is the hard isolation).
-    const siteFilter = await getSiteWhereIncludeGlobal(request);
+    // --- Site scoping (Plan & Site isolation). ---
+    const siteFilter = await getSiteWhere(request);
 
     const where: Record<string, unknown> = {
       ownerId: user.id, // <-- workspace isolation
@@ -126,11 +120,74 @@ export async function GET(request: NextRequest) {
 
     const orderBy: Record<string, string> = { [sort]: order };
 
-    const items = await db.task.findMany({
-      where,
-      include: taskIncludes,
-      orderBy,
-    });
+    let items: any[] = [];
+    const taskModel = (db as any).task;
+    if (taskModel?.findMany) {
+      items = await taskModel.findMany({
+        where,
+        include: taskIncludes,
+        orderBy,
+      });
+    } else {
+      let sql = `SELECT t.*, u.name as assigneeName, u.email as assigneeEmail, u.avatar as assigneeAvatar FROM "Task" t LEFT JOIN "User" u ON t.assigneeId = u.id WHERE t.deletedAt IS NULL AND t.ownerId = ?`;
+      const params: any[] = [user.id];
+
+      // Handle siteFilter in raw SQLite
+      if (siteFilter?.siteId) {
+        if (siteFilter.siteId === '__FORBIDDEN_SITE__') {
+          sql += ` AND 1 = 0`;
+        } else if (typeof siteFilter.siteId === 'string') {
+          sql += ` AND t.siteId = ?`;
+          params.push(siteFilter.siteId);
+        } else if (typeof siteFilter.siteId === 'object' && 'in' in (siteFilter.siteId as any)) {
+          const inArr = (siteFilter.siteId as any).in;
+          if (Array.isArray(inArr) && inArr.length > 0) {
+            sql += ` AND t.siteId IN (${inArr.map(() => '?').join(',')})`;
+            params.push(...inArr);
+          } else {
+            sql += ` AND 1 = 0`;
+          }
+        }
+      } else if (siteFilter?.OR && Array.isArray(siteFilter.OR)) {
+        // E.g. { OR: [{ siteId: '...' }, { siteId: null }] }
+        const orClauses: string[] = [];
+        for (const c of siteFilter.OR as any[]) {
+          if (c.siteId === null) {
+            orClauses.push('t.siteId IS NULL');
+          } else if (typeof c.siteId === 'string') {
+            orClauses.push('t.siteId = ?');
+            params.push(c.siteId);
+          }
+        }
+        if (orClauses.length > 0) {
+          sql += ` AND (${orClauses.join(' OR ')})`;
+        }
+      }
+
+      if (status && STATUSES.includes(status as TaskStatus)) {
+        sql += ` AND t.status = ?`;
+        params.push(status);
+      }
+      if (priority && PRIORITIES.includes(priority as TaskPriority)) {
+        sql += ` AND t.priority = ?`;
+        params.push(priority);
+      }
+      if (search) {
+        sql += ` AND t.title LIKE ?`;
+        params.push(`%${search}%`);
+      }
+      const sortCol = sort === 'sortOrder' ? 'sortOrder' : 'createdAt';
+      sql += ` ORDER BY t."${sortCol}" ${order.toUpperCase()}`;
+      const rows: any[] = await (db as any).$queryRawUnsafe(sql, ...params);
+      items = rows.map((r) => ({
+        ...r,
+        createdAt: new Date(r.createdAt),
+        updatedAt: new Date(r.updatedAt),
+        dueDate: r.dueDate ? new Date(r.dueDate) : null,
+        completedAt: r.completedAt ? new Date(r.completedAt) : null,
+        assignee: r.assigneeId ? { id: r.assigneeId, name: r.assigneeName, email: r.assigneeEmail, avatar: r.assigneeAvatar } : null,
+      }));
+    }
 
     const data = items.map((t) => ({
       id: t.id,
@@ -204,43 +261,107 @@ export async function POST(request: NextRequest) {
     const d = parsed.data;
 
     // --- Resolve the siteId for the new task. ---
-    // If the client explicitly sent a siteId, use it (after validating it
-    // belongs to the user — getSiteFromRequest resolves slug→id and the
-    // auth user check below implicitly scopes by plan via the relations).
-    // Otherwise fall back to the siteId in the URL query (auto-injected by
-    // the api-client), or null for global / All-Sites tasks.
+    const rawSite = d.siteId || (await getSiteFromRequest(request));
     let siteId: string | null = null;
-    if (d.siteId) {
-      siteId = d.siteId;
-    } else {
-      const qSiteId = await getSiteFromRequest(request);
-      siteId = qSiteId;
+    if (rawSite && rawSite !== 'all') {
+      const existingSite = await db.site.findFirst({
+        where: { OR: [{ id: rawSite }, { slug: rawSite }] },
+        select: { id: true },
+      });
+      siteId = existingSite?.id ?? null;
+    }
+    if (!siteId) {
+      siteId = await getActivePlanSiteId(user);
     }
 
     // --- Determine the next sortOrder within the target column. ---
     const colStatus = d.status;
-    const maxRow = await db.task.findFirst({
-      where: { ownerId: user.id, status: colStatus, deletedAt: null, ...(siteId ? { siteId } : {}) },
-      orderBy: { sortOrder: 'desc' },
-      select: { sortOrder: true },
-    });
-    const nextSort = (maxRow?.sortOrder ?? -1) + 1;
+    let nextSort = 0;
+    try {
+      if ((db as any).task?.findFirst) {
+        const maxRow = await (db as any).task.findFirst({
+          where: { ownerId: user.id, status: colStatus, deletedAt: null, ...(siteId ? { siteId } : {}) },
+          orderBy: { sortOrder: 'desc' },
+          select: { sortOrder: true },
+        });
+        nextSort = (maxRow?.sortOrder ?? -1) + 1;
+      } else {
+        const rows: any[] = await (db as any).$queryRawUnsafe(
+          `SELECT sortOrder FROM "Task" WHERE ownerId = ? AND status = ? AND deletedAt IS NULL ORDER BY sortOrder DESC LIMIT 1`,
+          user.id,
+          colStatus,
+        );
+        nextSort = (rows[0]?.sortOrder ?? -1) + 1;
+      }
+    } catch {
+      nextSort = 0;
+    }
 
-    const created = await db.task.create({
-      data: {
-        ownerId: user.id,
-        assigneeId: d.assigneeId || null,
+    let created: any = null;
+    const taskDelegate = (db as any).task;
+    if (taskDelegate?.create) {
+      try {
+        created = await taskDelegate.create({
+          data: {
+            ownerId: user.id,
+            assigneeId: d.assigneeId || null,
+            siteId,
+            title: d.title,
+            description: d.description ?? '',
+            status: d.status,
+            priority: d.priority,
+            labels: serializeLabels(d.labels),
+            dueDate: d.dueDate ? new Date(d.dueDate) : null,
+            sortOrder: d.sortOrder ?? nextSort,
+          },
+          include: taskIncludes,
+        });
+      } catch (err) {
+        console.warn('[TASKS:POST] Prisma task.create failed, falling back to raw SQLite:', err);
+        created = null;
+      }
+    }
+    if (!created) {
+      const newId = 'c' + nanoid(24);
+      const nowStr = new Date().toISOString();
+      const dueStr = d.dueDate ? new Date(d.dueDate).toISOString() : null;
+      await (db as any).$executeRawUnsafe(
+        `INSERT INTO "Task" ("id", "ownerId", "assigneeId", "siteId", "title", "description", "status", "priority", "labels", "dueDate", "sortOrder", "createdAt", "updatedAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        newId,
+        user.id,
+        d.assigneeId || null,
         siteId,
-        title: d.title,
-        description: d.description ?? '',
-        status: d.status,
-        priority: d.priority,
-        labels: serializeLabels(d.labels),
-        dueDate: d.dueDate ? new Date(d.dueDate) : null,
-        sortOrder: d.sortOrder ?? nextSort,
-      },
-      include: taskIncludes,
-    });
+        d.title,
+        d.description ?? '',
+        d.status,
+        d.priority,
+        serializeLabels(d.labels),
+        dueStr,
+        d.sortOrder ?? nextSort,
+        nowStr,
+        nowStr,
+      );
+      const rows: any[] = await (db as any).$queryRawUnsafe(`SELECT * FROM "Task" WHERE id = ?`, newId);
+      const r = rows[0];
+      created = {
+        id: r.id,
+        ownerId: r.ownerId,
+        assigneeId: r.assigneeId,
+        assignee: null,
+        siteId: r.siteId,
+        title: r.title,
+        description: r.description,
+        status: r.status,
+        priority: r.priority,
+        labels: r.labels,
+        dueDate: r.dueDate ? new Date(r.dueDate) : null,
+        sortOrder: r.sortOrder,
+        completedAt: r.completedAt ? new Date(r.completedAt) : null,
+        completedBy: r.completedBy,
+        createdAt: new Date(r.createdAt),
+        updatedAt: new Date(r.updatedAt),
+      };
+    }
 
     const data = {
       id: created.id,
@@ -262,10 +383,10 @@ export async function POST(request: NextRequest) {
     };
 
     return NextResponse.json({ data, meta: { requestId: id } }, { status: 201 });
-  } catch (error) {
+  } catch (error: any) {
     console.error(`[TASKS:CREATE] ${id} —`, error);
     return NextResponse.json(
-      { error: { code: 'INTERNAL_ERROR', message: 'Failed to create task' }, meta: { requestId: id } },
+      { error: { code: 'INTERNAL_ERROR', message: error?.message || 'Failed to create task' }, meta: { requestId: id } },
       { status: 500 },
     );
   }

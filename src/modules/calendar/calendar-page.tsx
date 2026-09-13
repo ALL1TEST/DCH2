@@ -296,6 +296,7 @@ export function CalendarPage() {
 
   const isAllSites = useSiteStore((s) => s.isAllSites());
   const activeSiteDbId = useSiteStore((s) => s.activeSiteDbId);
+  const activeSiteSlug = useSiteStore((s) => s.activeSiteSlug);
   const currentPlanId = useSubscriptionStore((s) => s.currentPlanId);
 
   // -------- Data fetching --------
@@ -335,7 +336,24 @@ export function CalendarPage() {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
           const planKey = (currentPlanId || 'free').toLowerCase();
-          const scoped = (parsed as ArticleIdea[]).filter((idea) => {
+          let storageUpdated = false;
+
+          // Legacy data migration:
+          // Existing ideas created before site isolation belonged to the initial site 'ww' ('cmtugsrgh001vk9fczbsh4t1o').
+          // Explicitly assign their siteId so they do not leak into newly created sites like 'Verdant'.
+          const migrated = (parsed as ArticleIdea[]).map((idea) => {
+            if (!idea.siteId && (!idea.planId || idea.planId.toLowerCase() === 'max')) {
+              storageUpdated = true;
+              return { ...idea, siteId: 'cmtugsrgh001vk9fczbsh4t1o' };
+            }
+            return idea;
+          });
+
+          if (storageUpdated) {
+            window.localStorage.setItem(SAVED_IDEAS_STORAGE_KEY, JSON.stringify(migrated));
+          }
+
+          const scoped = migrated.filter((idea) => {
             // Plan isolation:
             if (idea.planId) {
               if (idea.planId.toLowerCase() !== planKey) return false;
@@ -346,9 +364,13 @@ export function CalendarPage() {
             }
 
             // Site isolation:
-            // If on a specific site, and idea has siteId, it must match active site
-            if (!isAllSites && activeSiteDbId && idea.siteId) {
-              if (idea.siteId !== activeSiteDbId) return false;
+            // When viewing a specific site, ONLY show ideas belonging strictly to this site.
+            // Ideas belonging to other sites or unassigned ideas must NEVER leak into a specific site.
+            if (!isAllSites && activeSiteDbId) {
+              const matchesSite =
+                idea.siteId === activeSiteDbId ||
+                (activeSiteSlug && idea.siteId === activeSiteSlug);
+              if (!matchesSite) return false;
             }
 
             return true;
@@ -362,7 +384,7 @@ export function CalendarPage() {
     } catch {
       setSavedIdeas([]);
     }
-  }, [currentPlanId, activeSiteDbId, isAllSites]);
+  }, [currentPlanId, activeSiteDbId, activeSiteSlug, isAllSites]);
 
   useEffect(() => {
     loadIdeas();

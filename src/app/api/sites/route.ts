@@ -100,6 +100,34 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    // Helper to sanitize connection credentials from client responses
+    const sanitizeSiteConfig = (rawConfig: unknown): Record<string, unknown> | null => {
+      if (!rawConfig) return null;
+      let parsed: Record<string, unknown>;
+      if (typeof rawConfig === 'string') {
+        try {
+          parsed = JSON.parse(rawConfig);
+        } catch {
+          return null;
+        }
+      } else if (typeof rawConfig === 'object') {
+        parsed = { ...(rawConfig as Record<string, unknown>) };
+      } else {
+        return null;
+      }
+
+      if (parsed.connection && typeof parsed.connection === 'object') {
+        const conn = { ...(parsed.connection as Record<string, unknown>) };
+        const hasCreds = Boolean(conn.encryptedCredentials || conn.apiKey || conn.appPassword || conn.hasCredentials);
+        delete conn.encryptedCredentials;
+        delete conn.apiKey;
+        delete conn.appPassword;
+        conn.hasCredentials = hasCreds;
+        parsed.connection = conn;
+      }
+      return parsed;
+    };
+
     // PER-SITE PLAN MODEL: each site carries its own plan (planId / planScope).
     // All non-archived sites owned by the user are visible to the user,
     // with their respective plan details attached.
@@ -122,6 +150,7 @@ export async function GET(request: NextRequest) {
       }
       return {
         ...site,
+        config: sanitizeSiteConfig(site.config),
         planId,
         plan: planInfo,
       };
@@ -185,7 +214,18 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { name, slug, domain, description, logo, favicon, planId: rawPlanId, config: inputConfig, siteType } = body;
+    const {
+      name,
+      slug,
+      domain,
+      description,
+      logo,
+      favicon,
+      planId: rawPlanId,
+      config: inputConfig,
+      siteType,
+      connection: rawConnection,
+    } = body;
 
     if (!name || !slug) {
       return NextResponse.json(
@@ -229,7 +269,7 @@ export async function POST(request: NextRequest) {
       : (activePlanId || 'free').toLowerCase();
     const planScope = chosenPlanId;
 
-    const initialConfig = {
+    const initialConfig: Record<string, any> = {
       type: siteType || (inputConfig && typeof inputConfig === 'object' ? inputConfig.type : 'standard') || 'standard',
       theme: { primaryColor: '#000000' },
       seo: {
@@ -240,11 +280,53 @@ export async function POST(request: NextRequest) {
     };
     if (siteType) initialConfig.type = siteType;
 
+    // Secure Connection Layer processing
+    const platform = rawConnection?.platform || siteType || initialConfig.type || 'standard';
+    let encryptedSecret: string | undefined = undefined;
+
+    const secretToEncrypt = platform === 'wordpress'
+      ? (rawConnection?.appPassword || initialConfig.wordpressAppPassword)
+      : (rawConnection?.apiKey || rawConnection?.token || initialConfig.apiKey);
+
+    if (secretToEncrypt && typeof secretToEncrypt === 'string' && secretToEncrypt.trim()) {
+      try {
+        const { encrypt } = await import('@/lib/encryption');
+        encryptedSecret = await encrypt(secretToEncrypt.trim());
+      } catch (encErr) {
+        console.error('Failed to encrypt connection credentials:', encErr);
+      }
+    }
+
+    const rawSiteUrl = body.siteUrl || rawConnection?.siteUrl || domain || (platform === 'wordpress' ? initialConfig.wordpressUrl : '') || '';
+    const siteUrl = typeof rawSiteUrl === 'string' ? rawSiteUrl.trim() : '';
+    const derivedDomain = siteUrl ? siteUrl.replace(/^https?:\/\//i, '').replace(/\/.*$/, '') : (domain || null);
+    const defaultApiUrl = platform === 'wordpress'
+      ? (siteUrl ? `${siteUrl.replace(/\/+$/, '')}/wp-json` : '')
+      : (siteUrl ? `${siteUrl.replace(/\/+$/, '')}/api` : '');
+    const apiBaseUrl = (rawConnection?.apiBaseUrl || rawConnection?.restApiUrl || defaultApiUrl || '').trim();
+
+    const connectionData: Record<string, unknown> = {
+      platform,
+      siteUrl,
+      apiBaseUrl,
+      connectionType: platform === 'wordpress' ? 'application_password' : (encryptedSecret ? 'api_key' : 'none'),
+      status: rawConnection?.status || 'CONNECTED',
+      lastVerifiedAt: rawConnection?.lastVerifiedAt || new Date().toISOString(),
+      capabilities: rawConnection?.capabilities || ['articles', 'categories', 'media', 'comments', 'settings', 'seo'],
+      username: rawConnection?.username || initialConfig.wordpressUsername || undefined,
+      ...(encryptedSecret ? { encryptedCredentials: encryptedSecret } : {}),
+    };
+
+    initialConfig.connection = connectionData;
+    // Strip sensitive plaintext from config
+    delete initialConfig.wordpressAppPassword;
+    delete initialConfig.apiKey;
+
     const site = await db.site.create({
       data: {
         name,
         slug,
-        domain: domain || null,
+        domain: derivedDomain,
         description: description || null,
         logo: logo || null,
         favicon: favicon || null,
@@ -291,10 +373,20 @@ export async function POST(request: NextRequest) {
       planInfo = { planId: chosenPlanId, name: chosenPlanId.toUpperCase(), badgeVariant: chosenPlanId };
     }
 
+    // Sanitize config before returning to frontend
+    const sanitizedConfig = { ...initialConfig };
+    if (sanitizedConfig.connection) {
+      const sanitizedConn = { ...sanitizedConfig.connection };
+      delete sanitizedConn.encryptedCredentials;
+      sanitizedConn.hasCredentials = Boolean(encryptedSecret);
+      sanitizedConfig.connection = sanitizedConn;
+    }
+
     return NextResponse.json(
       {
         data: {
           ...site,
+          config: sanitizedConfig,
           planId: chosenPlanId,
           plan: planInfo,
         },

@@ -86,16 +86,16 @@ const CATEGORIES = [
 const createSchema = z.object({
   name: z.string().min(1, 'Name is required').max(200).trim(),
   category: z.enum(CATEGORIES),
-  description: z.string().max(2000).optional().or(z.literal('')),
-  tags: z.union([z.string().max(2000), z.array(z.string()).max(100)]).optional(),
-  variables: z.union([z.string().max(10000), z.record(z.string(), z.unknown())]).optional(),
-  systemPrompt: z.string().max(50000).optional().or(z.literal('')),
-  userPrompt: z.string().max(50000).optional().or(z.literal('')),
-  providerId: z.string().optional().or(z.literal('')),
-  modelId: z.string().optional().or(z.literal('')),
-  temperature: z.number().min(0).max(2).optional(),
-  maxTokens: z.number().int().positive().max(100000).optional(),
-  siteId: z.string().optional().or(z.literal('')),
+  description: z.string().max(2000).optional().or(z.literal('')).nullable(),
+  tags: z.union([z.string().max(2000), z.array(z.string()).max(100)]).optional().nullable(),
+  variables: z.union([z.string().max(10000), z.record(z.string(), z.unknown())]).optional().nullable(),
+  systemPrompt: z.string().max(50000).optional().or(z.literal('')).nullable(),
+  userPrompt: z.string().max(50000).optional().or(z.literal('')).nullable(),
+  providerId: z.string().optional().or(z.literal('')).nullable(),
+  modelId: z.string().optional().or(z.literal('')).nullable(),
+  temperature: z.coerce.number().min(0).max(2).optional().nullable(),
+  maxTokens: z.coerce.number().int().positive().max(128000).optional().nullable(),
+  siteId: z.string().optional().or(z.literal('')).nullable(),
   isActive: z.boolean().optional(),
   sourceType: z.enum(['PLATFORM', 'CLIENT']).optional(),
 });
@@ -143,37 +143,60 @@ export async function GET(request: NextRequest) {
     if (isActive !== null && isActive !== undefined && isActive !== '') where.isActive = isActive === 'true';
     if (isFavorite !== null && isFavorite !== undefined && isFavorite !== '') where.isFavorite = isFavorite === 'true';
 
-    // Apply strict ownership filtering based on user entitlements
-    if (staff) {
-      if (source === 'client') {
-        where.sourceType = 'CLIENT';
-      } else if (source === 'all') {
-        // Staff can inspect all sources if explicitly requested
-      } else {
-        // Default for Platform Admin is PLATFORM prompts
-        where.sourceType = 'PLATFORM';
-      }
-    } else if (hasPlatformAi && hasClientAi) {
-      // User has access to both Platform and Client-owned prompts
+    const siteIdParam = sp.get('siteId')?.trim() || request.headers.get('x-site-id')?.trim();
+    const hasSiteContext = Boolean(siteIdParam && siteIdParam !== 'all');
+
+    // Apply strict ownership and site-context filtering
+    if (hasSiteContext) {
+      // Scoped to a specific site:
       if (source === 'platform') {
         where.sourceType = 'PLATFORM';
-      } else if (source === 'client') {
+      } else if (source === 'all') {
+        where.OR = [
+          { siteId: siteIdParam },
+          { sourceType: 'PLATFORM' },
+        ];
+      } else {
+        // Default on a specific site: only show prompts belonging to this site
+        where.siteId = siteIdParam;
+        where.sourceType = 'CLIENT';
+        if (!staff) {
+          where.ownerId = user.id;
+        }
+      }
+    } else {
+      // Network / All Sites mode
+      if (staff) {
+        if (source === 'client') {
+          where.sourceType = 'CLIENT';
+        } else if (source === 'platform') {
+          where.sourceType = 'PLATFORM';
+        } else if (source === 'all') {
+          // Staff can inspect all sources if explicitly requested
+        } else {
+          // Default for Platform Admin in All Sites is PLATFORM prompts
+          where.sourceType = 'PLATFORM';
+        }
+      } else if (hasPlatformAi && hasClientAi) {
+        // User has access to both Platform and Client-owned prompts
+        if (source === 'platform') {
+          where.sourceType = 'PLATFORM';
+        } else if (source === 'client') {
+          where.sourceType = 'CLIENT';
+          where.ownerId = user.id;
+        } else {
+          // 'all' or default -> show both platform prompts and user's client prompts
+          where.OR = [
+            { sourceType: 'PLATFORM' },
+            { sourceType: 'CLIENT', ownerId: user.id },
+          ];
+        }
+      } else if (hasPlatformAi) {
+        where.sourceType = 'PLATFORM';
+      } else if (hasClientAi) {
         where.sourceType = 'CLIENT';
         where.ownerId = user.id;
-      } else {
-        // 'all' or default -> show both platform prompts and user's client prompts
-        where.OR = [
-          { sourceType: 'PLATFORM' },
-          { sourceType: 'CLIENT', ownerId: user.id },
-        ];
       }
-    } else if (hasPlatformAi) {
-      // Platform AI only -> strictly platform-managed prompts
-      where.sourceType = 'PLATFORM';
-    } else if (hasClientAi) {
-      // Client's Own AI API only -> strictly client-owned prompts
-      where.sourceType = 'CLIENT';
-      where.ownerId = user.id;
     }
 
     const orderBy: Record<string, string> = { [sort]: order };
@@ -257,11 +280,16 @@ export async function POST(request: NextRequest) {
 
     const parsed = createSchema.safeParse(body);
     if (!parsed.success) {
+      const firstIssue = parsed.error.issues[0];
+      const fieldPath = firstIssue?.path.join('.');
+      const message = firstIssue
+        ? `${fieldPath ? `${fieldPath}: ` : ''}${firstIssue.message}`
+        : 'Invalid input';
       return NextResponse.json(
         {
           error: {
             code: 'VALIDATION_ERROR',
-            message: parsed.error.issues[0]?.message ?? 'Invalid input',
+            message,
             details: parsed.error.issues.map((i) => ({ field: i.path.join('.'), message: i.message })),
           },
           meta: { requestId: id, timestamp: new Date().toISOString() },
@@ -303,10 +331,18 @@ export async function POST(request: NextRequest) {
           ? d.variables
           : null;
 
+    // Resolve site context
+    const requestedSiteId =
+      d.siteId?.trim() ||
+      new URL(request.url).searchParams.get('siteId')?.trim() ||
+      request.headers.get('x-site-id')?.trim() ||
+      null;
+    const resolvedSiteId = requestedSiteId === '' || requestedSiteId === 'all' ? null : requestedSiteId;
+
     // Ownership attribution:
-    // Platform staff create PLATFORM prompts (ownerId: null)
-    // CMS users create CLIENT prompts (ownerId: user.id)
-    const sourceType = staff ? (d.sourceType || 'PLATFORM') : 'CLIENT';
+    // When created in a site context, it is a CLIENT/site prompt owned by user.
+    // In network mode, platform staff can create PLATFORM prompts (ownerId: null).
+    const sourceType = resolvedSiteId ? 'CLIENT' : staff ? (d.sourceType || 'PLATFORM') : 'CLIENT';
     const ownerId = sourceType === 'CLIENT' ? user.id : null;
 
     const item = await db.promptTemplate.create({
@@ -322,7 +358,7 @@ export async function POST(request: NextRequest) {
         modelId: d.modelId === '' ? null : d.modelId ?? null,
         temperature: d.temperature,
         maxTokens: d.maxTokens,
-        siteId: d.siteId === '' ? null : d.siteId ?? null,
+        siteId: resolvedSiteId,
         isActive: d.isActive ?? true,
         sourceType,
         ownerId,

@@ -9,6 +9,8 @@ import { nanoid } from 'nanoid';
 import { z } from 'zod/v4';
 import crypto from 'crypto';
 import { parsePagePermissions } from '@/lib/permissions';
+import { getAuthUser } from '@/lib/platform/platform-auth';
+import { getSiteFromRequest } from '@/lib/site-context';
 
 // ---------- helpers ---------------------------------------------------
 
@@ -66,22 +68,96 @@ export async function GET(request: NextRequest) {
   const id = reqId();
 
   try {
+    const authUser = await getAuthUser(request);
+    if (!authUser) {
+      return NextResponse.json(
+        { error: { code: 'UNAUTHENTICATED', message: 'Authentication required' }, meta: { requestId: id } },
+        { status: 401 },
+      );
+    }
+
     const sp = new URL(request.url).searchParams;
     const page = Math.max(1, Number(sp.get('page')) || 1);
-    const pageSize = Math.min(100, Math.max(1, Number(sp.get('pageSize')) || 25));;
+    const pageSize = Math.min(100, Math.max(1, Number(sp.get('pageSize')) || 25));
     const sort = SORTABLE.has(sp.get('sort') ?? '') ? sp.get('sort')! : 'createdAt';
     const order = sp.get('order') === 'asc' ? 'asc' : 'desc';
     const search = sp.get('search') || '';
     const role = sp.get('role') || undefined;
     const status = sp.get('status') || undefined;
 
-    const where: Record<string, unknown> = { deletedAt: null };
+    const requestedSiteId = await getSiteFromRequest(request);
+
+    // Site / Workspace isolation:
+    // 1. Exclude the current authenticated user (the site owner/account holder manages their account via Profile page,
+    //    and should not appear in the team members / invited collaborators table).
+    // 2. Filter users by active site:
+    //    - If on a specific site: only return team members assigned to this site.
+    //    - If in All Sites mode: only return team members assigned to any of the user's active sites.
+    //    - Never leak platform staff or other customer/tenant accounts.
+
+    const where: Record<string, unknown> = {
+      deletedAt: null,
+      id: { not: authUser.id },
+      email: { not: authUser.email },
+    };
+
     if (role) where.role = role;
     if (status) where.status = status;
-    if (search) {
+
+    if (requestedSiteId) {
+      const site = await db.site.findFirst({
+        where: {
+          OR: [{ id: requestedSiteId }, { slug: requestedSiteId }],
+          ownerId: authUser.id,
+          status: { not: 'ARCHIVED' },
+        },
+        select: { id: true, slug: true },
+      });
+
+      if (!site) {
+        return NextResponse.json({
+          data: [],
+          meta: {
+            requestId: id,
+            pagination: { page, pageSize, total: 0, totalPages: 0 },
+          },
+        });
+      }
+
       where.OR = [
-        { name: { contains: search } },
-        { email: { contains: search } },
+        { assignedSites: { contains: site.id } },
+        { assignedSites: { contains: site.slug } },
+      ];
+    } else {
+      const userSites = await db.site.findMany({
+        where: { ownerId: authUser.id, status: { not: 'ARCHIVED' } },
+        select: { id: true, slug: true },
+      });
+
+      if (userSites.length === 0) {
+        return NextResponse.json({
+          data: [],
+          meta: {
+            requestId: id,
+            pagination: { page, pageSize, total: 0, totalPages: 0 },
+          },
+        });
+      }
+
+      where.OR = [
+        ...userSites.map((s) => ({ assignedSites: { contains: s.id } })),
+        ...userSites.map((s) => ({ assignedSites: { contains: s.slug } })),
+      ];
+    }
+
+    if (search) {
+      where.AND = [
+        {
+          OR: [
+            { name: { contains: search } },
+            { email: { contains: search } },
+          ],
+        },
       ];
     }
 

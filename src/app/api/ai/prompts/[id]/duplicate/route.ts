@@ -107,7 +107,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
 
-    const targetSourceType = staff ? 'PLATFORM' : 'CLIENT';
+    const requestedSiteId =
+      request.nextUrl.searchParams.get('siteId')?.trim() ||
+      request.headers.get('x-site-id')?.trim() ||
+      existing.siteId;
+    const resolvedSiteId = requestedSiteId === '' || requestedSiteId === 'all' ? null : requestedSiteId;
+
+    const targetSourceType = resolvedSiteId ? 'CLIENT' : staff ? 'PLATFORM' : 'CLIENT';
     const targetOwnerId = targetSourceType === 'CLIENT' ? user.id : null;
 
     const item = await db.promptTemplate.create({
@@ -123,7 +129,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         modelId: effectiveModelId,
         temperature: existing.temperature,
         maxTokens: existing.maxTokens,
-        siteId: existing.siteId,
+        siteId: resolvedSiteId,
         isActive: existing.isActive,
         isFavorite: false,
         isShared: true,

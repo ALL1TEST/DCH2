@@ -645,6 +645,8 @@ export function ContentListPage() {
   const [ideaKeywords, setIdeaKeywords] = useState('');
   const isAllSites = useSiteStore((s) => s.isAllSites());
   const activeSiteDbId = useSiteStore((s) => s.activeSiteDbId);
+  const activeSiteSlug = useSiteStore((s) => s.activeSiteSlug);
+  const activeSite = useSiteStore((s) => s.getActiveSite());
   const currentPlanId = useSubscriptionStore((s) => s.currentPlanId);
   const [catTagOpen, setCatTagOpen] = useState(false);
   const [catTagTab, setCatTagTab] = useState<'categories' | 'tags'>('categories');
@@ -673,7 +675,7 @@ export function ContentListPage() {
     }
   }, [currentSubPage, navigate]);
 
-  // Saved ideas — strictly isolated by active plan and persisted to localStorage.
+  // Saved ideas — strictly isolated by active plan and active site, persisted to localStorage.
   const [savedTitles, setSavedTitles] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return new Set();
     try {
@@ -684,8 +686,16 @@ export function ContentListPage() {
       return new Set(
         stored
           .filter((s) => {
-            if (s.planId) return s.planId.toLowerCase() === p;
-            return p === 'max';
+            if (s.planId && s.planId.toLowerCase() !== p) return false;
+            if (!s.planId && p !== 'max') return false;
+            if (!isAllSites && activeSiteDbId) {
+              const matchesSite =
+                s.siteId === activeSiteDbId ||
+                (activeSiteSlug && s.siteId === activeSiteSlug) ||
+                (!s.siteId && (activeSiteSlug === 'ww' || activeSiteDbId === 'cmtugsrgh001vk9fczbsh4t1o'));
+              return matchesSite;
+            }
+            return true;
           })
           .map((s) => s.title.toLowerCase())
       );
@@ -694,31 +704,49 @@ export function ContentListPage() {
     }
   });
 
-  // Re-sync savedTitles when the current plan changes
+  // Re-sync savedTitles when plan or site context changes
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    try {
-      const raw = window.localStorage.getItem(SAVED_IDEAS_STORAGE_KEY);
-      if (!raw) {
+    const syncTitles = () => {
+      try {
+        const raw = window.localStorage.getItem(SAVED_IDEAS_STORAGE_KEY);
+        if (!raw) {
+          setSavedTitles(new Set());
+          return;
+        }
+        const stored: ArticleIdea[] = JSON.parse(raw) as ArticleIdea[];
+        const p = (currentPlanId || 'free').toLowerCase();
+        setSavedTitles(
+          new Set(
+            stored
+              .filter((s) => {
+                if (s.planId && s.planId.toLowerCase() !== p) return false;
+                if (!s.planId && p !== 'max') return false;
+                if (!isAllSites && activeSiteDbId) {
+                  const matchesSite =
+                    s.siteId === activeSiteDbId ||
+                    (activeSiteSlug && s.siteId === activeSiteSlug) ||
+                    (!s.siteId && (activeSiteSlug === 'ww' || activeSiteDbId === 'cmtugsrgh001vk9fczbsh4t1o'));
+                  return matchesSite;
+                }
+                return true;
+              })
+              .map((s) => s.title.toLowerCase())
+          )
+        );
+      } catch {
         setSavedTitles(new Set());
-        return;
       }
-      const stored: ArticleIdea[] = JSON.parse(raw) as ArticleIdea[];
-      const p = (currentPlanId || 'free').toLowerCase();
-      setSavedTitles(
-        new Set(
-          stored
-            .filter((s) => {
-              if (s.planId) return s.planId.toLowerCase() === p;
-              return p === 'max';
-            })
-            .map((s) => s.title.toLowerCase())
-        )
-      );
-    } catch {
-      setSavedTitles(new Set());
-    }
-  }, [currentPlanId]);
+    };
+
+    syncTitles();
+    window.addEventListener('cms_saved_ideas_updated', syncTitles);
+    window.addEventListener('storage', syncTitles);
+    return () => {
+      window.removeEventListener('cms_saved_ideas_updated', syncTitles);
+      window.removeEventListener('storage', syncTitles);
+    };
+  }, [currentPlanId, activeSiteDbId, activeSiteSlug, isAllSites]);
 
   // Derived Set<number> of saved idea indices (so the IdeaCard "Saved" state stays in sync
   // when ideas are appended via "Generate More").
@@ -781,7 +809,7 @@ export function ContentListPage() {
         toast.success(t('articles.ideaSaved'));
       }
     },
-    [ideas, t],
+    [ideas, t, currentPlanId, activeSiteDbId, activeSiteSlug],
   );
 
   // Build query params
@@ -856,6 +884,7 @@ export function ContentListPage() {
       postApi(
         '/api/content/ai-ideas',
         {
+          siteId: !isAllSites && activeSiteDbId ? activeSiteDbId : undefined,
           niche: ideaNiche || undefined,
           keywords: ideaKeywords || undefined,
           count: 5,
@@ -981,7 +1010,11 @@ export function ContentListPage() {
         <div className="min-w-0">
           <h1 className="text-xl font-bold tracking-tight text-foreground">{t('title.articles')}</h1>
           <p className="mt-1 truncate text-sm text-muted-foreground">
-            {t('articles.description')}
+            {!isAllSites && (activeSite?.name || activeSiteSlug)
+              ? `Manage your blog articles for ${activeSite?.name ?? activeSiteSlug}`
+              : isAllSites
+              ? 'Manage blog articles across all connected sites'
+              : t('articles.description')}
           </p>
         </div>
         {!isAllSites && (

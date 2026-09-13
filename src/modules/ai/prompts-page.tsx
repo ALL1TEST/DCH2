@@ -37,6 +37,7 @@ import {
   Plus, Search, MoreHorizontal, Pencil, Trash2, Copy, LayoutGrid, List, History, ChevronLeft, ChevronRight, Loader2, MessageSquare, Heart, Shield, User, Eye, Sparkles, Info,
 } from 'lucide-react';
 import { useT } from '@/lib/i18n';
+import { useSiteStore } from '@/lib/stores/site-store';
 
 // -------------------- Types --------------------
 
@@ -168,13 +169,17 @@ export function PromptsPage() {
     ANALYSIS: t('ai.categoryAnalysis') || 'Analysis',
   };
 
+  const isAllSites = useSiteStore((s) => s.isAllSites());
+  const activeSiteDbId = useSiteStore((s) => s.activeSiteDbId);
+  const siteIdParam = !isAllSites && activeSiteDbId ? activeSiteDbId : undefined;
+
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [pageSize] = useState(25);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [favFilter, setFavFilter] = useState<FavFilter>('all');
-  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>(!isAllSites && activeSiteDbId ? 'client' : 'all');
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState<AiPrompt | null>(null);
@@ -183,6 +188,14 @@ export function PromptsPage() {
   const [deletingPrompt, setDeletingPrompt] = useState<AiPrompt | null>(null);
   const [versionsDialogOpen, setVersionsDialogOpen] = useState(false);
   const [versionsPrompt, setVersionsPrompt] = useState<AiPrompt | null>(null);
+
+  // Sync source filter when active site changes
+  React.useEffect(() => {
+    if (!isAllSites && activeSiteDbId) {
+      setSourceFilter('client');
+    }
+    setPage(1);
+  }, [isAllSites, activeSiteDbId]);
 
   // Fetch prompts
   const { data, isLoading, isError } = useQuery({
@@ -193,6 +206,7 @@ export function PromptsPage() {
       category: categoryFilter,
       isFavorite: favFilter,
       source: sourceFilter,
+      siteId: siteIdParam,
     }),
     queryFn: () =>
       getApi<PaginatedResponse<AiPrompt> & { entitlements?: { hasPlatformAi: boolean; hasClientAi: boolean; isStaff: boolean; canCreateCustom: boolean } }>(
@@ -204,6 +218,7 @@ export function PromptsPage() {
           category: categoryFilter !== 'all' ? categoryFilter : undefined,
           isFavorite: favFilter === 'favorites' ? true : undefined,
           source: sourceFilter !== 'all' ? sourceFilter : undefined,
+          siteId: siteIdParam,
         },
       ),
   });
@@ -254,11 +269,19 @@ export function PromptsPage() {
         }
       }
       const payload = {
-        ...body,
-        tags: body.tags.split(',').map((t) => t.trim()).filter(Boolean),
+        name: body.name.trim(),
+        category: body.category,
+        description: body.description?.trim() || null,
+        tags: body.tags ? body.tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
         variables: parsedVariables,
-        providerId: body.providerId || null,
-        modelId: body.modelId || null,
+        systemPrompt: body.systemPrompt?.trim() || null,
+        userPrompt: body.userPrompt?.trim() || null,
+        providerId: body.providerId?.trim() ? body.providerId.trim() : null,
+        modelId: body.modelId?.trim() ? body.modelId.trim() : null,
+        temperature: typeof body.temperature === 'number' ? body.temperature : 0.7,
+        maxTokens: Number(body.maxTokens) || 2048,
+        isActive: body.isActive ?? true,
+        siteId: siteIdParam || null,
       };
       if (editingPrompt) {
         return patchApi<AiPrompt>(`/api/ai/prompts/${editingPrompt.id}`, payload);
@@ -296,7 +319,8 @@ export function PromptsPage() {
 
   // Duplicate mutation
   const duplicateMutation = useMutation({
-    mutationFn: (id: string) => postApi(`/api/ai/prompts/${id}/duplicate`),
+    mutationFn: (id: string) =>
+      postApi(`/api/ai/prompts/${id}/duplicate${siteIdParam ? `?siteId=${siteIdParam}` : ''}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.aiPrompts.all });
       toast.success(t('ai.promptDuplicated') || 'Prompt duplicated to My Prompts');
@@ -473,9 +497,9 @@ export function PromptsPage() {
                 <SelectValue placeholder="Source" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="client">{!isAllSites ? 'Site Prompts' : 'My Prompts'}</SelectItem>
+                <SelectItem value="platform">Platform Templates</SelectItem>
                 <SelectItem value="all">All Sources</SelectItem>
-                <SelectItem value="platform">Platform Prompts</SelectItem>
-                <SelectItem value="client">My Prompts</SelectItem>
               </SelectContent>
             </Select>
 
@@ -509,7 +533,7 @@ export function PromptsPage() {
                     <TableHead>{t('common.name') || 'Name'}</TableHead>
                     <TableHead>Source</TableHead>
                     <TableHead>{t('ai.category') || 'Category'}</TableHead>
-                    <TableHead className="hidden md:table-cell">{t('ai.tagsLabel') || 'Tags'}</TableHead>
+                    <TableHead className="hidden md:table-cell w-[220px]">{t('common.tags') || 'Tags'}</TableHead>
                     <TableHead className="hidden lg:table-cell">{t('ai.variablesLabel') || 'Variables'}</TableHead>
                     <TableHead className="w-[50px]"></TableHead>
                     <TableHead>{t('common.status') || 'Status'}</TableHead>
@@ -538,8 +562,22 @@ export function PromptsPage() {
                     </TableRow>
                   ) : prompts.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-zinc-500">
-                        {t('ai.noPromptsHint') || 'No prompts found for the selected criteria.'}
+                      <TableCell colSpan={8} className="text-center py-12 text-zinc-500">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <MessageSquare className="h-8 w-8 text-zinc-300 dark:text-zinc-600" />
+                          <p className="font-medium text-sm text-zinc-700 dark:text-zinc-300">
+                            {t('ai.noPromptsHint') || 'No prompts found for this site.'}
+                          </p>
+                          <p className="text-xs text-zinc-400 max-w-sm">
+                            You haven&apos;t added any prompts for this site yet. Create custom prompts or view platform templates.
+                          </p>
+                          {canCreateCustom && (
+                            <Button size="sm" className="mt-2 text-xs" onClick={handleOpenCreate}>
+                              <Plus className="h-3.5 w-3.5 mr-1.5" />
+                              {t('ai.addPrompt') || 'Add Prompt'}
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -569,13 +607,17 @@ export function PromptsPage() {
                             {CATEGORY_LABELS[prompt.category] ?? prompt.category}
                           </Badge>
                         </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          <div className="flex flex-wrap gap-1">
-                            {prompt.tags?.slice(0, 3).map((tag) => (
-                              <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
+                        <TableCell className="hidden md:table-cell max-w-[220px]">
+                          <div className="flex flex-wrap gap-1.5 items-center">
+                            {prompt.tags?.slice(0, 2).map((tag) => (
+                              <Badge key={tag} variant="outline" className="text-xs max-w-[95px] truncate" title={tag}>
+                                {tag}
+                              </Badge>
                             ))}
-                            {(prompt.tags?.length ?? 0) > 3 && (
-                              <Badge variant="outline" className="text-xs">+{prompt.tags!.length - 3}</Badge>
+                            {(prompt.tags?.length ?? 0) > 2 && (
+                              <Badge variant="outline" className="text-xs shrink-0 text-muted-foreground">
+                                +{prompt.tags!.length - 2}
+                              </Badge>
                             )}
                           </div>
                         </TableCell>
@@ -677,8 +719,19 @@ export function PromptsPage() {
             ))
           ) : prompts.length === 0 ? (
             <div className="col-span-full text-center py-12 text-zinc-500">
-              <MessageSquare className="h-10 w-10 mx-auto mb-3 text-zinc-300" />
-              {t('ai.noPromptsGrid') || 'No prompts found in the library.'}
+              <MessageSquare className="h-10 w-10 mx-auto mb-3 text-zinc-300 dark:text-zinc-600" />
+              <p className="font-medium text-sm text-zinc-700 dark:text-zinc-300">
+                {t('ai.noPromptsGrid') || 'No prompts found for this site.'}
+              </p>
+              <p className="text-xs text-zinc-400 mt-1">
+                You haven&apos;t added any prompts for this site yet.
+              </p>
+              {canCreateCustom && (
+                <Button size="sm" className="mt-3 text-xs" onClick={handleOpenCreate}>
+                  <Plus className="h-3.5 w-3.5 mr-1.5" />
+                  {t('ai.addPrompt') || 'Add Prompt'}
+                </Button>
+              )}
             </div>
           ) : (
             prompts.map((prompt) => (

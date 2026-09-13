@@ -58,6 +58,7 @@ import { TiptapEditor, type TiptapEditorRef } from '@/components/editor/tiptap-e
 import { getApi, postApi } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
 import { useNavigationStore } from '@/lib/stores/navigation-store';
+import { useSiteStore } from '@/lib/stores/site-store';
 import { markdownToEditorHtml } from '@/lib/pipeline/markdown-to-html';
 
 import { useAiWorkspace } from '@/hooks/use-ai-workspace';
@@ -446,6 +447,8 @@ export function ContentCreatePage() {
   const navigate = useNavigationStore((s) => s.navigate);
   const queryClient = useQueryClient();
   const { t } = useT();
+  const isAllSites = useSiteStore((s) => s.isAllSites());
+  const activeSiteDbId = useSiteStore((s) => s.activeSiteDbId);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<TiptapEditorRef>(null);
 
@@ -578,6 +581,7 @@ export function ContentCreatePage() {
       return postApi<CreatedContent>('/api/content', {
         title: data.title,
         slug,
+        siteId: !isAllSites && activeSiteDbId ? activeSiteDbId : undefined,
         excerpt: data.excerpt || undefined,
         content: editorContent || undefined,
         status: data.status,

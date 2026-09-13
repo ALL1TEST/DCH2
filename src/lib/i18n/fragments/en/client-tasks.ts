@@ -93,7 +93,7 @@ export const clientTasksEn: Record<string, string> = {
   'tasks.deleteConfirmDescription': 'This action cannot be undone. The task will be permanently removed from your board.',
 
   // ---- Empty state ----
-  'tasks.emptyTitle': 'No tasks yet',
+  'tasks.emptyTitle': 'No Tasks found',
   'tasks.emptyDescription': 'Create your first task to start organizing your work.',
   'tasks.emptyCreate': 'Create a task',
 

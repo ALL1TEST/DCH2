@@ -71,13 +71,26 @@ interface SiteState {
   createSite: (data: {
     name: string;
     slug: string;
+    siteUrl?: string;
     domain?: string;
     description?: string;
     planId?: string;
     siteType?: 'standard' | 'wordpress';
     config?: Record<string, unknown>;
+    connection?: {
+      platform: 'standard' | 'wordpress';
+      siteUrl: string;
+      apiBaseUrl?: string;
+      apiKey?: string;
+      restApiUrl?: string;
+      username?: string;
+      appPassword?: string;
+      status?: string;
+      capabilities?: string[];
+      lastVerifiedAt?: string;
+    };
   }) => Promise<Site>;
-  updateSite: (id: string, data: { name?: string; slug?: string; domain?: string; description?: string; status?: string; planId?: string; config?: Record<string, unknown> }) => Promise<void>;
+  updateSite: (id: string, data: { name?: string; slug?: string; siteUrl?: string; domain?: string; description?: string; status?: string; planId?: string; config?: Record<string, unknown>; connection?: Record<string, unknown> }) => Promise<void>;
   deleteSite: (id: string) => Promise<void>;
   reset: () => void;
 }

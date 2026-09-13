@@ -61,7 +61,7 @@ export const clientContentEn: Record<string, string> = {
   'dashboard.noContentData': 'No content data yet.',
 
   // ---- Articles (src/modules/content/content-list-page.tsx) ----
-  'articles.description': 'Manage your blog articles for The Efficient You',
+  'articles.description': 'Manage your blog articles',
   'articles.generateAiIdeas': 'Generate AI article ideas',
   'articles.aiIdeas': 'AI Ideas',
   'articles.manageCategoriesTags': 'Manage categories and tags',

@@ -41,19 +41,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        {/*
-          Strip browser-extension-injected attributes (e.g. bis_skin_checked from
-          Bitdefender, data-lastpass-installed from LastPass, Grammarly attrs, etc.)
-          BEFORE React hydrates. These extensions add attributes to the DOM after
-          server render, causing hydration mismatch warnings. This script runs
-          synchronously in <head> before hydration and keeps stripping via a
-          MutationObserver so the attributes never reach React's reconciler.
-        */}
-        <script dangerouslySetInnerHTML={{
-          __html: `(function(){var A=['bis_skin_checked','data-lastpass-installed','data-lp-timestamp','data-bitdefender','cz-shortcut-listen','data-new-gr-c-s-check-loaded','data-gr-c-s-loaded','data-gr-ext-installed','data-grammarly'];function s(){var sel='['+A.join('],[')+']';document.querySelectorAll(sel).forEach(function(el){A.forEach(function(a){el.removeAttribute(a);})});}s();var o=new MutationObserver(function(m){m.forEach(function(mut){if(mut.type==='attributes'&&A.indexOf(mut.attributeName)!==-1){mut.target.removeAttribute(mut.attributeName);}});});if(document.documentElement){o.observe(document.documentElement,{attributes:true,subtree:true,attributeFilter:A});}})();`,
-        }} />
-      </head>
       <body
         suppressHydrationWarning
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}

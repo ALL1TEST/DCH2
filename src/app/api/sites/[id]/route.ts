@@ -44,6 +44,33 @@ export async function GET(
       );
     }
 
+    const sanitizeSiteConfig = (rawConfig: unknown): Record<string, unknown> | null => {
+      if (!rawConfig) return null;
+      let parsed: Record<string, unknown>;
+      if (typeof rawConfig === 'string') {
+        try {
+          parsed = JSON.parse(rawConfig);
+        } catch {
+          return null;
+        }
+      } else if (typeof rawConfig === 'object') {
+        parsed = { ...(rawConfig as Record<string, unknown>) };
+      } else {
+        return null;
+      }
+
+      if (parsed.connection && typeof parsed.connection === 'object') {
+        const conn = { ...(parsed.connection as Record<string, unknown>) };
+        const hasCreds = Boolean(conn.encryptedCredentials || conn.apiKey || conn.appPassword || conn.hasCredentials);
+        delete conn.encryptedCredentials;
+        delete conn.apiKey;
+        delete conn.appPassword;
+        conn.hasCredentials = hasCreds;
+        parsed.connection = conn;
+      }
+      return parsed;
+    };
+
     const planId = (site as any).planId || site.planScope || 'free';
     let planInfo = null;
     try {
@@ -64,6 +91,7 @@ export async function GET(
     return NextResponse.json({
       data: {
         ...site,
+        config: sanitizeSiteConfig(site.config),
         planId,
         plan: planInfo,
       },
@@ -118,6 +146,76 @@ export async function PATCH(
       }
     }
 
+    // Process config and connection updates securely
+    let finalConfigString: string | undefined = undefined;
+    let sanitizedConfigForResponse: Record<string, unknown> | null = null;
+
+    if (config !== undefined) {
+      let parsedNewConfig: Record<string, unknown> = {};
+      if (typeof config === 'string') {
+        try {
+          parsedNewConfig = JSON.parse(config);
+        } catch {
+          parsedNewConfig = {};
+        }
+      } else if (typeof config === 'object' && config !== null) {
+        parsedNewConfig = { ...config };
+      }
+
+      let parsedExistingConfig: Record<string, unknown> = {};
+      if (existing.config) {
+        try {
+          parsedExistingConfig = JSON.parse(existing.config);
+        } catch {
+          parsedExistingConfig = {};
+        }
+      }
+
+      // If connection is being updated
+      if (parsedNewConfig.connection && typeof parsedNewConfig.connection === 'object') {
+        const newConn = { ...(parsedNewConfig.connection as Record<string, unknown>) };
+        const existingConn = (parsedExistingConfig.connection && typeof parsedExistingConfig.connection === 'object')
+          ? (parsedExistingConfig.connection as Record<string, unknown>)
+          : {};
+
+        const rawSecret = (newConn.apiKey || newConn.appPassword || newConn.token) as string | undefined;
+        let encryptedSecret = existingConn.encryptedCredentials as string | undefined;
+
+        if (rawSecret && typeof rawSecret === 'string' && rawSecret.trim()) {
+          try {
+            const { encrypt } = await import('@/lib/encryption');
+            encryptedSecret = await encrypt(rawSecret.trim());
+          } catch (encErr) {
+            console.error('Failed to encrypt updated credentials:', encErr);
+          }
+        }
+
+        if (encryptedSecret) {
+          newConn.encryptedCredentials = encryptedSecret;
+        }
+        delete newConn.apiKey;
+        delete newConn.appPassword;
+        delete newConn.token;
+
+        parsedNewConfig.connection = newConn;
+      }
+
+      finalConfigString = JSON.stringify(parsedNewConfig);
+
+      // Create sanitized copy for response
+      sanitizedConfigForResponse = { ...parsedNewConfig };
+      if (sanitizedConfigForResponse.connection && typeof sanitizedConfigForResponse.connection === 'object') {
+        const connCopy = { ...(sanitizedConfigForResponse.connection as Record<string, unknown>) };
+        const hasCreds = Boolean(connCopy.encryptedCredentials || connCopy.hasCredentials);
+        delete connCopy.encryptedCredentials;
+        connCopy.hasCredentials = hasCreds;
+        sanitizedConfigForResponse.connection = connCopy;
+      }
+    }
+
+    const rawSiteUrl = body.siteUrl || (config && typeof config === 'object' && config.connection ? config.connection.siteUrl : undefined);
+    const resolvedDomain = rawSiteUrl !== undefined ? (rawSiteUrl ? rawSiteUrl.replace(/^https?:\/\//i, '').replace(/\/.*$/, '') : null) : domain;
+
     const updatedPlanId = rawPlanId !== undefined ? String(rawPlanId).trim().toLowerCase() : undefined;
 
     const site = await db.site.update({
@@ -125,12 +223,12 @@ export async function PATCH(
       data: {
         ...(name !== undefined && { name }),
         ...(slug !== undefined && { slug }),
-        ...(domain !== undefined && { domain: domain || null }),
+        ...(resolvedDomain !== undefined && { domain: resolvedDomain || null }),
         ...(description !== undefined && { description: description || null }),
         ...(logo !== undefined && { logo: logo || null }),
         ...(favicon !== undefined && { favicon: favicon || null }),
         ...(status !== undefined && { status }),
-        ...(config !== undefined && { config: typeof config === 'string' ? config : JSON.stringify(config) }),
+        ...(finalConfigString !== undefined && { config: finalConfigString }),
         ...(updatedPlanId !== undefined && { planScope: updatedPlanId }),
       },
       include: {
@@ -170,9 +268,34 @@ export async function PATCH(
       planInfo = { planId: resolvedPlanId, name: resolvedPlanId.toUpperCase(), badgeVariant: resolvedPlanId };
     }
 
+    const sanitizeSiteConfigHelper = (rawConfig: unknown): Record<string, unknown> | null => {
+      if (!rawConfig) return null;
+      let parsed: Record<string, unknown>;
+      if (typeof rawConfig === 'string') {
+        try {
+          parsed = JSON.parse(rawConfig);
+        } catch {
+          return null;
+        }
+      } else if (typeof rawConfig === 'object') {
+        parsed = { ...(rawConfig as Record<string, unknown>) };
+      } else {
+        return null;
+      }
+      if (parsed.connection && typeof parsed.connection === 'object') {
+        const conn = { ...(parsed.connection as Record<string, unknown>) };
+        const hasCreds = Boolean(conn.encryptedCredentials || conn.hasCredentials);
+        delete conn.encryptedCredentials;
+        conn.hasCredentials = hasCreds;
+        parsed.connection = conn;
+      }
+      return parsed;
+    };
+
     return NextResponse.json({
       data: {
         ...site,
+        config: sanitizedConfigForResponse ?? sanitizeSiteConfigHelper(site.config),
         planId: resolvedPlanId,
         plan: planInfo,
       },

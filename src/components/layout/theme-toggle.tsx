@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { useTheme } from 'next-themes';
+import { useT } from '@/lib/i18n';
 import { Sun, Moon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -43,6 +44,7 @@ import {
  */
 export function ThemeToggle({ withTooltip = false }: { withTooltip?: boolean }) {
   const { theme, setTheme } = useTheme();
+  const { t } = useT();
 
   const button = (
     <Button
@@ -53,7 +55,7 @@ export function ThemeToggle({ withTooltip = false }: { withTooltip?: boolean }) 
     >
       <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
       <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-      <span className="sr-only">Toggle theme</span>
+      <span className="sr-only">{t('topbar.toggleTheme')}</span>
     </Button>
   );
 
@@ -68,7 +70,7 @@ export function ThemeToggle({ withTooltip = false }: { withTooltip?: boolean }) 
         sideOffset={8}
         collisionPadding={12}
       >
-        Toggle theme
+        {t('topbar.toggleTheme')}
       </TooltipContent>
     </Tooltip>
   );

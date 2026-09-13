@@ -1,8 +1,8 @@
 // ============================================================
 // i18n — FRAGMENT: client-ai (French — Français)
-// Machine-assisted translation of fragments/en/client-ai.ts.
-// Keys that failed translation are omitted — t() falls back to
-// the English value per key.
+// Machine-assisted translation of fragments/en/client-ai.ts
+// (.zscripts/translate-missing.ts). Keys that failed translation
+// are omitted — t() falls back to the English value per key.
 // ============================================================
 
 export const clientAiFr: Record<string, string> = {
@@ -113,6 +113,7 @@ export const clientAiFr: Record<string, string> = {
   "ai.modelName": "Nom du modèle",
   "ai.modelId": "ID du modèle",
   "ai.capabilities": "Capacités",
+  "ai.capabilityRequired": "Veuillez sélectionner au moins une capacité.",
   "ai.textType": "Texte",
   "ai.imageType": "Image",
   "ai.unknownProvider": "Fournisseur inconnu",

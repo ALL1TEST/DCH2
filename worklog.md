@@ -11241,3 +11241,59 @@ Stage Summary:
 - Login credentials: admin@example.com/admin123, platform@example.com/platform123 (OWNER), internal@example.com/internal123, owner@example.com/owner123, free|plus|pro|max@example.com with password free123|plus123|pro123|max123
 - Client-CMS list pages (Articles/Users) show empty states for site-less users — this is the repo's designed multi-tenant plan isolation (getSiteWhere in src/lib/site-context.ts), not a bug
 - To keep processes alive across agent tool calls ALWAYS use the double-fork pattern: `( command & )`
+
+---
+Task ID: I18N-EDITOR
+Agent: general-purpose
+Task: Internationalize tiptap-editor.tsx hardcoded strings
+
+Work Log:
+- Read worklog.md (last 2 sections: tasks-feature + SYNC-1) and the full tiptap-editor.tsx (~3175 lines, in chunks) to inventory every user-facing English string: toolbar tooltips/titles, dropdown labels + items, placeholders, visible JSX text, table context menu, find/replace bar, media/link/video/audio bars, comment popover, emoji picker (incl. category tab labels), color picker (incl. swatch tooltip names), and the toggle-block template text.
+- Created src/lib/i18n/fragments/en/client-editor.ts exporting clientEditorEn (Record<string, string>) with 164 'editor.*' keys (stable dotted keys, English source of truth; other locales fall back to en via t() chain).
+- Wired it into src/lib/i18n/locales.ts: added `import { clientEditorEn } from './fragments/en/client-editor';` right after the clientTasksEn import, and `...clientEditorEn,` after `...clientTasksEn,` in the `const en` merge block. fr dictionary and all other locales untouched.
+- tiptap-editor.tsx changes:
+  - Added `import { useT } from '@/lib/i18n';` and `const { t } = useT();` in the two components that render strings (TiptapEditor + ColorPicker helper component).
+  - Replaced every hardcoded user-facing string with t('editor.xxx') — 165 direct literal call sites plus 37 keys resolved dynamically through new module-level lookup maps: TABLE_BORDER_I18N_KEYS (border style values → keys), ORDERED_LIST_STYLE_I18N_KEYS, BULLET_LIST_STYLE_I18N_KEYS, COLOR_NAME_I18N_KEYS (14 color swatch tooltip names), EMOJI_CATEGORY_I18N_KEYS (8 emoji category tabs). The exported data constants (TABLE_BORDERS / *_LIST_STYLES / color arrays) keep their English label fields as data; only render sites translate.
+  - Schema strings at former lines 143/146 ('Toggle title — click to expand' / 'Hidden content here...'): insertToggleBlock is a module-level ProseMirror command (useT cannot be called there), so the command now accepts an optional `texts` parameter and handleInsertToggle (inside the React component) passes t('editor.toggleTitle') / t('editor.hiddenContent'); the English literals remain as safe fallback defaults for non-React callers.
+  - currentHeading internal codes ('Paragraph'/'Bulleted list'/'Numbered list'/H1-H6) kept as internal state (used for icon + active comparisons); only the visible dropdown label is translated (editor.paragraph / editor.bulletedList / editor.numberedListLabel; H1-H6 are technical codes).
+  - Font-family names (Inter, Georgia, Merriweather, Mono, System UI) left as proper nouns; localized the 'Default' entry (editor.fontDefault) and the empty fallback (editor.font).
+  - 'Delete table' (2 occurrences, lowercase t) consolidated with 'Delete Table' (context menu) into one key editor.deleteTable = 'Delete Table' — consistent with 'Delete Row'/'Delete Column' casing.
+- Intentionally left hardcoded: 'https://example.com' placeholders ×2 and '#000000' (URL/hex examples — technical); <title>Article</title> ×3 in export handlers (generated export documents, per task instruction); author: 'You' in CommentMark (persisted document data, not rendered UI — CSS tooltip shows only data-comment); stats readingTime strings (dead code — computed but never rendered); console.error messages (developer logs); 'drag-block' dataTransfer payload, <kbd>Ctrl</kbd> inserted content, X²/X₂ glyphs.
+- Verification: cross-checked every t() reference (incl. lookup maps) against the fragment — 164/164 keys resolve, zero missing, zero unused. `bunx tsc --noEmit` → NO errors. `bunx eslint src/components/editor/tiptap-editor.tsx src/lib/i18n/fragments/en/client-editor.ts src/lib/i18n/locales.ts` → NO errors, no output.
+
+Stage Summary:
+- 164 editor.* keys added (client-editor.ts); 3 files changed (tiptap-editor.tsx, new client-editor.ts, locales.ts); fr/other locales untouched (English fallback chain).
+- tsc --noEmit: PASS (zero errors). eslint on all 3 files: PASS (zero errors). All used keys resolve 1:1 against the dictionary.
+
+---
+Task ID: I18N-FIX-1
+Agent: main (orchestrator)
+Task: Fix the dashboard internationalization system completely — all 9 locales (en, fr, de, es, it, pt-BR, pt-PT, nl, ru) fully working
+
+Work Log:
+- Inspected the existing custom i18n system (zustand store + I18nProvider + dictionary assembly in src/lib/i18n/) — architecture is sound: selector → setLocale → localStorage 'cms_locale' → reactive t() with en fallback chain
+- ROOT CAUSE identified: the machine-translation pipeline's progress files (.zscripts/i18n-progress/) predated several dictionary additions (client-tasks family, platform-a/b growth, later core keys), and completed batches are skipped on re-run — so de/es/it/pt-BR/pt-PT/nl/ru were each missing ~1101 of 3219 keys and fr was missing 243. English "worked" because it IS the fallback
+- Kept the existing custom i18n framework (no second framework introduced — per the keep-existing-framework rule)
+- Wrote .zscripts/translate-missing.ts: computes missing keys LIVE from the dictionary assembly, translates via z-ai-web-dev-sdk with the professional software-localizer prompt, batches of 120, resumable progress in .zscripts/i18n-progress2/, pacing + 429 cooldown. 89 batches total across 2 runs (73 + 16 after editor keys were added)
+- Wrote .zscripts/assemble-missing.ts: merges translations — 7 machine locales get regenerated fragments/<locale>/client.ts + core/<locale>.ts patches; fr gets per-family fragment files (created client-tasks.ts + client-editor.ts, wired imports into locales.ts)
+- Wrote .zscripts/validate-i18n.ts (npm script i18n:validate): parity check of every locale vs English canonical schema — missing/extra/empty keys; the 9 required locales must be 100% complete; exits non-zero on failure
+- Fixed 2 empty translation values (de tags.deleteConfirmSuffix, it tags.editDescriptionSuffix) with correct typographic conventions
+- Added new EN keys + internationalized previously hardcoded components:
+  • login-screen.tsx — was 100% hardcoded (Welcome back / Sign in / Email / Password / quick sign-in section / account labels) → auth.* keys + useT()
+  • site-selector.tsx — 20+ hardcoded strings in the new site-connection-verification flow (toasts, verify errors, buttons, tooltips) → siteSelector.* keys
+  • profile-page.tsx — 5 avatar-upload toasts → profile.* keys
+  • ai/models-page.tsx — capability toast → ai.capabilityRequired
+  • media-list-page.tsx — 4 hardcoded Cancel buttons → t('common.cancel')
+  • theme-toggle.tsx — sr-only + tooltip "Toggle theme" → t('topbar.toggleTheme')
+  • ui/sidebar.tsx — SidebarTrigger/SidebarRail sr-only + aria-label "Toggle Sidebar" → t('app.toggleSidebar')
+  • tiptap-editor.tsx (delegated to subagent Task I18N-EDITOR) — 164 editor.* keys covering the full toolbar, table context menus, import/export menus, find/replace, media/emoji/link dialogs
+- Fixed language-toast locale bug: handleSetLocale's toast used the render-closure t() (previous locale) — now resolves via new translateForLocale(next, 'language.set') export
+- Updated PLATFORM_COMPLETE_LOCALES from ['en','fr'] to all 9 complete locales (platform staff now get the full 9-language selector; verified complete by validation)
+- Created a test site "Test Blog" (planScope pro) owned by admin@example.com + assigned the 10 seeded articles to it so the CMS site-context pages (incl. the editor) are reachable for testing
+
+Stage Summary:
+- VALIDATION: en/fr/de/es/it/pt-BR/pt-PT/nl/ru all at 3428/3428 keys — 0 missing, 0 extra, 0 empty (English canonical = 3428 keys). 31 other locales remain PARTIAL by design (per-key English fallback)
+- TypeScript: tsc --noEmit → 0 errors. ESLint: 23 pre-existing problems (identical count to pristine HEAD — zero new). Production build intentionally NOT run (environment forbids `bun run build`; tsc full type-check + dev-server verification used instead)
+- BROWSER-VERIFIED (agent-browser): all 9 languages on login screen, sidebar, dashboard, Articles list (empty state + tabs + placeholder), profile menu, language submenu, theme submenu; German/French editor toolbar + export menu; Spanish site-selector; language toast in the NEW locale; invalid locale 'xx-INVALID' → English fallback; locale persists across reload AND server restart; RTL verified with Arabic (dir=rtl, lang=ar, translated dashboard)
+- i18n tooling: `bun run i18n:validate` (parity gate), `bun run i18n:translate-missing` + `bun run i18n:assemble` (fill pipeline for future key additions)
+- Changed: 30 tracked files + 6 new files (client-editor.ts en/fr, 3 pipeline scripts, progress dir). No languages removed (40-locale registry intact), no competing framework introduced

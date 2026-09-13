@@ -1261,7 +1261,7 @@ export function MediaListPage() {
             autoFocus
           />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setNewFolderDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setNewFolderDialogOpen(false)}>{t('common.cancel')}</Button>
             <Button
               className="bg-amber-400 text-black hover:bg-amber-500 font-semibold"
               onClick={() => createFolderMutation.mutate({ name: newFolderName.trim(), parentId: newFolderParentId || undefined })}
@@ -1288,7 +1288,7 @@ export function MediaListPage() {
             autoFocus
           />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRenameDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setRenameDialogOpen(false)}>{t('common.cancel')}</Button>
             <Button
               className="bg-amber-400 text-black hover:bg-amber-500 font-semibold"
               onClick={() => { if (renameValue.trim() && renameFolderId) renameFolderMutation.mutate({ id: renameFolderId, name: renameValue.trim() }); }}
@@ -1331,7 +1331,7 @@ export function MediaListPage() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDetailsTarget(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setEditDetailsTarget(null)}>{t('common.cancel')}</Button>
             <Button
               className="bg-amber-400 text-black hover:bg-amber-500 font-semibold"
               onClick={() => {
@@ -1468,7 +1468,7 @@ export function MediaListPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAiDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setAiDialogOpen(false)}>{t('common.cancel')}</Button>
             {/* FIX #8: Generate button - amber/gold color */}
             <Button
               className="bg-amber-400 text-black hover:bg-amber-500 font-semibold"

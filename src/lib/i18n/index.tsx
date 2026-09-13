@@ -121,10 +121,15 @@ export const DEFAULT_LOCALE: Locale = 'en';
  * (core + platform fragments). The Platform Admin language
  * submenu offers exactly this list, so the Platform Admin UI
  * never claims a language it is not fully translated for.
- * Client (Admin User) users keep the FULL SUPPORTED_LOCALES list
- * with honest English fallback for incomplete locales.
+ * Client roles (Admin User) always get the FULL SUPPORTED_LOCALES
+ * list with honest English fallback for incomplete locales.
+ * All 9 fully-supported locales (en, fr, de, es, it, pt-BR, pt-PT,
+ * nl, ru) now pass .zscripts/validate-i18n.ts with zero missing
+ * keys — including the platform-* fragment families.
  */
-export const PLATFORM_COMPLETE_LOCALES: readonly Locale[] = ['en', 'fr'];
+export const PLATFORM_COMPLETE_LOCALES: readonly Locale[] = [
+  'en', 'fr', 'de', 'es', 'it', 'pt-BR', 'pt-PT', 'nl', 'ru',
+];
 
 /** Type-guard: is the given value a supported locale code? */
 export function isSupportedLocale(value: unknown): value is Locale {
@@ -216,6 +221,17 @@ if (typeof window !== 'undefined') {
 /** Resolve a key for a locale with the English fallback chain. */
 function translate(locale: string, key: string): string {
   return dictionaries[locale]?.[key] ?? dictionaries.en?.[key] ?? key;
+}
+
+/** 
+ * Resolve a translation for an EXPLICIT locale (not the active one).
+ * Exported for the rare call site that must render a string for a
+ * just-switched locale before the next render — e.g. the language
+ * confirmation toast, whose t() closure still holds the previous
+ * locale at click time. Same English fallback chain as t().
+ */
+export function translateForLocale(locale: string, key: string): string {
+  return translate(locale, key);
 }
 
 // -------------------- Hook --------------------

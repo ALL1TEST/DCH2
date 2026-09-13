@@ -263,12 +263,12 @@ function CreateSiteDialog({ open, onOpenChange, onCreated }: CreateSiteDialogPro
       if (data.token) {
         setConnectionToken(data.token);
         invalidateVerification();
-        toast.success('Generated secure connection token');
+        toast.success(t('siteSelector.tokenGenerated'));
       } else {
-        setError(data.error?.message || 'Failed to generate token');
+        setError(data.error?.message || t('siteSelector.tokenGenerateFailed'));
       }
     } catch {
-      setError('Failed to contact server to generate token');
+      setError(t('siteSelector.tokenContactFailed'));
     } finally {
       setIsGeneratingToken(false);
     }
@@ -278,7 +278,7 @@ function CreateSiteDialog({ open, onOpenChange, onCreated }: CreateSiteDialogPro
     if (!connectionToken) return;
     navigator.clipboard.writeText(connectionToken);
     setCopiedToken(true);
-    toast.success('Connection token copied to clipboard');
+    toast.success(t('siteSelector.tokenCopied'));
     setTimeout(() => setCopiedToken(false), 2000);
   };
 
@@ -288,22 +288,22 @@ function CreateSiteDialog({ open, onOpenChange, onCreated }: CreateSiteDialogPro
     const targetSiteUrl = siteUrl.trim();
 
     if (!targetSiteUrl) {
-      setError('Please provide your Site URL.');
+      setError(t('siteSelector.provideSiteUrl'));
       return;
     }
 
     if (siteType === 'standard' && !connectionToken.trim()) {
-      setError('Please click "Generate Token" before verifying the connection.');
+      setError(t('siteSelector.generateTokenFirst'));
       return;
     }
 
     if (siteType === 'wordpress' && (!wpUsername.trim() || !wpPassword.trim())) {
-      setError('WordPress Username and Application Password are required for verification.');
+      setError(t('siteSelector.wpCredentialsRequired'));
       return;
     }
 
     setIsVerifying(true);
-    setVerification({ status: 'VERIFYING', message: 'Testing remote connection...' });
+    setVerification({ status: 'VERIFYING', message: t('siteSelector.testingConnection') });
 
     const resolvedApiBaseUrl = apiBaseUrl.trim() || (
       siteType === 'wordpress'
@@ -334,7 +334,7 @@ function CreateSiteDialog({ open, onOpenChange, onCreated }: CreateSiteDialogPro
         capabilities: data.capabilities,
       });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Network error during verification';
+      const msg = err instanceof Error ? err.message : t('siteSelector.networkErrorDuringVerification');
       setVerification({
         status: 'UNREACHABLE',
         message: msg,
@@ -352,14 +352,14 @@ function CreateSiteDialog({ open, onOpenChange, onCreated }: CreateSiteDialogPro
     }
 
     if (!siteUrl.trim()) {
-      setError('Site URL is required.');
+      setError(t('siteSelector.siteUrlRequired'));
       setSubmitAttempted(true);
       return;
     }
 
     // Strictly enforce real server-side verification before site creation
     if (verification.status !== 'CONNECTED') {
-      setError('Please verify the connection before registering this site.');
+      setError(t('siteSelector.verifyBeforeRegister'));
       setSubmitAttempted(true);
       return;
     }
@@ -396,7 +396,7 @@ function CreateSiteDialog({ open, onOpenChange, onCreated }: CreateSiteDialogPro
         },
       });
 
-      toast.success(`Site "${site.name}" registered and connected!`);
+      toast.success(`${t('siteSelector.siteRegisteredPrefix')}${site.name}${t('siteSelector.siteRegisteredSuffix')}`);
       handleOpenChange(false);
       onCreated(site);
     } catch (err) {
@@ -412,7 +412,7 @@ function CreateSiteDialog({ open, onOpenChange, onCreated }: CreateSiteDialogPro
         <DialogHeader>
           <DialogTitle>{t('siteSelector.createTitle')}</DialogTitle>
           <DialogDescription>
-            Register an external website and connect it to the CMS through a secure API connection.
+            {t('siteSelector.createDescriptionFull')}
           </DialogDescription>
         </DialogHeader>
 
@@ -536,7 +536,7 @@ function CreateSiteDialog({ open, onOpenChange, onCreated }: CreateSiteDialogPro
                   value={siteUrl}
                   onChange={(e) => handleSiteUrlChange(e.target.value)}
                 />
-                <p className="text-[11px] text-muted-foreground">The canonical URL of your website.</p>
+                <p className="text-[11px] text-muted-foreground">{t('siteSelector.siteUrlHint')}</p>
               </div>
 
               <div className="grid gap-1.5">
@@ -629,7 +629,7 @@ function CreateSiteDialog({ open, onOpenChange, onCreated }: CreateSiteDialogPro
                               type="button"
                               onClick={() => setShowToken(!showToken)}
                               className="text-muted-foreground hover:text-foreground p-1 rounded"
-                              title={showToken ? 'Hide token' : 'Reveal token'}
+                              title={showToken ? t('siteSelector.hideToken') : t('siteSelector.revealToken')}
                             >
                               {showToken ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                             </button>
@@ -637,7 +637,7 @@ function CreateSiteDialog({ open, onOpenChange, onCreated }: CreateSiteDialogPro
                               type="button"
                               onClick={handleCopyToken}
                               className="text-muted-foreground hover:text-foreground p-1 rounded"
-                              title="Copy token"
+                              title={t('siteSelector.copyToken')}
                             >
                               {copiedToken ? (
                                 <CheckCheck className="h-3.5 w-3.5 text-emerald-500" />
@@ -654,10 +654,10 @@ function CreateSiteDialog({ open, onOpenChange, onCreated }: CreateSiteDialogPro
                           onClick={handleGenerateToken}
                           disabled={isGeneratingToken}
                           className="text-xs h-9 shrink-0 text-muted-foreground hover:text-foreground"
-                          title="Generate a new token"
+                          title={t('siteSelector.generateNewToken')}
                         >
                           <RefreshCw className="h-3 w-3 mr-1.5" />
-                          Regenerate
+                          {t('siteSelector.regenerate')}
                         </Button>
                       </div>
 
@@ -690,7 +690,7 @@ function CreateSiteDialog({ open, onOpenChange, onCreated }: CreateSiteDialogPro
                       invalidateVerification();
                     }}
                   />
-                  <p className="text-[11px] text-muted-foreground">Defaults to /wp-json.</p>
+                  <p className="text-[11px] text-muted-foreground">{t('siteSelector.apiBaseUrlHint')}</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -755,12 +755,12 @@ function CreateSiteDialog({ open, onOpenChange, onCreated }: CreateSiteDialogPro
                   {isVerifying ? (
                     <>
                       <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" />
-                      Verifying...
+                      {t('siteSelector.verifying')}
                     </>
                   ) : (
                     <>
                       <ShieldCheck className="h-3.5 w-3.5 mr-2 text-primary" />
-                      Verify Connection
+                      {t('siteSelector.verifyConnection')}
                     </>
                   )}
                 </Button>
@@ -824,10 +824,10 @@ function CreateSiteDialog({ open, onOpenChange, onCreated }: CreateSiteDialogPro
             {isCreating ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                Registering...
+                {t('siteSelector.registering')}
               </>
             ) : (
-              'Save & Register Site'
+              t('siteSelector.saveAndRegister')
             )}
           </Button>
         </DialogFooter>
@@ -879,7 +879,7 @@ function EditSiteDialog({ open, onOpenChange, site }: EditSiteDialogProps) {
   const [isVerifying, setIsVerifying] = useState(false);
   const [verification, setVerification] = useState<VerificationState>({
     status: (connection?.status as VerificationStatus) || 'CONNECTED',
-    message: connection?.status === 'CONNECTED' ? 'Connection registered' : '',
+    message: connection?.status === 'CONNECTED' ? t('siteSelector.connectionRegistered') : '',
   });
 
   const [isSaving, setIsSaving] = useState(false);
@@ -901,11 +901,11 @@ function EditSiteDialog({ open, onOpenChange, site }: EditSiteDialogProps) {
     setNewPassword('');
     setVerification({
       status: (conn?.status as VerificationStatus) || 'CONNECTED',
-      message: conn?.status === 'CONNECTED' ? 'Connection registered' : '',
+      message: conn?.status === 'CONNECTED' ? t('siteSelector.connectionRegistered') : '',
     });
     setError('');
     setSubmitAttempted(false);
-  }, [site]);
+  }, [site, t]);
 
   const fieldErrors = validateSiteFields(name, slug, t);
   const nameError = submitAttempted ? fieldErrors.name : undefined;
@@ -921,10 +921,10 @@ function EditSiteDialog({ open, onOpenChange, site }: EditSiteDialogProps) {
       const data = await res.json();
       if (data.token) {
         setNewPassword(data.token);
-        toast.success('Generated new connection token. Remember to save.');
+        toast.success(t('siteSelector.tokenRegenerated'));
       }
     } catch {
-      toast.error('Failed to generate token');
+      toast.error(t('siteSelector.tokenGenerateFailed'));
     } finally {
       setIsGeneratingToken(false);
     }
@@ -933,7 +933,7 @@ function EditSiteDialog({ open, onOpenChange, site }: EditSiteDialogProps) {
   const handleReverify = async () => {
     const targetUrl = siteUrl.trim();
     if (!targetUrl) {
-      setError('Site URL is required to verify connection');
+      setError(t('siteSelector.siteUrlRequiredToVerify'));
       return;
     }
 
@@ -963,7 +963,7 @@ function EditSiteDialog({ open, onOpenChange, site }: EditSiteDialogProps) {
     } catch (err) {
       setVerification({
         status: 'UNREACHABLE',
-        message: err instanceof Error ? err.message : 'Failed to test connection',
+        message: err instanceof Error ? err.message : t('siteSelector.testConnectionFailed'),
       });
     } finally {
       setIsVerifying(false);
@@ -1186,7 +1186,7 @@ function EditSiteDialog({ open, onOpenChange, site }: EditSiteDialogProps) {
                       onClick={() => {
                         navigator.clipboard.writeText(newPassword);
                         setCopiedToken(true);
-                        toast.success('New token copied to clipboard');
+                        toast.success(t('siteSelector.newTokenCopied'));
                         setTimeout(() => setCopiedToken(false), 2000);
                       }}
                       className="h-9 px-3 text-xs shrink-0"

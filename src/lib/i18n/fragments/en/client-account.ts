@@ -400,6 +400,11 @@ export const clientAccountEn: Record<string, string> = {
 
   // ---- Profile page (new keys; core keeps title/personalInfo/...) ----
   'profile.updateFailed': 'Failed to update profile',
+  'profile.selectImageFile': 'Please select an image file',
+  'profile.imageTooLarge': 'Image size must be under 5MB',
+  'profile.pictureUpdated': 'Profile picture updated successfully',
+  'profile.pictureRemoved': 'Profile picture removed',
+  'profile.pictureRemoveFailed': 'Failed to remove profile picture',
   'profile.fillBothPasswordFields': 'Please fill in both password fields',
   'profile.passwordMinLength': 'New password must be at least 8 characters',
   'profile.passwordChanged': 'Password changed successfully',

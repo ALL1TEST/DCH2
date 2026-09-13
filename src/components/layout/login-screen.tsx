@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useT } from '@/lib/i18n';
 
 // Quick Sign-in demo accounts — each button performs a REAL one-click
 // sign-in through the existing auth-store login() (POST /api/auth/login,
@@ -36,17 +37,24 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 // single existing /api/auth/login flow.
 // The Editor / Author demo users still exist and remain reachable via
 // the normal email/password form — only their quick buttons are removed.
+// i18n: each entry carries labelKey; the label resolves through t() so
+// the quick buttons follow the selected language (English fallback for
+// locales without auth.* translations).
 const QUICK_ACCOUNTS = [
-  { label: 'Admin', email: 'admin@example.com', password: 'admin123', accent: false },
-  { label: 'Platform Admin (Staff)', email: 'platform@example.com', password: 'platform123', accent: true },
-  { label: 'Internal Account', email: 'internal@example.com', password: 'internal123', accent: true },
+  { labelKey: 'auth.accountAdmin', email: 'admin@example.com', password: 'admin123', accent: false },
+  { labelKey: 'auth.accountPlatformAdmin', email: 'platform@example.com', password: 'platform123', accent: true },
+  { labelKey: 'auth.accountInternal', email: 'internal@example.com', password: 'internal123', accent: true },
 ] as const;
+
+// Translated quick-account label (identity for the pending spinner).
+const quickLabel = (a: (typeof QUICK_ACCOUNTS)[number], t: (k: string) => string) => t(a.labelKey);
 
 export function LoginScreen() {
   const login = useAuthStore((s) => s.login);
   const isLoading = useAuthStore((s) => s.isLoading);
   const error = useAuthStore((s) => s.error);
   const clearError = useAuthStore((s) => s.clearError);
+  const { t } = useT();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -71,14 +79,14 @@ export function LoginScreen() {
   // sign-in visibly shows which account was used and can be retried or
   // corrected through the normal form.
   const handleQuickSignIn = async (account: {
-    label: string;
+    labelKey: string;
     email: string;
     password: string;
   }) => {
     clearError();
     setEmail(account.email);
     setPassword(account.password);
-    setPendingQuick(account.label);
+    setPendingQuick(account.labelKey);
     try {
       await login(account.email, account.password);
     } catch {
@@ -97,9 +105,9 @@ export function LoginScreen() {
               C
             </div>
             <div>
-              <CardTitle className="text-xl">Welcome back</CardTitle>
+              <CardTitle className="text-xl">{t('auth.welcomeBack')}</CardTitle>
               <CardDescription className="mt-1.5">
-                Sign in to your CMS Admin account
+                {t('auth.signInSubtitle')}
               </CardDescription>
             </div>
           </CardHeader>
@@ -113,7 +121,7 @@ export function LoginScreen() {
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{t('auth.email')}</Label>
                 <Input
                   id="email"
                   type="email"
@@ -129,13 +137,13 @@ export function LoginScreen() {
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="password">Password</Label>
+                    <Label htmlFor="password">{t('auth.password')}</Label>
                 </div>
                 <div className="relative">
                   <Input
                     id="password"
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="Enter your password"
+                    placeholder={t('auth.enterPassword')}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -157,7 +165,7 @@ export function LoginScreen() {
                       <Eye className="h-4 w-4" />
                     )}
                     <span className="sr-only">
-                      {showPassword ? 'Hide password' : 'Show password'}
+                      {showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
                     </span>
                   </Button>
                 </div>
@@ -169,7 +177,7 @@ export function LoginScreen() {
                 disabled={isLoading || !email || !password}
               >
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Sign in
+                {isLoading ? t('auth.signingIn') : t('auth.signIn')}
               </Button>
             </form>
 
@@ -180,12 +188,14 @@ export function LoginScreen() {
                 the normal form). */}
             <div className="mt-4 pt-4 border-t">
               <p className="text-xs text-muted-foreground font-medium mb-2 text-center">
-                Quick Sign-in (Demo Accounts)
+                {t('auth.quickSignIn')}
               </p>
               <div className="space-y-1.5 text-xs">
-                {QUICK_ACCOUNTS.map((account) => (
+                {QUICK_ACCOUNTS.map((account) => {
+                  const label = quickLabel(account, t);
+                  return (
                   <Button
-                    key={account.label}
+                    key={account.labelKey}
                     type="button"
                     variant="outline"
                     size="sm"
@@ -198,12 +208,13 @@ export function LoginScreen() {
                     disabled={isLoading}
                     onClick={() => void handleQuickSignIn(account)}
                   >
-                    {pendingQuick === account.label && (
+                    {pendingQuick === account.labelKey && (
                       <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                     )}
-                    {account.label}
+                    {label}
                   </Button>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </CardContent>

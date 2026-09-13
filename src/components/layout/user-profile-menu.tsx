@@ -24,6 +24,7 @@ import {
   DEFAULT_LOCALE,
   getLocaleNativeName,
   getPlatformLocales,
+  translateForLocale,
   type Locale,
   type SupportedLocale,
 } from '@/lib/i18n';
@@ -163,9 +164,13 @@ export function UserProfileMenu({
   // Selecting a locale from the submenu — stores it via the SAME
   // i18n store (persisted in localStorage under 'cms_locale'), so
   // it survives navigation, refresh and reopening the app.
+  // The confirmation toast is resolved through the NEW locale's
+  // dictionary (translateForLocale) rather than this render's t()
+  // closure — t() still holds the PREVIOUS locale at click time, so
+  // using it here would show the confirmation in the old language.
   const handleSetLocale = (next: Locale) => {
     setLocale(next);
-    toast.success(`${t('language.set')} ${getLocaleNativeName(next)}`);
+    toast.success(`${translateForLocale(next, 'language.set')} ${getLocaleNativeName(next)}`);
   };
 
   return (

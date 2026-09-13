@@ -137,13 +137,15 @@ const ToggleBlock = Node.create({
         }
         return false;
       },
-      insertToggleBlock: () => ({ tr, state, dispatch }) => {
+      // `texts` lets the React component pass localized template text via t();
+      // the English literals below remain as a safe fallback for non-React callers.
+      insertToggleBlock: (texts?: { title?: string; content?: string }) => ({ tr, state, dispatch }) => {
         const node = state.schema.nodes.toggleBlock.create(null, [
           state.schema.nodes.paragraph.create(null, [
-            state.schema.text('Toggle title — click to expand'),
+            state.schema.text(texts?.title ?? 'Toggle title — click to expand'),
           ]),
           state.schema.nodes.paragraph.create(null, [
-            state.schema.text('Hidden content here...'),
+            state.schema.text(texts?.content ?? 'Hidden content here...'),
           ]),
         ]);
         const tr2 = tr.replaceSelectionWith(node);
@@ -168,6 +170,33 @@ export const TABLE_BORDERS: { label: string; value: TableBorder }[] = [
   { label: 'Left Border', value: 'left' },
   { label: 'Right Border', value: 'right' },
 ];
+
+// i18n — map the stable border / list-style VALUES above to dictionary
+// keys. The English `label` fields stay as data; render sites resolve
+// them through t() so every locale gets translated labels.
+const TABLE_BORDER_I18N_KEYS: Record<TableBorder, string> = {
+  all: 'editor.borderAll',
+  outside: 'editor.borderOutside',
+  none: 'editor.borderNone',
+  top: 'editor.borderTop',
+  bottom: 'editor.borderBottom',
+  left: 'editor.borderLeft',
+  right: 'editor.borderRight',
+};
+
+const ORDERED_LIST_STYLE_I18N_KEYS: Record<OrderedListStyle, string> = {
+  decimal: 'editor.listStyleDecimal',
+  'lower-alpha': 'editor.listStyleLowerAlpha',
+  'upper-alpha': 'editor.listStyleUpperAlpha',
+  'lower-roman': 'editor.listStyleLowerRoman',
+  'upper-roman': 'editor.listStyleUpperRoman',
+};
+
+const BULLET_LIST_STYLE_I18N_KEYS: Record<BulletListStyle, string> = {
+  disc: 'editor.listStyleDefaultDisc',
+  circle: 'editor.listStyleCircle',
+  square: 'editor.listStyleSquare',
+};
 
 const StyledTable = Table.extend({
   addAttributes() {
@@ -365,6 +394,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import { useT } from '@/lib/i18n';
 import './editor-styles.css';
 
 // -------------------- Types --------------------
@@ -422,6 +452,24 @@ const HIGHLIGHT_COLORS = [
   { name: 'Orange', value: '#fed7aa' },
   { name: 'Red', value: '#fecaca' },
 ];
+
+// i18n — color swatch tooltip names → dictionary keys
+const COLOR_NAME_I18N_KEYS: Record<string, string> = {
+  Default: 'editor.colorDefault',
+  None: 'editor.colorNone',
+  Red: 'editor.colorRed',
+  Orange: 'editor.colorOrange',
+  Amber: 'editor.colorAmber',
+  Yellow: 'editor.colorYellow',
+  Green: 'editor.colorGreen',
+  Teal: 'editor.colorTeal',
+  Blue: 'editor.colorBlue',
+  Indigo: 'editor.colorIndigo',
+  Purple: 'editor.colorPurple',
+  Pink: 'editor.colorPink',
+  Slate: 'editor.colorSlate',
+  White: 'editor.colorWhite',
+};
 
 const FONT_FAMILIES = [
   { label: 'Default', value: '' },
@@ -484,6 +532,18 @@ const EMOJI_CATEGORIES: Record<string, string[]> = {
 };
 
 const EMOJI_GRID = Object.values(EMOJI_CATEGORIES).flat();
+
+// i18n — emoji category tab labels → dictionary keys
+const EMOJI_CATEGORY_I18N_KEYS: Record<string, string> = {
+  'Smileys & People': 'editor.emojiCatSmileys',
+  'Animals & Nature': 'editor.emojiCatAnimals',
+  'Food & Drink': 'editor.emojiCatFood',
+  'Activity': 'editor.emojiCatActivity',
+  'Travel & Places': 'editor.emojiCatTravel',
+  'Objects': 'editor.emojiCatObjects',
+  'Symbols': 'editor.emojiCatSymbols',
+  'Flags': 'editor.emojiCatFlags',
+};
 
 // Fix #11: Emoji keyword map for keyword-based search
 const EMOJI_KEYWORDS: Record<string, string[]> = {
@@ -751,6 +811,7 @@ function ColorPicker({
   colors: typeof TEXT_COLORS; label: string; icon: React.ReactNode;
   onPick: (val: string) => void; onClear?: () => void; currentColor?: string; type?: 'text' | 'bg';
 }) {
+  const { t } = useT();
   const [tab, setTab] = useState<'default' | 'custom'>('default');
   const [customColor, setCustomColor] = useState('#000000');
   return (
@@ -780,8 +841,8 @@ function ColorPicker({
       <PopoverContent className="w-56 p-2.5" align="start">
         <p className="text-[10px] font-medium text-muted-foreground mb-2 px-1">{label}</p>
         <div className="flex gap-1 mb-2">
-          <button type="button" onClick={() => setTab('default')} className={cn('text-[10px] px-2 py-0.5 rounded-full border transition-colors', tab === 'default' ? 'bg-accent text-accent-foreground border-transparent' : 'border-border/50 text-muted-foreground hover:bg-muted')}>Default Colors</button>
-          <button type="button" onClick={() => setTab('custom')} className={cn('text-[10px] px-2 py-0.5 rounded-full border transition-colors', tab === 'custom' ? 'bg-accent text-accent-foreground border-transparent' : 'border-border/50 text-muted-foreground hover:bg-muted')}>Custom Color</button>
+          <button type="button" onClick={() => setTab('default')} className={cn('text-[10px] px-2 py-0.5 rounded-full border transition-colors', tab === 'default' ? 'bg-accent text-accent-foreground border-transparent' : 'border-border/50 text-muted-foreground hover:bg-muted')}>{t('editor.defaultColors')}</button>
+          <button type="button" onClick={() => setTab('custom')} className={cn('text-[10px] px-2 py-0.5 rounded-full border transition-colors', tab === 'custom' ? 'bg-accent text-accent-foreground border-transparent' : 'border-border/50 text-muted-foreground hover:bg-muted')}>{t('editor.customColor')}</button>
         </div>
         {tab === 'default' ? (
           <div className="grid grid-cols-6 gap-1.5">
@@ -796,7 +857,7 @@ function ColorPicker({
                   !c.value && 'border-dashed bg-muted/40',
                 )}
                 style={c.value ? { backgroundColor: c.value } : undefined}
-                title={c.name}
+                title={COLOR_NAME_I18N_KEYS[c.name] ? t(COLOR_NAME_I18N_KEYS[c.name]) : c.name}
               >
                 {!c.value && <span className="text-[10px] text-muted-foreground">✕</span>}
               </button>
@@ -807,7 +868,7 @@ function ColorPicker({
             <div className="flex items-center gap-2">
               <input type="color" value={customColor} onChange={(e) => setCustomColor(e.target.value)} className="h-8 w-8 rounded cursor-pointer border-0 p-0" />
               <Input value={customColor} onChange={(e) => setCustomColor(e.target.value)} className="h-8 text-xs font-mono flex-1" placeholder="#000000" />
-              <Button type="button" size="sm" className="h-8 text-xs" onMouseDown={(e) => e.preventDefault()} onClick={() => onPick(customColor)}>Apply</Button>
+              <Button type="button" size="sm" className="h-8 text-xs" onMouseDown={(e) => e.preventDefault()} onClick={() => onPick(customColor)}>{t('editor.apply')}</Button>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {['#000000','#333333','#666666','#999999','#cccccc','#ffffff','#ff0000','#ff6600','#ffcc00','#33cc33','#3399ff','#9933ff','#ff33cc','#ff6666','#ffcc66','#66ff66','#66ccff','#cc66ff','#ff99cc','#993300','#336600','#003366','#330033','#660000'].map(c => (
@@ -817,7 +878,7 @@ function ColorPicker({
           </div>
         )}
         {onClear && (
-          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={onClear} className="mt-2 w-full text-[10px] text-muted-foreground hover:text-foreground py-1 border-t border-border/50 text-center transition-colors">Clear</button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={onClear} className="mt-2 w-full text-[10px] text-muted-foreground hover:text-foreground py-1 border-t border-border/50 text-center transition-colors">{t('editor.clear')}</button>
         )}
       </PopoverContent>
     </Popover>
@@ -835,6 +896,7 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
   onSelectionChange,
   footer,
 }, ref) {
+  const { t } = useT();
   const [editorMode, setEditorMode] = useState<EditorMode>('editing');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showFindReplace, setShowFindReplace] = useState(false);
@@ -1843,8 +1905,11 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
   // ---- Toggle Block ----
   const handleInsertToggle = useCallback(() => {
     if (!editor) return;
-    (editor.chain().focus() as any).insertToggleBlock().run();
-  }, [editor]);
+    (editor.chain().focus() as any).insertToggleBlock({
+      title: t('editor.toggleTitle'),
+      content: t('editor.hiddenContent'),
+    }).run();
+  }, [editor, t]);
 
   // Fix #13: Comment on selected text — Popover-based, uses CommentMark
   const handleOpenCommentPopover = useCallback(() => {
@@ -1928,6 +1993,13 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
   const currentHighlight = editor?.getAttributes('highlight').color || '';
   const currentFontFamily = editor?.getAttributes('textStyle').fontFamily || '';
   const currentFontSize = currentFontSizeState || editor?.getAttributes('textStyle').fontSize || '';
+  // Font-family trigger label: font names are proper nouns (kept as-is);
+  // only the "Default" entry and the empty fallback are localized.
+  const currentFontFamilyLabel = (() => {
+    const f = FONT_FAMILIES.find((ff) => ff.value === currentFontFamily);
+    if (!f) return t('editor.font');
+    return f.value === '' ? t('editor.fontDefault') : f.label;
+  })();
   const currentHeading = editor?.isActive('heading', { level: 1 }) ? 'H1'
     : editor?.isActive('heading', { level: 2 }) ? 'H2'
     : editor?.isActive('heading', { level: 3 }) ? 'H3'
@@ -2030,13 +2102,13 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
       <div className="shrink-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border/50 px-2 py-1.5 flex items-center gap-0.5 flex-wrap">
         {/* Editor Mode */}
         <TDropdown
-          label={editorMode === 'editing' ? 'Editing' : 'Viewing'}
+          label={editorMode === 'editing' ? t('editor.editing') : t('editor.viewing')}
           icon={editorMode === 'editing' ? <LetterText className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
           active={editorMode !== 'editing'}
         >
           <DropdownMenuRadioGroup value={editorMode} onValueChange={(v) => setEditorMode(v as EditorMode)}>
-            <DropdownMenuRadioItem value="editing"><Pencil className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />Editing</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="viewing"><EyeIcon className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />Viewing</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="editing"><Pencil className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />{t('editor.editing')}</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="viewing"><EyeIcon className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />{t('editor.viewing')}</DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>
         </TDropdown>
 
@@ -2046,13 +2118,13 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
             {/* Highlight */}
             <ColorPicker
               colors={HIGHLIGHT_COLORS}
-              label="Highlight"
+              label={t('editor.highlight')}
               icon={<Highlighter className="h-4 w-4" />}
               currentColor={currentHighlight}
               onPick={(val) => val ? editor.chain().focus().toggleHighlight({ color: val }).run() : editor.chain().focus().unsetHighlight().run()}
             />
             {/* Comment */}
-            <Tb tooltip="Add Comment" onClick={handleOpenCommentPopover}>
+            <Tb tooltip={t('editor.addComment')} onClick={handleOpenCommentPopover}>
               <MessageSquare className="h-4 w-4" />
             </Tb>
           </>
@@ -2065,52 +2137,52 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
         <input ref={audioFileRef} type="file" accept="audio/*" className="hidden" onChange={handleAudioFileUpload} />
         <input ref={videoFileRef} type="file" accept="video/*" className="hidden" onChange={handleVideoFileUpload} />
         <input ref={imageFileRef} type="file" accept="image/*" className="hidden" onChange={handleImageFileUpload} />
-        <TDropdown label="Import" icon={<Upload className="h-4 w-4" />}>
+        <TDropdown label={t('editor.import')} icon={<Upload className="h-4 w-4" />}>
           <DropdownMenuItem className="text-xs" onClick={() => importFileRef.current?.click()}>
-            <FileText className="h-3.5 w-3.5 mr-1.5" />From HTML / Markdown / Text
+            <FileText className="h-3.5 w-3.5 mr-1.5" />{t('editor.importFromFiles')}
           </DropdownMenuItem>
           <DropdownMenuItem className="text-xs" onClick={() => importFileRef.current?.click()}>
-            <FileText className="h-3.5 w-3.5 mr-1.5" />From Word (.docx)
+            <FileText className="h-3.5 w-3.5 mr-1.5" />{t('editor.importFromWord')}
           </DropdownMenuItem>
         </TDropdown>
-        <TDropdown label="Export" icon={<Download className="h-4 w-4" />}>
+        <TDropdown label={t('editor.export')} icon={<Download className="h-4 w-4" />}>
           <DropdownMenuItem className="text-xs" onClick={handleExportHTML}>
-            <FileText className="h-3.5 w-3.5 mr-1.5" />Export as HTML
+            <FileText className="h-3.5 w-3.5 mr-1.5" />{t('editor.exportHtml')}
           </DropdownMenuItem>
           <DropdownMenuItem className="text-xs" onClick={handleExportMarkdown}>
-            <FileText className="h-3.5 w-3.5 mr-1.5" />Export as Markdown
+            <FileText className="h-3.5 w-3.5 mr-1.5" />{t('editor.exportMarkdown')}
           </DropdownMenuItem>
           <DropdownMenuItem className="text-xs" onClick={handleExportPDF}>
-            <FileText className="h-3.5 w-3.5 mr-1.5" />Export as PDF
+            <FileText className="h-3.5 w-3.5 mr-1.5" />{t('editor.exportPdf')}
           </DropdownMenuItem>
           <DropdownMenuItem className="text-xs" onClick={handleExportImage}>
-            <FileText className="h-3.5 w-3.5 mr-1.5" />Export as Image
+            <FileText className="h-3.5 w-3.5 mr-1.5" />{t('editor.exportImage')}
           </DropdownMenuItem>
           <DropdownMenuItem className="text-xs" onClick={handleExportWord}>
-            <FileText className="h-3.5 w-3.5 mr-1.5" />Export as Word (.doc)
+            <FileText className="h-3.5 w-3.5 mr-1.5" />{t('editor.exportWord')}
           </DropdownMenuItem>
         </TDropdown>
 
         <TSep />
 
         {/* History */}
-        <Tb tooltip="Undo (Ctrl+Z)" onClick={handleUndo}>
+        <Tb tooltip={t('editor.undo')} onClick={handleUndo}>
           <Undo2 className="h-4 w-4" />
         </Tb>
-        <Tb tooltip="Redo (Ctrl+Y)" onClick={handleRedo}>
+        <Tb tooltip={t('editor.redo')} onClick={handleRedo}>
           <Redo2 className="h-4 w-4" />
         </Tb>
 
         <TSep />
 
         {/* Clipboard */}
-        <Tb tooltip="Copy" onClick={handleCopy}>
+        <Tb tooltip={t('editor.copy')} onClick={handleCopy}>
           <Copy className="h-4 w-4" />
         </Tb>
-        <Tb tooltip="Paste" onClick={handlePaste}>
+        <Tb tooltip={t('editor.paste')} onClick={handlePaste}>
           <Clipboard className="h-4 w-4" />
         </Tb>
-        <Tb tooltip="Paste without formatting (Shift+Paste)" onClick={handlePastePlain}>
+        <Tb tooltip={t('editor.pastePlain')} onClick={handlePastePlain}>
           <ClipboardPaste className="h-4 w-4" />
         </Tb>
 
@@ -2118,7 +2190,7 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
 
         {/* Font Family */}
         <TDropdown
-          label={FONT_FAMILIES.find((f) => f.value === currentFontFamily)?.label || 'Font'}
+          label={currentFontFamilyLabel}
           icon={<Type className="h-4 w-4" />}
           active={!!currentFontFamily}
         >
@@ -2128,7 +2200,7 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
               onClick={() => f.value ? editor.chain().focus().setFontFamily(f.value).run() : editor.chain().focus().unsetFontFamily().run()}
               className={cn('text-xs', currentFontFamily === f.value && 'bg-accent')}
             >
-              <span style={{ fontFamily: f.value || 'inherit' }}>{f.label}</span>
+              <span style={{ fontFamily: f.value || 'inherit' }}>{f.value === '' ? t('editor.fontDefault') : f.label}</span>
             </DropdownMenuItem>
           ))}
         </TDropdown>
@@ -2140,11 +2212,11 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => stepFontSize(-1)}
             className="h-8 w-7 flex items-center justify-center rounded-l-lg text-muted-foreground hover:bg-accent/80 hover:text-foreground transition-colors"
-            title="Smaller font"
+            title={t('editor.smallerFont')}
           >
             <Minus className="h-3.5 w-3.5" />
           </button>
-          <TDropdown label={currentFontSize || 'Size'} icon={<span className="text-xs font-bold w-4 text-center">{currentFontSize ? currentFontSize.replace('px','') : 'A'}</span>} triggerClassName="border-0 bg-transparent px-2 h-8">
+          <TDropdown label={currentFontSize || t('editor.size')} icon={<span className="text-xs font-bold w-4 text-center">{currentFontSize ? currentFontSize.replace('px','') : 'A'}</span>} triggerClassName="border-0 bg-transparent px-2 h-8">
             {FONT_SIZES.map((s) => (
               <DropdownMenuItem
                 key={s}
@@ -2161,7 +2233,7 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => stepFontSize(1)}
             className="h-8 w-7 flex items-center justify-center rounded-r-lg text-muted-foreground hover:bg-accent/80 hover:text-foreground transition-colors"
-            title="Larger font"
+            title={t('editor.largerFont')}
           >
             <Plus className="h-3.5 w-3.5" />
           </button>
@@ -2169,7 +2241,7 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
 
         {/* Fix #15: Line Height with checkmark */}
         <TDropdown
-          label={currentLineHeight || 'Line'}
+          label={currentLineHeight || t('editor.line')}
           icon={<Ruler className="h-4 w-4" />}
           active={!!currentLineHeight}
         >
@@ -2191,7 +2263,7 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
               }}
               className={cn('text-xs', currentLineHeight === lh && 'bg-accent')}
             >
-              <span style={{ lineHeight: lh, display: 'block' }}>{lh === '1' ? 'Single (1)' : lh === '1.5' ? '1.5x' : lh === '2' ? 'Double (2)' : lh}</span>
+              <span style={{ lineHeight: lh, display: 'block' }}>{lh === '1' ? t('editor.lineSingle') : lh === '1.5' ? t('editor.lineOneHalf') : lh === '2' ? t('editor.lineDouble') : lh}</span>
               {currentLineHeight === lh && <Check className="h-3 w-3 ml-auto" />}
             </DropdownMenuItem>
           ))}
@@ -2201,7 +2273,12 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
 
         {/* Fix #7: Block / Heading Type — restructured as "Turn into" */}
         <TDropdown
-          label={currentHeading}
+          label={
+            currentHeading === 'Bulleted list' ? t('editor.bulletedList')
+            : currentHeading === 'Numbered list' ? t('editor.numberedListLabel')
+            : currentHeading === 'Paragraph' ? t('editor.paragraph')
+            : currentHeading
+          }
           icon={
             currentHeading === 'H1' ? <Heading1 className="h-4 w-4" />
             : currentHeading === 'H2' ? <Heading2 className="h-4 w-4" />
@@ -2215,33 +2292,33 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
           }
           active={currentHeading !== 'Paragraph'}
         >
-          <DropdownMenuLabel className="text-[10px] text-muted-foreground">Turn into</DropdownMenuLabel>
+          <DropdownMenuLabel className="text-[10px] text-muted-foreground">{t('editor.turnInto')}</DropdownMenuLabel>
           <DropdownMenuItem onClick={() => editor.chain().focus().setParagraph().run()} className={cn('text-xs', currentHeading === 'Paragraph' && 'bg-accent')}>
-            <Pilcrow className="h-4 w-4 mr-1.5" />Text
+            <Pilcrow className="h-4 w-4 mr-1.5" />{t('editor.text')}
             {currentHeading === 'Paragraph' && <Check className="h-3 w-3 ml-auto" />}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} className={cn('text-xs font-bold', currentHeading === 'H1' && 'bg-accent')}>
-            Heading 1
+            {t('editor.heading1')}
             {currentHeading === 'H1' && <Check className="h-3 w-3 ml-auto" />}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} className={cn('text-sm font-bold', currentHeading === 'H2' && 'bg-accent')}>
-            Heading 2
+            {t('editor.heading2')}
             {currentHeading === 'H2' && <Check className="h-3 w-3 ml-auto" />}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} className={cn('text-[13px] font-semibold', currentHeading === 'H3' && 'bg-accent')}>
-            Heading 3
+            {t('editor.heading3')}
             {currentHeading === 'H3' && <Check className="h-3 w-3 ml-auto" />}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => editor.chain().focus().toggleHeading({ level: 4 }).run()} className={cn('text-xs font-semibold', currentHeading === 'H4' && 'bg-accent')}>
-            Heading 4
+            {t('editor.heading4')}
             {currentHeading === 'H4' && <Check className="h-3 w-3 ml-auto" />}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => editor.chain().focus().toggleHeading({ level: 5 }).run()} className={cn('text-xs font-medium', currentHeading === 'H5' && 'bg-accent')}>
-            Heading 5
+            {t('editor.heading5')}
             {currentHeading === 'H5' && <Check className="h-3 w-3 ml-auto" />}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => editor.chain().focus().toggleHeading({ level: 6 }).run()} className={cn('text-[11px] font-medium', currentHeading === 'H6' && 'bg-accent')}>
-            Heading 6
+            {t('editor.heading6')}
             {currentHeading === 'H6' && <Check className="h-3 w-3 ml-auto" />}
           </DropdownMenuItem>
         </TDropdown>
@@ -2249,16 +2326,16 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
         <TSep />
 
         {/* Text Formatting (Bold / Italic / Underline / Strikethrough) */}
-        <Tb tooltip="Bold (Ctrl+B)" active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}>
+        <Tb tooltip={t('editor.boldTooltip')} active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}>
           <Bold className="h-4 w-4" />
         </Tb>
-        <Tb tooltip="Italic (Ctrl+I)" active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()}>
+        <Tb tooltip={t('editor.italicTooltip')} active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()}>
           <Italic className="h-4 w-4" />
         </Tb>
-        <Tb tooltip="Underline (Ctrl+U)" active={editor.isActive('underline')} onClick={() => editor.chain().focus().toggleUnderline().run()}>
+        <Tb tooltip={t('editor.underlineTooltip')} active={editor.isActive('underline')} onClick={() => editor.chain().focus().toggleUnderline().run()}>
           <UnderlineIcon className="h-4 w-4" />
         </Tb>
-        <Tb tooltip="Strikethrough" active={editor.isActive('strike')} onClick={() => editor.chain().focus().toggleStrike().run()}>
+        <Tb tooltip={t('editor.strikethrough')} active={editor.isActive('strike')} onClick={() => editor.chain().focus().toggleStrike().run()}>
           <Strikethrough className="h-4 w-4" />
         </Tb>
 
@@ -2267,7 +2344,7 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
         {/* Colors */}
         <ColorPicker
           colors={TEXT_COLORS}
-          label="Text Color"
+          label={t('editor.textColor')}
           icon={<Palette className="h-4 w-4" />}
           currentColor={currentTextColor}
           onPick={(val) => val ? editor.chain().focus().setColor(val).run() : editor.chain().focus().unsetColor().run()}
@@ -2275,7 +2352,7 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
         />
         <ColorPicker
           colors={HIGHLIGHT_COLORS}
-          label="Background Color"
+          label={t('editor.backgroundColor')}
           icon={<Paintbrush className="h-4 w-4" />}
           currentColor={currentHighlight}
           onPick={(val) => val ? editor.chain().focus().toggleHighlight({ color: val }).run() : editor.chain().focus().unsetHighlight().run()}
@@ -2295,17 +2372,17 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
                 ? 'bg-accent text-accent-foreground font-medium'
                 : 'text-muted-foreground hover:bg-accent/80 hover:text-foreground'
             )}
-            title="Bullet List"
+            title={t('editor.bulletList')}
           >
             <List className="h-4 w-4" />
-            <span className="hidden lg:inline text-xs">Bullet List</span>
+            <span className="hidden lg:inline text-xs">{t('editor.bulletList')}</span>
           </button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
                 className="h-8 px-1 flex items-center justify-center rounded-r-lg border-l border-border/50 text-muted-foreground hover:bg-accent/80 hover:text-foreground transition-colors cursor-pointer"
-                title="List style options"
+                title={t('editor.listStyleOptions')}
               >
                 <ChevronDown className="h-3 w-3 opacity-60" />
               </button>
@@ -2323,7 +2400,7 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
                   }}
                 >
                   <span className="font-mono text-[11px] text-muted-foreground w-14 shrink-0">{s.preview}</span>
-                  <span>{s.label}</span>
+                  <span>{t(BULLET_LIST_STYLE_I18N_KEYS[s.value])}</span>
                   {getBulletListStyle() === s.value && editor.isActive('bulletList') && (
                     <Check className="h-3 w-3 ml-auto" />
                   )}
@@ -2344,17 +2421,17 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
                 ? 'bg-accent text-accent-foreground font-medium'
                 : 'text-muted-foreground hover:bg-accent/80 hover:text-foreground'
             )}
-            title="Numbered List"
+            title={t('editor.numberedList')}
           >
             <ListOrdered className="h-4 w-4" />
-            <span className="hidden lg:inline text-xs">Numbered List</span>
+            <span className="hidden lg:inline text-xs">{t('editor.numberedList')}</span>
           </button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
                 className="h-8 px-1 flex items-center justify-center rounded-r-lg border-l border-border/50 text-muted-foreground hover:bg-accent/80 hover:text-foreground transition-colors cursor-pointer"
-                title="Numbering style options"
+                title={t('editor.numberingStyleOptions')}
               >
                 <ChevronDown className="h-3 w-3 opacity-60" />
               </button>
@@ -2372,7 +2449,7 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
                   }}
                 >
                   <span className="font-mono text-[11px] text-muted-foreground w-14 shrink-0">{s.preview}</span>
-                  <span>{s.label}</span>
+                  <span>{t(ORDERED_LIST_STYLE_I18N_KEYS[s.value])}</span>
                   {getOrderedListStyle() === s.value && editor.isActive('orderedList') && (
                     <Check className="h-3 w-3 ml-auto" />
                   )}
@@ -2381,38 +2458,38 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-        <Tb tooltip="Checklist" active={editor.isActive('taskList')} onClick={() => editor.chain().focus().toggleTaskList().run()}>
+        <Tb tooltip={t('editor.checklist')} active={editor.isActive('taskList')} onClick={() => editor.chain().focus().toggleTaskList().run()}>
           <ListChecks className="h-4 w-4" />
         </Tb>
 
         <TSep />
 
         {/* Indent */}
-        <Tb tooltip="Increase Indent" onClick={() => editor.chain().focus().indent().run()}>
+        <Tb tooltip={t('editor.increaseIndent')} onClick={() => editor.chain().focus().indent().run()}>
           <Indent className="h-4 w-4" />
         </Tb>
-        <Tb tooltip="Decrease Indent" onClick={() => editor.chain().focus().outdent().run()}>
+        <Tb tooltip={t('editor.decreaseIndent')} onClick={() => editor.chain().focus().outdent().run()}>
           <Outdent className="h-4 w-4" />
         </Tb>
 
         <TSep />
 
         {/* Alignment */}
-        <TDropdown label="Align" icon={<AlignLeft className="h-4 w-4" />} active={currentAlign !== 'left'}>
+        <TDropdown label={t('editor.align')} icon={<AlignLeft className="h-4 w-4" />} active={currentAlign !== 'left'}>
           <DropdownMenuItem className="text-xs" onClick={() => editor.chain().focus().setTextAlign('left').run()}>
-            <AlignLeft className="h-3.5 w-3.5 mr-1.5" />Align Left
+            <AlignLeft className="h-3.5 w-3.5 mr-1.5" />{t('editor.alignLeft')}
             {currentAlign === 'left' && <Check className="h-3 w-3 ml-auto" />}
           </DropdownMenuItem>
           <DropdownMenuItem className="text-xs" onClick={() => editor.chain().focus().setTextAlign('center').run()}>
-            <AlignCenter className="h-3.5 w-3.5 mr-1.5" />Align Center
+            <AlignCenter className="h-3.5 w-3.5 mr-1.5" />{t('editor.alignCenter')}
             {currentAlign === 'center' && <Check className="h-3 w-3 ml-auto" />}
           </DropdownMenuItem>
           <DropdownMenuItem className="text-xs" onClick={() => editor.chain().focus().setTextAlign('right').run()}>
-            <AlignRight className="h-3.5 w-3.5 mr-1.5" />Align Right
+            <AlignRight className="h-3.5 w-3.5 mr-1.5" />{t('editor.alignRight')}
             {currentAlign === 'right' && <Check className="h-3 w-3 ml-auto" />}
           </DropdownMenuItem>
           <DropdownMenuItem className="text-xs" onClick={() => editor.chain().focus().setTextAlign('justify').run()}>
-            <AlignJustify className="h-3.5 w-3.5 mr-1.5" />Justify
+            <AlignJustify className="h-3.5 w-3.5 mr-1.5" />{t('editor.alignJustify')}
             {currentAlign === 'justify' && <Check className="h-3 w-3 ml-auto" />}
           </DropdownMenuItem>
         </TDropdown>
@@ -2420,55 +2497,55 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
         <TSep />
 
         {/* Fix #16: Insert dropdown — Keyboard Input, Superscript, Subscript */}
-        <TDropdown label="Insert" icon={<Plus className="h-4 w-4" />} triggerClassName="px-2.5">
+        <TDropdown label={t('editor.insert')} icon={<Plus className="h-4 w-4" />} triggerClassName="px-2.5">
           <DropdownMenuItem className="text-xs" onClick={() => editor.chain().focus().insertContent('<kbd class="editor-kbd">Ctrl</kbd>').run()}>
-            <Keyboard className="h-3.5 w-3.5 mr-1.5" />Keyboard Input
+            <Keyboard className="h-3.5 w-3.5 mr-1.5" />{t('editor.keyboardInput')}
           </DropdownMenuItem>
           <DropdownMenuItem className="text-xs" onClick={() => editor.chain().focus().toggleSuperscript().run()}>
-            <span className="font-bold mr-1.5 w-4 text-center">X²</span>Superscript
+            <span className="font-bold mr-1.5 w-4 text-center">X²</span>{t('editor.superscript')}
             {editor.isActive('superscript') && <Check className="h-3 w-3 ml-auto" />}
           </DropdownMenuItem>
           <DropdownMenuItem className="text-xs" onClick={() => editor.chain().focus().toggleSubscript().run()}>
-            <span className="font-bold mr-1.5 w-4 text-center">X₂</span>Subscript
+            <span className="font-bold mr-1.5 w-4 text-center">X₂</span>{t('editor.subscript')}
             {editor.isActive('subscript') && <Check className="h-3 w-3 ml-auto" />}
           </DropdownMenuItem>
         </TDropdown>
 
         {/* Insert Link / Image / Video / Audio / Comment */}
-        <Tb tooltip="Insert Link" active={editor.isActive('link')} onClick={() => {
+        <Tb tooltip={t('editor.insertLink')} active={editor.isActive('link')} onClick={() => {
           const prev = editor.getAttributes('link').href;
           setLinkUrl(prev || '');
           setShowLinkInput(true);
         }}>
           <Link2 className="h-4 w-4" />
         </Tb>
-        <Tb tooltip="Insert Image" onClick={() => { setImageUrl(''); setShowImageInput(true); }}>
+        <Tb tooltip={t('editor.insertImage')} onClick={() => { setImageUrl(''); setShowImageInput(true); }}>
           <ImageIcon className="h-4 w-4" />
         </Tb>
-        <Tb tooltip="Insert Video" onClick={() => { setVideoUrl(''); setShowVideoDialog(true); }}>
+        <Tb tooltip={t('editor.insertVideo')} onClick={() => { setVideoUrl(''); setShowVideoDialog(true); }}>
           <Film className="h-4 w-4" />
         </Tb>
-        <Tb tooltip="Insert Audio" onClick={() => { setAudioUrl(''); setShowAudioDialog(true); }}>
+        <Tb tooltip={t('editor.insertAudio')} onClick={() => { setAudioUrl(''); setShowAudioDialog(true); }}>
           <Music className="h-4 w-4" />
         </Tb>
         {/* Comment (popover-based) */}
-        <Tb tooltip="Add Comment" onClick={handleOpenCommentPopover}>
+        <Tb tooltip={t('editor.addComment')} onClick={handleOpenCommentPopover}>
           <MessageSquare className="h-4 w-4" />
         </Tb>
 
         {/* Table dropdown */}
-        <TDropdown label="Table" icon={<TableIcon className="h-4 w-4" />} active={editor.isActive('table')}>
+        <TDropdown label={t('editor.table')} icon={<TableIcon className="h-4 w-4" />} active={editor.isActive('table')}>
           <DropdownMenuItem
             onClick={handleInsertTable}
             className="text-xs"
           >
             <TableIcon className="h-3.5 w-3.5 mr-1.5" />
-            Insert Table (3 × 3)
+            {t('editor.insertTable')}
           </DropdownMenuItem>
           <DropdownMenuSub>
             <DropdownMenuSubTrigger className="text-xs">
               <TableProperties className="h-3.5 w-3.5 mr-1.5" />
-              Custom Size Grid
+              {t('editor.customSizeGrid')}
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent className="w-auto p-2">
               <div className="flex flex-col gap-1.5" onMouseDown={(e) => e.stopPropagation()}>
@@ -2501,7 +2578,7 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
                   })}
                 </div>
                 <span className="text-[10px] text-muted-foreground text-center">
-                  {tableGridHover.rows > 0 ? `${tableGridHover.rows} × ${tableGridHover.cols}` : 'Hover to select'}
+                  {tableGridHover.rows > 0 ? `${tableGridHover.rows} × ${tableGridHover.cols}` : t('editor.hoverToSelect')}
                 </span>
               </div>
             </DropdownMenuSubContent>
@@ -2509,42 +2586,42 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
           <DropdownMenuSub>
             <DropdownMenuSubTrigger className="text-xs">
               <Columns3 className="h-3.5 w-3.5 mr-1.5" />
-              Quick Presets
+              {t('editor.quickPresets')}
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
-              <DropdownMenuItem onClick={() => handleInsertTableSize(2, 2)} className="text-xs">2 × 2 Table</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleInsertTableSize(3, 3)} className="text-xs">3 × 3 Table</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleInsertTableSize(4, 4)} className="text-xs">4 × 4 Table</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleInsertTableSize(5, 5)} className="text-xs">5 × 5 Table</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleInsertTableSize(2, 2)} className="text-xs">{t('editor.table2x2')}</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleInsertTableSize(3, 3)} className="text-xs">{t('editor.table3x3')}</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleInsertTableSize(4, 4)} className="text-xs">{t('editor.table4x4')}</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleInsertTableSize(5, 5)} className="text-xs">{t('editor.table5x5')}</DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
           <DropdownMenuSeparator />
           <DropdownMenuSub>
-            <DropdownMenuSubTrigger className="text-xs"><TableProperties className="h-3.5 w-3.5 mr-1.5" />Cell</DropdownMenuSubTrigger>
+            <DropdownMenuSubTrigger className="text-xs"><TableProperties className="h-3.5 w-3.5 mr-1.5" />{t('editor.cell')}</DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
-              <DropdownMenuItem onClick={handleMergeCells} className="text-xs"><TableProperties className="h-3.5 w-3.5 mr-1.5" />Merge Cells</DropdownMenuItem>
-              <DropdownMenuItem onClick={handleSplitCell} className="text-xs">Split Cell</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleMergeCells} className="text-xs"><TableProperties className="h-3.5 w-3.5 mr-1.5" />{t('editor.mergeCells')}</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleSplitCell} className="text-xs">{t('editor.splitCell')}</DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
           <DropdownMenuSub>
-            <DropdownMenuSubTrigger className="text-xs"><Rows3 className="h-3.5 w-3.5 mr-1.5" />Row</DropdownMenuSubTrigger>
+            <DropdownMenuSubTrigger className="text-xs"><Rows3 className="h-3.5 w-3.5 mr-1.5" />{t('editor.row')}</DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
-              <DropdownMenuItem onClick={handleAddRowBefore} className="text-xs"><Rows3 className="h-3.5 w-3.5 mr-1.5" />Insert Row Before</DropdownMenuItem>
-              <DropdownMenuItem onClick={handleAddRowAfter} className="text-xs"><Rows3 className="h-3.5 w-3.5 mr-1.5" />Insert Row After</DropdownMenuItem>
-              <DropdownMenuItem onClick={handleDeleteRow} className="text-xs">Delete Row</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleAddRowBefore} className="text-xs"><Rows3 className="h-3.5 w-3.5 mr-1.5" />{t('editor.insertRowBefore')}</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleAddRowAfter} className="text-xs"><Rows3 className="h-3.5 w-3.5 mr-1.5" />{t('editor.insertRowAfter')}</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleDeleteRow} className="text-xs">{t('editor.deleteRow')}</DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
           <DropdownMenuSub>
-            <DropdownMenuSubTrigger className="text-xs"><Columns3 className="h-3.5 w-3.5 mr-1.5" />Column</DropdownMenuSubTrigger>
+            <DropdownMenuSubTrigger className="text-xs"><Columns3 className="h-3.5 w-3.5 mr-1.5" />{t('editor.column')}</DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
-              <DropdownMenuItem onClick={handleAddColumnBefore} className="text-xs"><Columns3 className="h-3.5 w-3.5 mr-1.5" />Insert Column Before</DropdownMenuItem>
-              <DropdownMenuItem onClick={handleAddColumnAfter} className="text-xs"><Columns3 className="h-3.5 w-3.5 mr-1.5" />Insert Column After</DropdownMenuItem>
-              <DropdownMenuItem onClick={handleDeleteColumn} className="text-xs">Delete Column</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleAddColumnBefore} className="text-xs"><Columns3 className="h-3.5 w-3.5 mr-1.5" />{t('editor.insertColumnBefore')}</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleAddColumnAfter} className="text-xs"><Columns3 className="h-3.5 w-3.5 mr-1.5" />{t('editor.insertColumnAfter')}</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleDeleteColumn} className="text-xs">{t('editor.deleteColumn')}</DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
           {/* Fix #4: Border submenu */}
           <DropdownMenuSub>
-            <DropdownMenuSubTrigger className="text-xs"><Pencil className="h-3.5 w-3.5 mr-1.5" />Borders</DropdownMenuSubTrigger>
+            <DropdownMenuSubTrigger className="text-xs"><Pencil className="h-3.5 w-3.5 mr-1.5" />{t('editor.borders')}</DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
               {TABLE_BORDERS.map((b) => (
                 <DropdownMenuItem
@@ -2552,25 +2629,25 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
                   onClick={() => handleSetTableBorders(b.value)}
                   className="text-xs"
                 >
-                  {b.label}
+                  {t(TABLE_BORDER_I18N_KEYS[b.value])}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuSubContent>
           </DropdownMenuSub>
           {/* Fix #4: Move up/down */}
           <DropdownMenuSub>
-            <DropdownMenuSubTrigger className="text-xs"><ArrowRightLeft className="h-3.5 w-3.5 mr-1.5" />Move</DropdownMenuSubTrigger>
+            <DropdownMenuSubTrigger className="text-xs"><ArrowRightLeft className="h-3.5 w-3.5 mr-1.5" />{t('editor.move')}</DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
-              <DropdownMenuItem onClick={handleMoveTableUp} className="text-xs"><ArrowUp className="h-3.5 w-3.5 mr-1.5" />Move Up</DropdownMenuItem>
-              <DropdownMenuItem onClick={handleMoveTableDown} className="text-xs"><ArrowDown className="h-3.5 w-3.5 mr-1.5" />Move Down</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleMoveTableUp} className="text-xs"><ArrowUp className="h-3.5 w-3.5 mr-1.5" />{t('editor.moveUp')}</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleMoveTableDown} className="text-xs"><ArrowDown className="h-3.5 w-3.5 mr-1.5" />{t('editor.moveDown')}</DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={handleDeleteTable} className="text-xs text-destructive">Delete table</DropdownMenuItem>
+          <DropdownMenuItem onClick={handleDeleteTable} className="text-xs text-destructive">{t('editor.deleteTable')}</DropdownMenuItem>
         </TDropdown>
 
         {/* Code Block (kept) */}
-        <Tb tooltip="Code Block" active={editor.isActive('codeBlock')} onClick={() => editor.chain().focus().toggleCodeBlock().run()}>
+        <Tb tooltip={t('editor.codeBlock')} active={editor.isActive('codeBlock')} onClick={() => editor.chain().focus().toggleCodeBlock().run()}>
           <Code className="h-4 w-4" />
         </Tb>
 
@@ -2588,7 +2665,7 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
                 </button>
               </PopoverTrigger>
             </TooltipTrigger>
-            <TooltipContent side="bottom" sideOffset={4} className="text-xs">Emoji</TooltipContent>
+            <TooltipContent side="bottom" sideOffset={4} className="text-xs">{t('editor.emoji')}</TooltipContent>
           </Tooltip>
           <PopoverContent className="w-80 p-2" align="start">
             <div className="relative mb-2">
@@ -2596,7 +2673,7 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
               <Input
                 value={emojiSearch}
                 onChange={(e) => setEmojiSearch(e.target.value)}
-                placeholder="Search by keyword (smile, heart, ...)"
+                placeholder={t('editor.searchEmoji')}
                 className="h-7 pl-7 text-xs"
                 autoFocus
               />
@@ -2614,7 +2691,7 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
                       (emojiCategory === cat && !emojiSearch) ? 'bg-accent text-accent-foreground border-transparent' : 'border-border/50 text-muted-foreground hover:bg-muted',
                     )}
                   >
-                    {cat}
+                    {EMOJI_CATEGORY_I18N_KEYS[cat] ? t(EMOJI_CATEGORY_I18N_KEYS[cat]) : cat}
                   </button>
                 ))}
               </div>
@@ -2636,7 +2713,7 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
               ))}
               {filteredEmojis && filteredEmojis.length === 0 && (
                 <div className="col-span-10 text-center text-xs text-muted-foreground py-4">
-                  No emojis found for &ldquo;{emojiSearch}&rdquo;
+                  {t('editor.noEmojisFoundFor')} &ldquo;{emojiSearch}&rdquo;
                 </div>
               )}
             </div>
@@ -2644,17 +2721,17 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
         </Popover>
 
         {/* Mention */}
-        <Tb tooltip="Mention (@)" onClick={() => editor.chain().focus().insertContent('@').run()}>
+        <Tb tooltip={t('editor.mention')} onClick={() => editor.chain().focus().insertContent('@').run()}>
           <AtSign className="h-4 w-4" />
         </Tb>
 
         <TSep />
 
         {/* Find/Replace & Clear */}
-        <Tb tooltip="Find & Replace (Ctrl+F)" active={showFindReplace} onClick={handleFind}>
+        <Tb tooltip={t('editor.findReplace')} active={showFindReplace} onClick={handleFind}>
           <Search className="h-4 w-4" />
         </Tb>
-        <Tb tooltip="Clear Formatting" onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}>
+        <Tb tooltip={t('editor.clearFormatting')} onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}>
           <RemoveFormatting className="h-4 w-4" />
         </Tb>
 
@@ -2664,7 +2741,7 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
 
         {/* Fullscreen */}
         <div className="ml-auto">
-          <Tb tooltip={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'} onClick={() => setIsFullscreen(!isFullscreen)}>
+          <Tb tooltip={isFullscreen ? t('editor.exitFullscreen') : t('editor.fullscreen')} onClick={() => setIsFullscreen(!isFullscreen)}>
             {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </Tb>
         </div>
@@ -2682,8 +2759,8 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
             onKeyDown={(e) => { if (e.key === 'Enter') handleSetLink(); if (e.key === 'Escape') setShowLinkInput(false); }}
             autoFocus
           />
-          {linkUrl && !isValidUrl(linkUrl) && <span className="text-[10px] text-destructive shrink-0">Invalid URL</span>}
-          <Button type="button" size="sm" className="h-8" onClick={handleSetLink} disabled={!!linkUrl && !isValidUrl(linkUrl)}>Apply</Button>
+          {linkUrl && !isValidUrl(linkUrl) && <span className="text-[10px] text-destructive shrink-0">{t('editor.invalidUrl')}</span>}
+          <Button type="button" size="sm" className="h-8" onClick={handleSetLink} disabled={!!linkUrl && !isValidUrl(linkUrl)}>{t('editor.apply')}</Button>
           <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowLinkInput(false)}>
             <span className="text-xs">✕</span>
           </Button>
@@ -2694,11 +2771,11 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
       {showVideoDialog && (
         <div className="flex items-center gap-2 border-b border-border/50 bg-muted/30 px-3 py-2">
           <Film className="h-4 w-4 text-muted-foreground shrink-0" />
-          <Input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="Paste video URL or upload a file..." className="h-8 text-sm flex-1"
+          <Input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder={t('editor.pasteVideoUrl')} className="h-8 text-sm flex-1"
             onKeyDown={(e) => { if (e.key === 'Enter') handleInsertVideo(videoUrl); if (e.key === 'Escape') setShowVideoDialog(false); }} autoFocus />
-          <Button type="button" size="sm" className="h-8" onClick={() => handleInsertVideo(videoUrl)} disabled={!videoUrl.trim() || !isValidUrl(videoUrl)}>Insert</Button>
+          <Button type="button" size="sm" className="h-8" onClick={() => handleInsertVideo(videoUrl)} disabled={!videoUrl.trim() || !isValidUrl(videoUrl)}>{t('editor.insert')}</Button>
           <Button type="button" variant="outline" size="sm" className="h-8 gap-1" onClick={() => videoFileRef.current?.click()}>
-            <Upload className="h-3 w-3" />Upload
+            <Upload className="h-3 w-3" />{t('editor.upload')}
           </Button>
           <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowVideoDialog(false)}><span className="text-xs">✕</span></Button>
         </div>
@@ -2709,11 +2786,11 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
         <div className="flex flex-col gap-2 border-b border-border/50 bg-muted/30 px-3 py-2">
           <div className="flex items-center gap-2">
             <Music className="h-4 w-4 text-muted-foreground shrink-0" />
-            <Input value={audioUrl} onChange={(e) => setAudioUrl(e.target.value)} placeholder="Paste audio URL or upload a file..." className="h-8 text-sm flex-1"
+            <Input value={audioUrl} onChange={(e) => setAudioUrl(e.target.value)} placeholder={t('editor.pasteAudioUrl')} className="h-8 text-sm flex-1"
               onKeyDown={(e) => { if (e.key === 'Enter') handleInsertAudio(audioUrl); if (e.key === 'Escape') setShowAudioDialog(false); }} autoFocus />
-            <Button type="button" size="sm" className="h-8" onClick={() => handleInsertAudio(audioUrl)}>Insert</Button>
+            <Button type="button" size="sm" className="h-8" onClick={() => handleInsertAudio(audioUrl)}>{t('editor.insert')}</Button>
             <Button type="button" variant="outline" size="sm" className="h-8 gap-1" onClick={() => audioFileRef.current?.click()}>
-              <Upload className="h-3 w-3" />Upload
+              <Upload className="h-3 w-3" />{t('editor.upload')}
             </Button>
             <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowAudioDialog(false)}><span className="text-xs">✕</span></Button>
           </div>
@@ -2727,14 +2804,14 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
           <Input
             value={imageUrl}
             onChange={(e) => setImageUrl(e.target.value)}
-            placeholder="Paste image URL..."
+            placeholder={t('editor.pasteImageUrl')}
             className="h-8 text-sm flex-1"
             onKeyDown={(e) => { if (e.key === 'Enter') handleSetImage(); if (e.key === 'Escape') setShowImageInput(false); }}
             autoFocus
           />
-          <Button type="button" size="sm" className="h-8" onClick={handleSetImage}>Insert</Button>
+          <Button type="button" size="sm" className="h-8" onClick={handleSetImage}>{t('editor.insert')}</Button>
           <Button type="button" variant="outline" size="sm" className="h-8 gap-1" onClick={() => imageFileRef.current?.click()}>
-            <Upload className="h-3 w-3" />Upload
+            <Upload className="h-3 w-3" />{t('editor.upload')}
           </Button>
           <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowImageInput(false)}>
             <span className="text-xs">✕</span>
@@ -2749,17 +2826,17 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
             <ImagePlus className="h-4 w-4 text-muted-foreground shrink-0" />
             <div className="relative flex-1">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-              <Input value={mediaSearch} onChange={(e) => handleMediaSearchChange(e.target.value)} placeholder="Search media..." className="h-8 pl-7 text-sm" autoFocus />
+              <Input value={mediaSearch} onChange={(e) => handleMediaSearchChange(e.target.value)} placeholder={t('editor.searchMedia')} className="h-8 pl-7 text-sm" autoFocus />
             </div>
             <Button type="button" variant="outline" size="sm" className="h-8 gap-1" onClick={() => imageFileRef.current?.click()}>
-              <Upload className="h-3 w-3" />Upload
+              <Upload className="h-3 w-3" />{t('editor.upload')}
             </Button>
             <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setShowMediaLibrary(false); setMediaSearch(''); }}>
               <span className="text-xs">✕</span>
             </Button>
           </div>
           <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-48 overflow-y-auto">
-            {mediaItems.length === 0 && <p className="text-xs text-muted-foreground col-span-full text-center py-4">No media found. Upload or search for images.</p>}
+            {mediaItems.length === 0 && <p className="text-xs text-muted-foreground col-span-full text-center py-4">{t('editor.noMediaFound')}</p>}
             {mediaItems.map((item) => (
               <button
                 key={item.id}
@@ -2783,7 +2860,7 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
             <Input
               value={findText}
               onChange={(e) => { setFindText(e.target.value); findCountRef.current = 0; setFindCount(0); }}
-              placeholder="Find..."
+              placeholder={t('editor.find')}
               className="h-8 pl-8 text-sm"
               onKeyDown={(e) => { if (e.key === 'Enter') handleFindNext(); if (e.key === 'Escape') setShowFindReplace(false); }}
               autoFocus
@@ -2794,15 +2871,15 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
             <Input
               value={replaceText}
               onChange={(e) => setReplaceText(e.target.value)}
-              placeholder="Replace..."
+              placeholder={t('editor.replace')}
               className="h-8 pl-8 text-sm"
               onKeyDown={(e) => { if (e.key === 'Enter') handleReplace(); if (e.key === 'Escape') setShowFindReplace(false); }}
             />
           </div>
-          {findCount > 0 && <span className="text-[11px] text-muted-foreground">{findCount} found</span>}
-          <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={handleFindNext}>Next</Button>
-          <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={handleReplace}>Replace</Button>
-          <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={handleReplaceAll}>All</Button>
+          {findCount > 0 && <span className="text-[11px] text-muted-foreground">{findCount} {t('editor.found')}</span>}
+          <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={handleFindNext}>{t('editor.next')}</Button>
+          <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={handleReplace}>{t('editor.replaceButton')}</Button>
+          <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={handleReplaceAll}>{t('editor.all')}</Button>
           <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setShowFindReplace(false); findCountRef.current = 0; }}>
             <span className="text-xs">✕</span>
           </Button>
@@ -2823,38 +2900,38 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
           className="flex items-center gap-0.5 rounded-lg border border-border bg-popover/95 backdrop-blur-sm shadow-lg px-1.5 py-1 pointer-events-auto"
         >
           {/* Bold */}
-          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleBold().run()} title="Bold"
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleBold().run()} title={t('editor.bold')}
             className={cn('h-7 w-7 flex items-center justify-center rounded transition-colors', editor.isActive('bold') ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/70 hover:text-foreground')}>
             <Bold className="h-3.5 w-3.5" />
           </button>
           {/* Italic */}
-          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleItalic().run()} title="Italic"
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleItalic().run()} title={t('editor.italic')}
             className={cn('h-7 w-7 flex items-center justify-center rounded transition-colors', editor.isActive('italic') ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/70 hover:text-foreground')}>
             <Italic className="h-3.5 w-3.5" />
           </button>
           {/* Underline */}
-          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleUnderline().run()} title="Underline"
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleUnderline().run()} title={t('editor.underline')}
             className={cn('h-7 w-7 flex items-center justify-center rounded transition-colors', editor.isActive('underline') ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/70 hover:text-foreground')}>
             <UnderlineIcon className="h-3.5 w-3.5" />
           </button>
           {/* Strikethrough */}
-          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleStrike().run()} title="Strikethrough"
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleStrike().run()} title={t('editor.strikethrough')}
             className={cn('h-7 w-7 flex items-center justify-center rounded transition-colors', editor.isActive('strike') ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/70 hover:text-foreground')}>
             <Strikethrough className="h-3.5 w-3.5" />
           </button>
           {/* Superscript */}
-          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleSuperscript().run()} title="Superscript"
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleSuperscript().run()} title={t('editor.superscript')}
             className={cn('h-7 w-7 flex items-center justify-center rounded transition-colors text-[10px] font-bold', editor.isActive('superscript') ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/70 hover:text-foreground')}>
             X²
           </button>
           {/* Subscript */}
-          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleSubscript().run()} title="Subscript"
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleSubscript().run()} title={t('editor.subscript')}
             className={cn('h-7 w-7 flex items-center justify-center rounded transition-colors text-[10px] font-bold', editor.isActive('subscript') ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/70 hover:text-foreground')}>
             X₂
           </button>
           <div className="h-4 w-px bg-border mx-0.5 shrink-0" />
           {/* Highlight */}
-          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleHighlight({ color: '#fef08a' }).run()} title="Highlight"
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleHighlight({ color: '#fef08a' }).run()} title={t('editor.highlight')}
             className={cn('h-7 w-7 flex items-center justify-center rounded transition-colors', editor.isActive('highlight') ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/70 hover:text-foreground')}>
             <Highlighter className="h-3.5 w-3.5" />
           </button>
@@ -2867,7 +2944,7 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
             }
           }}>
             <PopoverTrigger asChild>
-              <button type="button" onMouseDown={(e) => e.preventDefault()} title="Link"
+              <button type="button" onMouseDown={(e) => e.preventDefault()} title={t('editor.link')}
                 className={cn('h-7 w-7 flex items-center justify-center rounded transition-colors', editor.isActive('link') ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/70 hover:text-foreground')}>
                 <Link2 className="h-3.5 w-3.5" />
               </button>
@@ -2888,7 +2965,7 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
                 />
               </div>
               {floatingLinkUrl && !isValidUrl(floatingLinkUrl) && (
-                <p className="text-[10px] text-destructive mt-1">Invalid URL</p>
+                <p className="text-[10px] text-destructive mt-1">{t('editor.invalidUrl')}</p>
               )}
               <div className="flex items-center gap-1.5 mt-2">
                 <Button
@@ -2898,7 +2975,7 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
                   onClick={handleFloatingLinkApply}
                   disabled={!!floatingLinkUrl && !isValidUrl(floatingLinkUrl)}
                 >
-                  Apply
+                  {t('editor.apply')}
                 </Button>
                 {editor.isActive('link') && (
                   <Button
@@ -2908,14 +2985,14 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
                     className="h-7 text-xs"
                     onClick={handleFloatingLinkRemove}
                   >
-                    <Unlink className="h-3 w-3 mr-1" />Remove
+                    <Unlink className="h-3 w-3 mr-1" />{t('editor.remove')}
                   </Button>
                 )}
               </div>
             </PopoverContent>
           </Popover>
           {/* Clear Formatting */}
-          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().unsetAllMarks().run()} title="Clear Formatting"
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().unsetAllMarks().run()} title={t('editor.clearFormatting')}
             className="h-7 w-7 flex items-center justify-center rounded transition-colors text-muted-foreground hover:bg-accent/70 hover:text-foreground">
             <RemoveFormatting className="h-3.5 w-3.5" />
           </button>
@@ -2934,12 +3011,12 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
           >
             <div className="flex items-center gap-1.5 mb-2">
               <MessageSquare className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-              <span className="text-xs font-medium">Add Comment</span>
+              <span className="text-xs font-medium">{t('editor.addComment')}</span>
             </div>
             <Textarea
               value={commentText}
               onChange={(e) => setCommentText(e.target.value)}
-              placeholder="Write a comment on the selected text..."
+              placeholder={t('editor.writeComment')}
               rows={3}
               className="text-xs resize-none"
               onKeyDown={(e) => {
@@ -2956,7 +3033,7 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
                 onClick={handleSubmitComment}
                 disabled={!commentText.trim()}
               >
-                Save Comment
+                {t('editor.saveComment')}
               </Button>
               <Button
                 type="button"
@@ -2965,7 +3042,7 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
                 className="h-7 text-xs"
                 onClick={() => { setShowCommentPopover(false); setCommentText(''); }}
               >
-                Cancel
+                {t('editor.cancel')}
               </Button>
             </div>
           </PopoverContent>
@@ -2986,21 +3063,21 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
             className="table-ctx-item"
             onMouseEnter={() => setTableCtxMenu((p) => ({ ...p, activeSubmenu: 'table' }))}
           >
-            <span>Table</span>
+            <span>{t('editor.table')}</span>
             <ChevronRight className="h-3.5 w-3.5 opacity-50" />
             {tableCtxMenu.activeSubmenu === 'table' && (
               <div className="table-ctx-submenu" onMouseEnter={() => setTableCtxMenu((p) => ({ ...p, activeSubmenu: 'table' }))}>
                 <div className="table-ctx-item" onClick={(e) => { e.stopPropagation(); handleInsertTable(); closeTableCtxMenu(); }}>
-                  <Plus className="h-3.5 w-3.5 mr-2 opacity-70" />Insert 3×3 Table
+                  <Plus className="h-3.5 w-3.5 mr-2 opacity-70" />{t('editor.insertTable3x3')}
                 </div>
                 <div className="table-ctx-item" onClick={(e) => { e.stopPropagation(); handleMoveTableUp(); }}>
-                  <ArrowUp className="h-3.5 w-3.5 mr-2 opacity-70" />Move Up
+                  <ArrowUp className="h-3.5 w-3.5 mr-2 opacity-70" />{t('editor.moveUp')}
                 </div>
                 <div className="table-ctx-item" onClick={(e) => { e.stopPropagation(); handleMoveTableDown(); }}>
-                  <ArrowDown className="h-3.5 w-3.5 mr-2 opacity-70" />Move Down
+                  <ArrowDown className="h-3.5 w-3.5 mr-2 opacity-70" />{t('editor.moveDown')}
                 </div>
                 <div className="table-ctx-item table-ctx-item-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteTable(); }}>
-                  Delete Table
+                  {t('editor.deleteTable')}
                 </div>
               </div>
             )}
@@ -3011,15 +3088,15 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
             className="table-ctx-item"
             onMouseEnter={() => setTableCtxMenu((p) => ({ ...p, activeSubmenu: 'cell' }))}
           >
-            <span>Cell</span>
+            <span>{t('editor.cell')}</span>
             <ChevronRight className="h-3.5 w-3.5 opacity-50" />
             {tableCtxMenu.activeSubmenu === 'cell' && (
               <div className="table-ctx-submenu" onMouseEnter={() => setTableCtxMenu((p) => ({ ...p, activeSubmenu: 'cell' }))}>
                 <div className="table-ctx-item" onClick={(e) => { e.stopPropagation(); handleMergeCells(); }}>
-                  <TableProperties className="h-3.5 w-3.5 mr-2 opacity-70" />Merge Cells
+                  <TableProperties className="h-3.5 w-3.5 mr-2 opacity-70" />{t('editor.mergeCells')}
                 </div>
                 <div className="table-ctx-item" onClick={(e) => { e.stopPropagation(); handleSplitCell(); }}>
-                  Split Cell
+                  {t('editor.splitCell')}
                 </div>
               </div>
             )}
@@ -3030,18 +3107,18 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
             className="table-ctx-item"
             onMouseEnter={() => setTableCtxMenu((p) => ({ ...p, activeSubmenu: 'row' }))}
           >
-            <span>Row</span>
+            <span>{t('editor.row')}</span>
             <ChevronRight className="h-3.5 w-3.5 opacity-50" />
             {tableCtxMenu.activeSubmenu === 'row' && (
               <div className="table-ctx-submenu" onMouseEnter={() => setTableCtxMenu((p) => ({ ...p, activeSubmenu: 'row' }))}>
                 <div className="table-ctx-item" onClick={(e) => { e.stopPropagation(); handleAddRowBefore(); }}>
-                  <Rows3 className="h-3.5 w-3.5 mr-2 opacity-70" />Insert Row Before
+                  <Rows3 className="h-3.5 w-3.5 mr-2 opacity-70" />{t('editor.insertRowBefore')}
                 </div>
                 <div className="table-ctx-item" onClick={(e) => { e.stopPropagation(); handleAddRowAfter(); }}>
-                  <Rows3 className="h-3.5 w-3.5 mr-2 opacity-70" />Insert Row After
+                  <Rows3 className="h-3.5 w-3.5 mr-2 opacity-70" />{t('editor.insertRowAfter')}
                 </div>
                 <div className="table-ctx-item table-ctx-item-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteRow(); }}>
-                  Delete Row
+                  {t('editor.deleteRow')}
                 </div>
               </div>
             )}
@@ -3052,18 +3129,18 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
             className="table-ctx-item"
             onMouseEnter={() => setTableCtxMenu((p) => ({ ...p, activeSubmenu: 'column' }))}
           >
-            <span>Column</span>
+            <span>{t('editor.column')}</span>
             <ChevronRight className="h-3.5 w-3.5 opacity-50" />
             {tableCtxMenu.activeSubmenu === 'column' && (
               <div className="table-ctx-submenu" onMouseEnter={() => setTableCtxMenu((p) => ({ ...p, activeSubmenu: 'column' }))}>
                 <div className="table-ctx-item" onClick={(e) => { e.stopPropagation(); handleAddColumnBefore(); }}>
-                  <Columns3 className="h-3.5 w-3.5 mr-2 opacity-70" />Insert Column Before
+                  <Columns3 className="h-3.5 w-3.5 mr-2 opacity-70" />{t('editor.insertColumnBefore')}
                 </div>
                 <div className="table-ctx-item" onClick={(e) => { e.stopPropagation(); handleAddColumnAfter(); }}>
-                  <Columns3 className="h-3.5 w-3.5 mr-2 opacity-70" />Insert Column After
+                  <Columns3 className="h-3.5 w-3.5 mr-2 opacity-70" />{t('editor.insertColumnAfter')}
                 </div>
                 <div className="table-ctx-item table-ctx-item-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteColumn(); }}>
-                  Delete Column
+                  {t('editor.deleteColumn')}
                 </div>
               </div>
             )}
@@ -3074,7 +3151,7 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
             className="table-ctx-item"
             onMouseEnter={() => setTableCtxMenu((p) => ({ ...p, activeSubmenu: 'borders' }))}
           >
-            <span>Borders</span>
+            <span>{t('editor.borders')}</span>
             <ChevronRight className="h-3.5 w-3.5 opacity-50" />
             {tableCtxMenu.activeSubmenu === 'borders' && (
               <div className="table-ctx-submenu" onMouseEnter={() => setTableCtxMenu((p) => ({ ...p, activeSubmenu: 'borders' }))}>
@@ -3084,7 +3161,7 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
                     className="table-ctx-item"
                     onClick={(e) => { e.stopPropagation(); handleSetTableBorders(b.value); }}
                   >
-                    {b.label}
+                    {t(TABLE_BORDER_I18N_KEYS[b.value])}
                   </div>
                 ))}
               </div>
@@ -3099,7 +3176,7 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
             className="table-ctx-item table-ctx-item-destructive"
             onClick={(e) => { e.stopPropagation(); handleDeleteTable(); }}
           >
-            Delete table
+            {t('editor.deleteTable')}
           </div>
         </div>
       )}
@@ -3125,7 +3202,7 @@ export const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(funct
               cursor: 'grab',
             }}
             className="h-6 w-6 rounded-md bg-popover border border-border/60 shadow-sm flex items-center justify-center text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-            title="Drag to reorder block"
+            title={t('editor.dragToReorder')}
           >
             <GripVertical className="h-3.5 w-3.5" />
           </div>

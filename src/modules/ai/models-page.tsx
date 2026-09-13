@@ -242,7 +242,7 @@ export function ModelsPage() {
       return;
     }
     if (formData.capabilities.length === 0) {
-      toast.error('Please select at least one capability.');
+      toast.error(t('ai.capabilityRequired'));
       return;
     }
     if (editingId) {

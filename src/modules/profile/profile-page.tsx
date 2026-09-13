@@ -164,12 +164,12 @@ export function ProfilePage() {
     if (!file || !user) return;
 
     if (!file.type.startsWith('image/')) {
-      toast.error('Please select an image file');
+      toast.error(t('profile.selectImageFile'));
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image size must be under 5MB');
+      toast.error(t('profile.imageTooLarge'));
       return;
     }
 
@@ -197,7 +197,7 @@ export function ProfilePage() {
       const updatedUser: CurrentUser = { ...user, avatarUrl: uploadedUrl };
       localStorage.setItem('cms_auth_user', JSON.stringify(updatedUser));
       useAuthStore.setState({ user: updatedUser });
-      toast.success('Profile picture updated successfully');
+      toast.success(t('profile.pictureUpdated'));
     } catch (err: any) {
       toast.error(err?.message || 'Failed to upload profile picture');
     } finally {
@@ -214,9 +214,9 @@ export function ProfilePage() {
       const updatedUser: CurrentUser = { ...user, avatarUrl: null };
       localStorage.setItem('cms_auth_user', JSON.stringify(updatedUser));
       useAuthStore.setState({ user: updatedUser });
-      toast.success('Profile picture removed');
+      toast.success(t('profile.pictureRemoved'));
     } catch {
-      toast.error('Failed to remove profile picture');
+      toast.error(t('profile.pictureRemoveFailed'));
     } finally {
       setIsUploadingAvatar(false);
     }

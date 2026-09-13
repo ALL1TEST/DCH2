@@ -79,6 +79,7 @@ import { clientJobsEn } from './fragments/en/client-jobs';
 import { clientTaxonomyEn } from './fragments/en/client-taxonomy';
 import { clientSeoEn } from './fragments/en/client-seo';
 import { clientTasksEn } from './fragments/en/client-tasks';
+import { clientEditorEn } from './fragments/en/client-editor';
 import { platformAEn } from './fragments/en/platform-a';
 import { platformBEn } from './fragments/en/platform-b';
 import { clientContentFr } from './fragments/fr/client-content';
@@ -93,6 +94,7 @@ import { clientJobsFr } from './fragments/fr/client-jobs';
 import { clientTaxonomyFr } from './fragments/fr/client-taxonomy';
 import { clientSeoFr } from './fragments/fr/client-seo';
 import { clientTasksFr } from './fragments/fr/client-tasks';
+import { clientEditorFr } from './fragments/fr/client-editor';
 import { platformAFr } from './fragments/fr/platform-a';
 import { platformBFr } from './fragments/fr/platform-b';
 // ---- Generated per-locale client dictionaries (machine-assisted
@@ -154,6 +156,7 @@ const en: Record<string, string> = {
   ...clientTaxonomyEn,
   ...clientSeoEn,
   ...clientTasksEn,
+  ...clientEditorEn,
   ...platformAEn,
   ...platformBEn,
 };
@@ -172,6 +175,7 @@ const fr: Record<string, string> = {
   ...clientTaxonomyFr,
   ...clientSeoFr,
   ...clientTasksFr,
+  ...clientEditorFr,
   ...platformAFr,
   ...platformBFr,
 };

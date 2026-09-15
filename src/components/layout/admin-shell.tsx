@@ -1,16 +1,23 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useSiteStore } from '@/lib/stores/site-store';
 import { useNavigationStore } from '@/lib/stores/navigation-store';
 import { SITE_NAME, SITE_TAGLINE } from '@/lib/brand';
 import { MarketingSite } from '@/components/marketing/marketing-site';
+import { CheckoutFlow } from '@/components/checkout/checkout-flow';
+import { readPlanSelection, clearPlanSelection, isCheckoutHash } from '@/lib/checkout/plan-selection';
 import { AppSidebar } from './sidebar';
 import { Topbar } from './topbar';
 import { CommandPalette } from '@/components/patterns/command-palette';
 import { SidebarProvider } from '@/components/ui/sidebar';
+
+// Marketing hash segments (the unauthenticated tree's routes).
+const MARKETING_HASHES = [
+  'pricing', 'blog', 'about', 'solutions', 'login', 'signup', 'privacy', 'terms', 'features',
+];
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isCheckingAuth, checkAuth } = useAuthStore();
@@ -53,6 +60,22 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     checkAuth();
   }, [checkAuth]);
 
+  // ---- Checkout route tracking (#/checkout) ----
+  // The payment step of the pricing → signup/login → payment →
+  // dashboard journey renders as its OWN CHROME (no dashboard
+  // sidebar) while the user is authenticated. Reads the hash lazily
+  // at mount (covers the Stripe return / Google next=checkout full
+  // page loads) and follows hashchange afterwards. Accepts both
+  // "#/checkout" and "#checkout" (Chromium normalization).
+  const [isCheckoutRoute, setIsCheckoutRoute] = useState(() =>
+    typeof window === 'undefined' ? false : isCheckoutHash(window.location.hash),
+  );
+  useEffect(() => {
+    const read = () => setIsCheckoutRoute(isCheckoutHash(window.location.hash));
+    window.addEventListener('hashchange', read);
+    return () => window.removeEventListener('hashchange', read);
+  }, []);
+
   // When the session flips to authenticated while a marketing hash
   // (e.g. #/signup from the Create Account page, or #/login) is
   // still in the address bar, the navigation store would otherwise
@@ -62,15 +85,31 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   // replaceState, which fires no hashchange, so no loop is possible.
   // Runs ONLY when authenticated; the marketing site (unauthenticated)
   // keeps full control of its own hashes.
+  //
+  // CONVERSION JOURNEY: when a PAID plan was selected on the pricing
+  // page, the just-created / just-logged-in account continues to the
+  // checkout step instead of the dashboard (the dashboard is reached
+  // after verified payment — or immediately for free selections).
   useEffect(() => {
     if (!isAuthenticated) return;
     const firstSeg = window.location.hash.replace(/^#\/?/, '').split(/[/?]/)[0];
-    if (
-      ['pricing', 'blog', 'about', 'solutions', 'login', 'signup', 'privacy', 'terms', 'features'].includes(
-        firstSeg,
-      )
-    ) {
-      useNavigationStore.getState().navigate('dashboard');
+    if (firstSeg === 'checkout') return; // the checkout route owns itself
+    if (MARKETING_HASHES.includes(firstSeg)) {
+      const selection = readPlanSelection();
+      if (selection && !selection.isFree) {
+        // Paid journey → payment step. The hash assignment updates the
+        // URL, and the synthetic hashchange fires the checkout-route
+        // listener SYNCHRONOUSLY (listeners run inline) so no stray
+        // dashboard frame renders before CheckoutFlow takes over. The
+        // browser's own (async) hashchange re-fires the same idempotent
+        // listener afterwards — harmless.
+        window.location.hash = '#/checkout';
+        window.dispatchEvent(new Event('hashchange'));
+      } else {
+        // Free (or no) selection → the journey ends at the dashboard.
+        if (selection) clearPlanSelection();
+        useNavigationStore.getState().navigate('dashboard');
+      }
       // The marketing site owns document.title while unauthenticated —
       // restore the product default so no stale "Create your account"
       // / "Log in" title follows the user into the dashboard.
@@ -100,6 +139,15 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     // untouched). On successful login the auth store flips and
     // this shell re-renders into the dashboard below.
     return <MarketingSite />;
+  }
+
+  if (isCheckoutRoute) {
+    // CHECKOUT — the payment step of the conversion journey, with
+    // its own chrome (no dashboard sidebar/topbar). Reached after
+    // signup/login with a paid plan selected, or directly from the
+    // Stripe / Google redirects. Renders INSTEAD of the dashboard
+    // tree; leaving it (dashboard / billing) restores the shell.
+    return <CheckoutFlow />;
   }
 
   return (

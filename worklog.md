@@ -11413,3 +11413,46 @@ Stage Summary:
 - Create Account page updated per 13-point spec: Google sign-up (REAL OAuth backend, honest unconfigured error), divider, language/theme removed page-only, Karmax branding (logo/mark/subtitle/title), single length requirement shown with full policy enforced, trust note + copyright removed
 - All auth/form/API logic untouched except the additive Google OAuth routes; 5 files modified + 2 new API routes + .env docs
 - Ready to commit as SIGNUP-2
+
+---
+Task ID: FLOW-1
+Agent: main (orchestrator)
+Task: Implement the complete Karmax pricing → signup → payment conversion flow (Free: pricing → signup → dashboard; Paid: pricing → signup → checkout → payment → activation → dashboard; Existing: pricing → login → checkout). Keep the existing Create Account UI, Google signup, validation and auth logic untouched; reuse the existing Stripe checkout/webhook/subscription architecture.
+
+Work Log:
+- Inspected existing architecture first (req. 13): pricing-page (fetches /api/plans), auth-store signup/login (auth-flip → AdminShell), /api/billing/checkout (server-side price resolution via resolveCustomerPricing + resolveStripePriceIdStrict), /api/webhooks/stripe (checkout.session.completed → activateSubscriptionFromStripe via session metadata), subscription-data.ts (one row per user), change-plan API, validate-coupon API, plan-config (Free/Plus 9/Pro 49/Max 99 CHF)
+- NEW src/lib/checkout/plan-selection.ts: localStorage-persisted plan selection ({planId, interval, isFree, savedAt}) + checkout hash/query helpers (isCheckoutHash, parseCheckoutReturn) — survives navigation, refresh, logout and the Stripe round trip; never carries prices
+- pricing-page.tsx: plan CTAs (Start for free / Choose X) now save the selection (planId + toggle interval + isFree) BEFORE navigating to #/signup (MarketingButton onClick)
+- signup-page.tsx (design untouched): paid-selection-only minimal 3-step progress indicator (1 Create account · 2 Payment · 3 Finish) above the form header; Google button href gains ?next=checkout when a paid plan is selected; form/validation/auth logic unchanged — post-signup routing delegated to AdminShell
+- Google OAuth: start route sets a short-lived g_oauth_next=checkout cookie (?next=checkout); callback consumes it and redirects to /#/checkout (deleted on success AND on the fail path so a failed attempt never steers a later login)
+- checkout API hardening: (a) NEW same-plan no-op guard → 409 ALREADY_SUBSCRIBED (duplicate-charge + stale-selection protection); (b) REMOVED the past_due+planId pre-write — it leaked paid entitlements BEFORE payment (entitlements.ts resolves past_due rows to their planId); the webhook attributes via session metadata, so no local write is needed — failed/abandoned checkouts now leave the customer exactly where they were; (c) success/cancel URLs now return to /#/checkout?result=…&plan=…&interval=… so the SPA verifies the outcome against server state
+- NEW src/components/checkout/checkout-flow.tsx: own-chrome payment step (Karmax logo + progress steps header). Phases: loading → summary (dynamic plan card from /api/platform/billing/me: server-resolved price + interval + limits, "Changing from X" context, coupon apply/preview via validate-coupon — numeric discount for monthly, "discount applied at payment" for yearly, tax note, Continue to payment → /api/billing/checkout → Stripe redirect, Card/Apple Pay/Google Pay + Stripe security note) → verifying (Stripe success return: polls billing/me every 2s; "You're all set." + "Your {plan} plan is now active." ONLY after the backend shows the plan active; timeout keeps an honest "confirming" state with Check again) → failed (retry + return to plans; selection kept for retry) → already / internal / missing guards. Sends ONLY {planId, interval, couponCode}
+- admin-shell.tsx: renders CheckoutFlow (instead of dashboard chrome) when authenticated + #/checkout hash (lazy read + hashchange listener, both #/checkout and #checkout forms); auth-flip effect now routes a persisted PAID selection to #/checkout (synthetic hashchange for a frame-perfect transition) and clears a free selection → dashboard; checkout hash excluded from the marketing-hash redirect
+- marketing-site.tsx: unauthenticated #/checkout → CheckoutRedirect → #/login (selection survives; login resumes checkout); 'checkout' added to the router + KNOWN hashes + titles
+- i18n en+fr: mkt.signup.progressLabel/stepAccount/stepPayment/stepFinish + 40 mkt.checkout.* keys (checkout, summary, coupon, tax, pay, success, verifying, failed, retry, return, already, internal, missing, signRequired…)
+- Fixed a Chromium screenshot compositing bug: the masked mkt-dotgrid directly on the checkout <main> broke rasterization of the content below it — moved to the established separate absolute overlay layer (marketing pattern)
+
+Verification (agent-browser E2E + curl + VLM):
+- Flow A (Free): pricing → Start for free → selection saved → signup WITHOUT indicator (original design) → account created → dashboard; selection cleared ✓
+- Flow B (Pro yearly): pricing → Choose Pro (yearly toggle) → signup WITH progress steps → submit → #/checkout (NOT dashboard) with "Changing from Free | Pro | CHF 490 / year | 10 sites | 100 AI articles | 50 AI images | 10 GB" — all values dynamic from the server ✓
+- Flow C (failure): Continue to payment → honest 503 (Stripe unconfigured) → "Payment not completed" + server message + "No paid features were activated" + Retry payment + Return to plans; DB: user ACTIVE on free/active, 1 subscription row, unchanged ✓
+- Flow D (abandon/resume): Retry → summary; leave via logout (selection intact) → login → resumed at #/checkout with the Pro summary ✓
+- Flow E (existing user): free@example.com → pricing → Choose Pro → Sign in → login → #/checkout "Pro CHF 49 / month" (exact requirement-3 example) ✓
+- Flow F (paid user change plan): billing page renders Current Plan Pro/yearly + Other Plans — existing change-plan flow untouched ✓
+- Flow G (refresh): Choose Max → #signup → full page reload → selection + progress indicator persist ✓
+- Flow H (manipulation): curl with price/amount/currency/priceMonthly fields → all ignored (body only reads planId+interval+coupon); unauthenticated → 401; free → 400; nonexistent plan → 403; same active plan → 409 ALREADY_SUBSCRIBED ✓
+- Flow I (no activation without backend): checkout writes NO subscription state (past_due pre-write removed — verified user unchanged after failed checkout); success-return page polls and only flips to "You're all set. Your Pro plan is now active." after a webhook-equivalent DB activation; selection cleared; sidebar badge syncs to Pro ✓
+- Already-active guard: stale pro selection + active pro sub → "You're already subscribed" + selection cleared ✓
+- Unauthenticated #/checkout → auto-redirect to #/login ✓
+- Coupons: PRO25 on monthly → "Code PRO25 applied −CHF 12", final CHF 37; on yearly → code confirmation without misleading numbers ✓
+- FR locale: fully translated (Paiement — Karmax, Changement depuis Free, Offre sélectionnée, CHF 49/mois…) ✓
+- Design: desktop 1440x900 VLM 8.5/10 "production-ready"; mobile 390px 9/10, zero horizontal overflow; dark mode VLM-verified high-contrast ✓
+- Regression: plain #/signup (no selection) renders identically (no indicator, plain Google href, Karmax title/subtitle/divider); authenticated #/signup → dashboard (existing behavior); home page + marketing nav render; Google OAuth start returns honest unconfigured redirect (curl 307)
+- tsc --noEmit: 0 errors in touched files (1 pre-existing coupon-mirror error verified via git stash); lint: 0 problems in touched files (23 pre-existing baseline unchanged); console + dev.log clean; test users deleted from DB
+
+Stage Summary:
+- Complete conversion flow implemented on top of the EXISTING architecture: no duplicate auth/billing/subscription/payment systems — reused checkout API, Stripe webhook activation, change-plan, plan config, coupons, i18n
+- Security posture hardened: paid entitlements can no longer leak before verified payment (past_due pre-write removed), same-plan double-checkout blocked (409), prices remain 100% server-resolved, activation remains webhook-only
+- Create Account page preserved: identical design/logic for the free + no-selection flows; paid flow adds only the minimal progress indicator + Google next hint
+- 8 files modified + 2 new (plan-selection.ts, checkout-flow.tsx) + 45 i18n keys (en+fr)
+- Stripe unconfigured in this sandbox → real-payment E2E impossible; the failure path, verify-poll logic and webhook-equivalent activation verified end-to-end; the Stripe session/webhook code paths are pre-existing and untouched

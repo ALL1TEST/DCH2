@@ -303,6 +303,10 @@ export const clientMarketingEn: Record<string, string> = {
   'mkt.signup.subtitle': 'Start publishing with Karmax',
   // Karmax is the brand this page presents (scoped to signup).
   'mkt.signup.brandName': 'Karmax',
+  'mkt.signup.progressLabel': 'Sign-up progress',
+  'mkt.signup.stepAccount': 'Create account',
+  'mkt.signup.stepPayment': 'Payment',
+  'mkt.signup.stepFinish': 'Finish',
   'mkt.signup.googleCta': 'Continue with Google',
   'mkt.signup.orContinueWith': 'Or continue with',
   'mkt.signup.panelTitle': 'Every site you publish, one calm workflow.',
@@ -345,6 +349,52 @@ export const clientMarketingEn: Record<string, string> = {
   'mkt.signup.errGeneric': 'Couldn’t create your account. Please try again.',
   'mkt.signup.errGoogle':
     'Google sign-in didn’t complete. Please try again, or continue with the form below.',
+
+  // ---- Checkout (payment step of the conversion journey) ----
+  'mkt.checkout.title': 'Checkout',
+  'mkt.checkout.loading': 'Loading your checkout…',
+  'mkt.checkout.planSummary': 'Selected plan',
+  'mkt.checkout.changingFrom': 'Changing from {plan}',
+  'mkt.checkout.couponLabel': 'Coupon code',
+  'mkt.checkout.couponPlaceholder': 'Enter a code',
+  'mkt.checkout.applyCoupon': 'Apply',
+  'mkt.checkout.removeCoupon': 'Remove',
+  'mkt.checkout.couponApplied': 'Code {code} applied',
+  'mkt.checkout.couponAtPayment': 'Discount applied at payment',
+  'mkt.checkout.couponInvalid': 'This coupon code is not valid for the selected plan.',
+  'mkt.checkout.taxNote':
+    'Taxes, if applicable, are calculated on the secure payment page. The final amount is confirmed before you pay.',
+  'mkt.checkout.payCta': 'Continue to payment',
+  'mkt.checkout.paying': 'Redirecting to secure payment…',
+  'mkt.checkout.payFailed': 'Payment could not be started.',
+  'mkt.checkout.methodCard': 'Card',
+  'mkt.checkout.methodApplePay': 'Apple Pay',
+  'mkt.checkout.methodGooglePay': 'Google Pay',
+  'mkt.checkout.securityNote':
+    'Payments are processed securely by Stripe. Karmax never stores your card or payment details.',
+  'mkt.checkout.successTitle': 'You’re all set.',
+  'mkt.checkout.successBody': 'Your {plan} plan is now active.',
+  'mkt.checkout.verifyingTitle': 'Confirming your payment…',
+  'mkt.checkout.verifyingBody':
+    'We received your payment and are activating your subscription. This usually only takes a few seconds.',
+  'mkt.checkout.verifySlow':
+    'This is taking longer than expected. Your payment is safe — you can check again or come back later.',
+  'mkt.checkout.checkAgain': 'Check again',
+  'mkt.checkout.failedTitle': 'Payment not completed',
+  'mkt.checkout.failedBody': 'Your payment failed or was cancelled. Your account is safe — nothing was charged.',
+  'mkt.checkout.cancelledBody':
+    'The payment was cancelled. Your account is safe — you can retry whenever you’re ready.',
+  'mkt.checkout.failedNote': 'No paid features were activated.',
+  'mkt.checkout.retryPayment': 'Retry payment',
+  'mkt.checkout.returnToPlans': 'Return to plans',
+  'mkt.checkout.continueDashboard': 'Continue to dashboard',
+  'mkt.checkout.alreadyTitle': 'You’re already subscribed',
+  'mkt.checkout.alreadyBody': 'Your {plan} plan is already active.',
+  'mkt.checkout.internalTitle': 'No checkout needed',
+  'mkt.checkout.internalBody': 'Internal accounts have full access without a subscription.',
+  'mkt.checkout.missingTitle': 'No plan selected',
+  'mkt.checkout.missingBody': 'Choose a plan from the pricing page to continue.',
+  'mkt.checkout.signRequired': 'Sign in to continue to checkout.',
 
   // ---- Final CTA ----
   'mkt.cta.title': 'Ready to publish smarter?',

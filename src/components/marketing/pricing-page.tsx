@@ -13,6 +13,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Check, Loader2, RefreshCw } from 'lucide-react';
 import { useT } from '@/lib/i18n';
+import { savePlanSelection } from '@/lib/checkout/plan-selection';
 import { MarketingButton, Reveal, SectionHeader } from './primitives';
 import { MKT } from './marketing-header';
 import { FinalCta } from './home-page';
@@ -146,11 +147,17 @@ function PricingCard({
       )}
 
       <div className="mt-6">
+        {/* Plan CTA — persists the selected plan + billing cycle
+            BEFORE the navigation to #/signup happens (the click
+            handler runs synchronously; the anchor then changes the
+            hash). The whole conversion journey (signup → checkout
+            for paid, signup → dashboard for free) reads it back. */}
         <MarketingButton
-          href={MKT.login}
+          href={MKT.signup}
           variant={recommended ? 'primary' : 'secondary'}
           className="w-full"
           withArrow={!recommended}
+          onClick={() => savePlanSelection(plan.planId, yearly ? 'yearly' : 'monthly', plan.isFree)}
         >
           {plan.isFree ? t('mkt.pricing.cta.free') : t('mkt.pricing.cta').replace('{plan}', plan.name)}
         </MarketingButton>

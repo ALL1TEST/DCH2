@@ -296,6 +296,10 @@ export const clientMarketingFr: Record<string, string> = {
   'mkt.signup.subtitle': 'Commencez à publier avec Karmax',
   // Karmax est la marque présentée par cette page (signup uniquement).
   'mkt.signup.brandName': 'Karmax',
+  'mkt.signup.progressLabel': 'Progression de l’inscription',
+  'mkt.signup.stepAccount': 'Créer un compte',
+  'mkt.signup.stepPayment': 'Paiement',
+  'mkt.signup.stepFinish': 'Terminer',
   'mkt.signup.googleCta': 'Continuer avec Google',
   'mkt.signup.orContinueWith': 'Ou continuer avec',
   'mkt.signup.panelTitle': 'Tous vos sites, un seul flux de travail apaisé.',
@@ -338,6 +342,52 @@ export const clientMarketingFr: Record<string, string> = {
   'mkt.signup.errGeneric': 'Impossible de créer votre compte. Veuillez réessayer.',
   'mkt.signup.errGoogle':
     'La connexion Google n’a pas abouti. Veuillez réessayer ou continuer avec le formulaire ci-dessous.',
+
+  // ---- Paiement (étape de paiement du parcours de conversion) ----
+  'mkt.checkout.title': 'Paiement',
+  'mkt.checkout.loading': 'Chargement de votre paiement…',
+  'mkt.checkout.planSummary': 'Offre sélectionnée',
+  'mkt.checkout.changingFrom': 'Changement depuis {plan}',
+  'mkt.checkout.couponLabel': 'Code promo',
+  'mkt.checkout.couponPlaceholder': 'Saisir un code',
+  'mkt.checkout.applyCoupon': 'Appliquer',
+  'mkt.checkout.removeCoupon': 'Retirer',
+  'mkt.checkout.couponApplied': 'Code {code} appliqué',
+  'mkt.checkout.couponAtPayment': 'Remise appliquée au paiement',
+  'mkt.checkout.couponInvalid': 'Ce code promo n’est pas valide pour l’offre sélectionnée.',
+  'mkt.checkout.taxNote':
+    'Les taxes éventuelles sont calculées sur la page de paiement sécurisée. Le montant final est confirmé avant de payer.',
+  'mkt.checkout.payCta': 'Continuer vers le paiement',
+  'mkt.checkout.paying': 'Redirection vers le paiement sécurisé…',
+  'mkt.checkout.payFailed': 'Le paiement n’a pas pu être lancé.',
+  'mkt.checkout.methodCard': 'Carte',
+  'mkt.checkout.methodApplePay': 'Apple Pay',
+  'mkt.checkout.methodGooglePay': 'Google Pay',
+  'mkt.checkout.securityNote':
+    'Les paiements sont traités en toute sécurité par Stripe. Karmax ne stocke jamais vos données bancaires.',
+  'mkt.checkout.successTitle': 'Tout est prêt.',
+  'mkt.checkout.successBody': 'Votre offre {plan} est désormais active.',
+  'mkt.checkout.verifyingTitle': 'Confirmation de votre paiement…',
+  'mkt.checkout.verifyingBody':
+    'Nous avons bien reçu votre paiement et activons votre abonnement. Cela ne prend généralement que quelques secondes.',
+  'mkt.checkout.verifySlow':
+    'Cela prend plus de temps que prévu. Votre paiement est en sécurité — vous pouvez revérifier ou revenir plus tard.',
+  'mkt.checkout.checkAgain': 'Revérifier',
+  'mkt.checkout.failedTitle': 'Paiement non abouti',
+  'mkt.checkout.failedBody': 'Votre paiement a échoué ou a été annulé. Votre compte est intact — rien n’a été débité.',
+  'mkt.checkout.cancelledBody':
+    'Le paiement a été annulé. Votre compte est intact — vous pouvez réessayer quand vous le souhaitez.',
+  'mkt.checkout.failedNote': 'Aucune fonctionnalité payante n’a été activée.',
+  'mkt.checkout.retryPayment': 'Réessayer le paiement',
+  'mkt.checkout.returnToPlans': 'Retour aux offres',
+  'mkt.checkout.continueDashboard': 'Continuer vers le tableau de bord',
+  'mkt.checkout.alreadyTitle': 'Vous êtes déjà abonné',
+  'mkt.checkout.alreadyBody': 'Votre offre {plan} est déjà active.',
+  'mkt.checkout.internalTitle': 'Aucun paiement requis',
+  'mkt.checkout.internalBody': 'Les comptes internes ont un accès complet sans abonnement.',
+  'mkt.checkout.missingTitle': 'Aucune offre sélectionnée',
+  'mkt.checkout.missingBody': 'Choisissez une offre sur la page des tarifs pour continuer.',
+  'mkt.checkout.signRequired': 'Connectez-vous pour continuer le paiement.',
 
   // ---- CTA final ----
   'mkt.cta.title': 'Prêt à publier plus intelligemment ?',

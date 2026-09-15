@@ -34,6 +34,24 @@ import { LoginPage } from './login-page';
 import { SignupPage } from './signup-page';
 import { MarketingButton } from './primitives';
 
+// Unauthenticated #/checkout — the payment step needs an account.
+// Send the visitor to the login page (which links to Create Account
+// for new users); the persisted plan selection carries the journey
+// forward after authentication.
+function CheckoutRedirect() {
+  const { t } = useT();
+  React.useEffect(() => {
+    window.location.hash = '#/login';
+  }, []);
+  return (
+    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-5 pt-24 text-center">
+      <h1 className="text-2xl font-bold text-text-primary">{t('mkt.checkout.title')}</h1>
+      <p className="max-w-sm text-sm text-text-secondary">{t('mkt.checkout.signRequired')}</p>
+      <MarketingButton href="#/login">{t('mkt.nav.login')}</MarketingButton>
+    </div>
+  );
+}
+
 type Route =
   | { name: 'home'; scrollTo?: string }
   | { name: 'pricing' }
@@ -43,6 +61,7 @@ type Route =
   | { name: 'solutions'; focus: string | null }
   | { name: 'login' }
   | { name: 'signup' }
+  | { name: 'checkout' }
   | { name: 'privacy' }
   | { name: 'terms' }
   | { name: 'notfound' };
@@ -76,6 +95,13 @@ function parseHash(hash: string): Route {
       return { name: 'login' };
     case 'signup':
       return { name: 'signup' };
+    case 'checkout':
+      // The payment step is an authenticated route — an
+      // unauthenticated visitor (e.g. logged out mid-checkout) is
+      // sent to the login page; their persisted plan selection
+      // survives and the AdminShell auth-flip effect resumes the
+      // checkout right after login.
+      return { name: 'checkout' };
     case 'privacy':
       return { name: 'privacy' };
     case 'terms':
@@ -105,7 +131,7 @@ export function MarketingSite() {
     // from a pre-logout session (e.g. '#settings') shows the home
     // page instead of "not found".
     const firstSeg = h.replace(/^#\/?/, '').split(/[/?]/)[0];
-    const KNOWN = ['pricing', 'blog', 'about', 'solutions', 'login', 'signup', 'privacy', 'terms', 'features'];
+    const KNOWN = ['pricing', 'blog', 'about', 'solutions', 'login', 'signup', 'checkout', 'privacy', 'terms', 'features'];
     return KNOWN.includes(firstSeg) ? h : '';
   });
 
@@ -146,6 +172,7 @@ export function MarketingSite() {
       login: `${t('mkt.nav.login')} — ${brand}`,
       // The signup page presents the Karmax brand (page-scoped).
       signup: `${t('mkt.signup.title')} — ${t('mkt.signup.brandName')}`,
+      checkout: `${t('mkt.checkout.title')} — ${t('mkt.signup.brandName')}`,
       privacy: `${t('mkt.privacy.title')} — ${brand}`,
       terms: `${t('mkt.terms.title')} — ${brand}`,
       notfound: `${t('mkt.common.notFoundTitle')} — ${brand}`,
@@ -171,6 +198,8 @@ export function MarketingSite() {
         return <LoginPage />;
       case 'signup':
         return <SignupPage />;
+      case 'checkout':
+        return <CheckoutRedirect />;
       case 'privacy':
         return <PrivacyPage />;
       case 'terms':

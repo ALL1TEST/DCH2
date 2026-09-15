@@ -30,6 +30,9 @@ const STATE_COOKIE = 'g_oauth_state';
 const SESSION_COOKIE_NAME = 'cms_session_token';
 const SESSION_EXPIRY_DAYS = 30;
 const DEFAULT_PLAN_ID = 'free';
+// Set by /api/auth/google/start?next=checkout (paid-plan journey) —
+// consumed below so the OAuth return lands on the payment step.
+const NEXT_COOKIE = 'g_oauth_next';
 
 // See start/route.ts — resolves the externally visible origin.
 function publicOrigin(request: NextRequest): string {
@@ -45,6 +48,9 @@ function fail(request: NextRequest, reason: string): NextResponse {
     new URL(`/#/signup?google=${encodeURIComponent(reason)}`, publicOrigin(request)),
   );
   response.cookies.delete(STATE_COOKIE);
+  // Also drop the next-destination hint — a failed attempt must not
+  // steer a later Google login into the checkout flow.
+  response.cookies.delete(NEXT_COOKIE);
   return response;
 }
 
@@ -196,8 +202,13 @@ export async function GET(request: NextRequest) {
     // 5. Land in the app — the SPA boots, checkAuth() validates
     //    the session cookie and the dashboard shell takes over
     //    (same transition as the email/password signup flow).
-    const response = NextResponse.redirect(new URL('/', publicOrigin(request)));
+    //    When the journey started from a paid-plan selection, land
+    //    on #/checkout instead so the user continues to payment.
+    const nextHint = request.cookies.get(NEXT_COOKIE)?.value;
+    const landingUrl = new URL(nextHint === 'checkout' ? '/#/checkout' : '/', publicOrigin(request));
+    const response = NextResponse.redirect(landingUrl);
     response.cookies.delete(STATE_COOKIE);
+    response.cookies.delete(NEXT_COOKIE);
     response.cookies.set(SESSION_COOKIE_NAME, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

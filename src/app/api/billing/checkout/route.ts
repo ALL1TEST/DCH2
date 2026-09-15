@@ -47,9 +47,14 @@
 //     it against any Promotion Code we created via createStripeCouponMirror).
 //   - On success → creates a Stripe Checkout Session and returns its `url`
 //     + the resolved currency / country so the client can display them.
+//   - NO local subscription write happens while the session is open: the
+//     customer's current plan/status is left untouched (a failed or
+//     abandoned checkout must not grant or change anything), and retries
+//     never create duplicate subscriptions (one row per user; the
+//     webhook's activation upserts it).
 //   - The actual subscription activation happens via the
 //     /api/webhooks/stripe route when Stripe fires
-//     `checkout.session.completed`.
+//     `checkout.session.completed` — the ONLY path that grants a paid plan.
 // ============================================================
 
 import { NextRequest } from 'next/server';
@@ -125,6 +130,25 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Look up the user's existing subscription (if any) — used for the
+  // same-plan no-op guard below, the Stripe Customer link, and to make
+  // sure plan changes never create a second subscription row (userId is
+  // unique — the webhook's activation upserts this same row).
+  const existingSub = await getUserSubscription(auth.user.id);
+
+  // ---- Same-plan no-op guard ----
+  // An ACTIVE subscription to the very same plan needs no checkout —
+  // reject with 409 so the client can show "already active" instead of
+  // charging the customer twice for the same product (also the retry
+  // path's duplicate protection: retries for the same plan are no-ops).
+  if (existingSub && existingSub.planId === planId && existingSub.status === 'active') {
+    return fail(
+      'ALREADY_SUBSCRIBED',
+      `You already have an active subscription to plan "${planId}".`,
+      409,
+    );
+  }
+
   // Stripe must be configured.
   if (!(await isStripeConfiguredAsync())) {
     return fail(
@@ -163,10 +187,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Look up the user's existing subscription (if any) so we can preserve
-  // the Stripe Customer link + persist the pending state below.
-  const existingSub = await getUserSubscription(auth.user.id);
-
   // ---- Coupon lookup + validation (BEFORE any Stripe API calls) ----
   // Local DB only. We surface 404 / 400 to the client before reaching out
   // to Stripe so an invalid coupon doesn't create an orphan Session.
@@ -199,12 +219,15 @@ export async function POST(request: NextRequest) {
 
     // Build the Checkout Session params. mode='subscription' for recurring
     // billing. Stripe handles the renewal calendar automatically (monthly
-    // periods aligned to the start date, NOT +30 days).
+    // periods aligned to the start date, NOT +30 days). The success/cancel
+    // URLs return to the app's checkout route (#/checkout) where the SPA
+    // verifies the outcome against the SERVER state (webhook-activated
+    // subscription) before declaring success.
     const sessionParams: Parameters<typeof stripe.checkout.sessions.create>[0] = {
       mode: 'subscription',
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${appUrl}/?checkout=success&plan=${planId}&interval=${interval}`,
-      cancel_url: `${appUrl}/?checkout=cancelled`,
+      success_url: `${appUrl}/#/checkout?result=success&plan=${planId}&interval=${interval}`,
+      cancel_url: `${appUrl}/#/checkout?result=cancelled`,
       client_reference_id: auth.user.id,
       customer: customerId,
       customer_update: { address: 'auto' },
@@ -260,29 +283,15 @@ export async function POST(request: NextRequest) {
 
     const session = await stripe.checkout.sessions.create(sessionParams);
 
-    // Persist a pending state on the user's subscription row so we can
-    // attribute the webhook event to the right user even before checkout
-    // completes. (Stripe will overwrite this with the real sub id on
-    // `checkout.session.completed`.)
-    if (existingSub) {
-      await db.subscription.update({
-        where: { userId: auth.user.id },
-        data: { planId, billingInterval: interval, status: 'past_due' },
-      });
-    } else {
-      await db.subscription.create({
-        data: {
-          userId: auth.user.id,
-          planId,
-          billingInterval: interval,
-          status: 'past_due',
-          startDate: new Date(),
-          currentPeriodEnd: null,
-          trialEnd: null,
-          freePlanDurationDays: null,
-        },
-      });
-    }
+    // NOTE — no local subscription write happens here, deliberately.
+    // The pending plan/interval is tracked by Stripe's Checkout Session
+    // (client_reference_id + metadata.userId) and the paid plan is
+    // granted ONLY by the verified `checkout.session.completed`
+    // webhook (activateSubscriptionFromStripe upserts the single
+    // subscription row). Writing the selected plan/past_due here would
+    // leak paid entitlements BEFORE payment (entitlements.ts resolves
+    // past_due rows to their planId) — a failed or abandoned checkout
+    // must leave the customer exactly where they were.
 
     return ok({
       url: session.url,

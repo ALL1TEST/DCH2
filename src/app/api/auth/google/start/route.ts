@@ -24,6 +24,11 @@ import { generateRequestId } from '@/lib/utils';
 
 const STATE_COOKIE = 'g_oauth_state';
 const STATE_MAX_AGE_SEC = 600; // 10 minutes to complete consent
+// Post-login destination hint ("checkout") — set when the signup
+// page's Google button is clicked while a PAID plan is selected, so
+// the OAuth return lands on the payment step instead of the
+// dashboard. Short-lived, httpOnly, single-purpose.
+const NEXT_COOKIE = 'g_oauth_next';
 
 // Public origin of the request. Honors the gateway's forwarded
 // headers so the OAuth redirect_uri matches the externally
@@ -70,5 +75,17 @@ export function GET(request: NextRequest) {
     path: '/',
     maxAge: STATE_MAX_AGE_SEC,
   });
+  // Paid-plan journey: remember that this Google sign-up should
+  // continue to #/checkout after the session is created. The
+  // callback consumes + deletes this cookie (10-min TTL bounds it).
+  if (request.nextUrl.searchParams.get('next') === 'checkout') {
+    response.cookies.set(NEXT_COOKIE, 'checkout', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: STATE_MAX_AGE_SEC,
+    });
+  }
   return response;
 }

@@ -49,6 +49,7 @@ import {
 import { useT } from '@/lib/i18n';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { ApiClientError } from '@/lib/api-client';
+import { readPlanSelection } from '@/lib/checkout/plan-selection';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -187,6 +188,19 @@ export function SignupPage() {
   const signup = useAuthStore((s) => s.signup);
   const isLoading = useAuthStore((s) => s.isLoading);
 
+  // The PAID plan selected on the pricing page ("Choose Plus/Pro/Max"),
+  // read once on mount — drives (a) the minimal 3-step progress
+  // indicator (paid signup only; the free flow renders exactly as
+  // before) and (b) the Google button's next=checkout hint so the
+  // OAuth return also lands on the checkout step. Post-signup
+  // ROUTING itself is handled by the AdminShell auth-flip effect
+  // (paid → #/checkout, free/none → dashboard) — the form logic is
+  // completely untouched.
+  const [paidSelection] = useState(() => {
+    const sel = readPlanSelection();
+    return sel && !sel.isFree ? sel : null;
+  });
+
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -318,6 +332,44 @@ export function SignupPage() {
       <section className="relative flex flex-1 flex-col bg-card">
         {/* Form column — the page's only chrome */}
         <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 py-10 sm:px-10">
+          {/* Paid-signup progress indicator — minimal 3-step journey
+              (1 Create account · 2 Payment · 3 Finish). Rendered ONLY
+              when a paid plan was selected on the pricing page; the
+              free flow keeps the exact original layout. */}
+          {paidSelection && (
+            <ol className="mb-8 flex items-center gap-2 text-xs" aria-label={t('mkt.signup.progressLabel')}>
+              <li className="flex items-center gap-1.5 font-semibold text-mkt-accent">
+                <span
+                  className="flex h-5 w-5 items-center justify-center rounded-full bg-mkt-accent text-[0.625rem] font-bold text-mkt-accent-fg"
+                  aria-hidden="true"
+                >
+                  1
+                </span>
+                {t('mkt.signup.stepAccount')}
+              </li>
+              <li className="h-px w-5 bg-border" aria-hidden="true" />
+              <li className="flex items-center gap-1.5 text-text-muted">
+                <span
+                  className="flex h-5 w-5 items-center justify-center rounded-full border border-border bg-muted text-[0.625rem] font-semibold"
+                  aria-hidden="true"
+                >
+                  2
+                </span>
+                {t('mkt.signup.stepPayment')}
+              </li>
+              <li className="h-px w-5 bg-border" aria-hidden="true" />
+              <li className="flex items-center gap-1.5 text-text-muted">
+                <span
+                  className="flex h-5 w-5 items-center justify-center rounded-full border border-border bg-muted text-[0.625rem] font-semibold"
+                  aria-hidden="true"
+                >
+                  3
+                </span>
+                {t('mkt.signup.stepFinish')}
+              </li>
+            </ol>
+          )}
+
           <header>
             <h2 className="text-2xl font-bold tracking-tight text-text-primary">
               {t('mkt.signup.title')}
@@ -326,9 +378,11 @@ export function SignupPage() {
           </header>
 
           {/* Google sign-up — REAL OAuth (navigates to
-              /api/auth/google/start → Google consent screen) */}
+              /api/auth/google/start → Google consent screen). With a
+              paid plan selected, the start route gets ?next=checkout so
+              the OAuth callback returns straight to the payment step. */}
           <a
-            href="/api/auth/google/start"
+            href={paidSelection ? '/api/auth/google/start?next=checkout' : '/api/auth/google/start'}
             className="mkt-focus mt-8 inline-flex h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-border bg-card text-sm font-medium text-text-primary shadow-[0_1px_2px_rgb(0_0_0/0.04)] transition-colors hover:bg-muted/50"
           >
             <GoogleIcon />

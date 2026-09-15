@@ -5,30 +5,36 @@
 // ============================================================
 // Desktop: full-viewport split screen (~55% marketing / 45%
 // form) rendered WITHOUT the standard marketing header/footer
-// (the page is its own chrome — logo lives in the left panel,
-// language + theme controls in the right panel top bar).
+// (the page is its own chrome — the Karmax logo lives in the
+// left panel).
 //
-//   LEFT  — warm brand-tinted panel: logo, product-focused
-//           headline, supporting copy, three miniature
+//   LEFT  — warm brand-tinted panel: Karmax logo, product-
+//           focused headline, supporting copy, three miniature
 //           product-UI capability cards (AI Content, SEO
 //           Suite, Automation — real features only).
-//   RIGHT — Create your account: form with live password
-//           requirements, terms acceptance, error states,
-//           sign-in link and a subtle legal line.
+//   RIGHT — Create your account → “Continue with Google”
+//           (REAL OAuth redirect — see /api/auth/google/*) →
+//           divider → the email/password form with terms
+//           acceptance, error states and the sign-in link.
 //
 // Auth: the REAL auth store signup() (POST /api/auth/signup —
 // creates the account, sets the session cookie and flips the
 // store so the dashboard shell takes over, exactly like the
-// login flow). No OAuth provider exists in this codebase, so
-// no third-party (e.g. Google) button is rendered — the page
-// never shows a control that cannot actually work.
+// login flow). The Google button navigates to
+// /api/auth/google/start, which runs the genuine OAuth 2.0
+// authorization-code flow; if no OAuth client is configured
+// the user returns to this page with an honest error — never
+// a fake/demo sign-in.
+//
+// The page intentionally shows NO language selector and NO
+// theme toggle (scoped design decision for this page only —
+// both controls remain on every other marketing page).
 //
 // Mobile: stacks vertically — logo, short marketing message,
-// then the form. Capability cards are hidden below sm and
-// replaced by a one-line trust note.
+// then the form. Capability cards are hidden below sm.
 // ============================================================
 
-import React, { useState, type FormEvent } from 'react';
+import React, { useEffect, useState, type FormEvent } from 'react';
 import {
   ArrowRight,
   CalendarClock,
@@ -47,7 +53,31 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { LogoWordmark } from './primitives';
-import { MKT, LanguageDropdown, ThemeToggle } from './marketing-header';
+import { MKT } from './marketing-header';
+
+// Official Google “G” mark (Google brand asset, four-color).
+function GoogleIcon({ className = 'h-4.5 w-4.5' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 48 48" aria-hidden="true" className={className}>
+      <path
+        fill="#EA4335"
+        d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+      />
+      <path
+        fill="#4285F4"
+        d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+      />
+      <path
+        fill="#34A853"
+        d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+      />
+    </svg>
+  );
+}
 
 // Light client-side email check (mirrors the zod email schema on
 // the server; the server remains the source of truth).
@@ -165,17 +195,30 @@ export function SignupPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  const [formError, setFormError] = useState<string | null>(null);
+  // Initial form error: returning from a failed Google OAuth flow
+  // (redirected back to #/signup?google=<reason> — not configured,
+  // consent denied, state mismatch, exchange failure…). Read once
+  // on mount; the transient query is stripped by the effect below.
+  // (MarketingSite is client-only — ssr:false — so window is
+  // available here and this cannot cause a hydration mismatch.)
+  const [formError, setFormError] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const query = window.location.hash.replace(/^#\/?/, '').split('?')[1];
+    if (!query) return null;
+    return new URLSearchParams(query).get('google') ? t('mkt.signup.errGoogle') : null;
+  });
 
   // Live password requirements — the SAME rules the API's zod
   // passwordSchema enforces (8+ chars, upper, lower, digit).
-  const reqs = [
-    { key: 'mkt.signup.reqLength', met: password.length >= 8 },
-    { key: 'mkt.signup.reqUpper', met: /[A-Z]/.test(password) },
-    { key: 'mkt.signup.reqLower', met: /[a-z]/.test(password) },
-    { key: 'mkt.signup.reqNumber', met: /[0-9]/.test(password) },
-  ];
-  const allReqsMet = reqs.every((r) => r.met);
+  // UI note: only the length rule is DISPLAYED (product copy
+  // decision); the full policy is still validated below and on
+  // the server — this is a display-only reduction.
+  const reqs = [{ key: 'mkt.signup.reqLength', met: password.length >= 8 }];
+  const allReqsMet =
+    password.length >= 8 &&
+    /[A-Z]/.test(password) &&
+    /[a-z]/.test(password) &&
+    /[0-9]/.test(password);
 
   // Clear a field's error as soon as the user edits it again.
   const clearError = (field: keyof FieldErrors) =>
@@ -210,9 +253,15 @@ export function SignupPage() {
     }
   };
 
-  const copyright = t('mkt.signup.copyright')
-    .replace('{year}', String(new Date().getFullYear()))
-    .replace('{brand}', t('mkt.brand.name'));
+  // Strip the transient Google-OAuth query from the URL so a
+  // refresh doesn't repeat the error (pure URL cleanup — no
+  // state is touched here).
+  useEffect(() => {
+    const query = window.location.hash.replace(/^#\/?/, '').split('?')[1];
+    if (query && new URLSearchParams(query).get('google')) {
+      window.history.replaceState(null, '', '#/signup');
+    }
+  }, []);
 
   return (
     <div className="flex min-h-svh flex-1 flex-col lg:grid lg:grid-cols-[55fr_45fr]">
@@ -227,9 +276,9 @@ export function SignupPage() {
         {/* Subtle decorative dot grid */}
         <div className="mkt-dotgrid pointer-events-none absolute inset-0" aria-hidden="true" />
 
-        {/* Top: brand */}
-        <a href={MKT.home} className="mkt-focus relative inline-flex" aria-label={t('mkt.brand.name')}>
-          <LogoWordmark />
+        {/* Top: brand (Karmax presentation — scoped to this page) */}
+        <a href={MKT.home} className="mkt-focus relative inline-flex" aria-label={t('mkt.signup.brandName')}>
+          <LogoWordmark name={t('mkt.signup.brandName')} variant="K" />
         </a>
 
         {/* Middle: headline + supporting copy */}
@@ -242,44 +291,32 @@ export function SignupPage() {
           </p>
         </div>
 
-        {/* Bottom: capability cards + trust note */}
-        <div className="relative flex flex-col gap-6">
-          <div className="hidden gap-3 sm:grid sm:grid-cols-3">
-            <CapabilityCard
-              icon={<Sparkles className="h-4 w-4" aria-hidden="true" />}
-              title={t('mkt.signup.cardAiTitle')}
-              body={t('mkt.signup.cardAiBody')}
-              preview={<AiPreview hint={t('mkt.signup.cardAiHint')} />}
-            />
-            <CapabilityCard
-              icon={<Search className="h-4 w-4" aria-hidden="true" />}
-              title={t('mkt.signup.cardSeoTitle')}
-              body={t('mkt.signup.cardSeoBody')}
-              preview={<SeoPreview scoreLabel={t('mkt.signup.cardSeoScore')} keyword={t('mkt.signup.cardSeoKeyword')} />}
-            />
-            <CapabilityCard
-              icon={<Workflow className="h-4 w-4" aria-hidden="true" />}
-              title={t('mkt.signup.cardAutomationTitle')}
-              body={t('mkt.signup.cardAutomationBody')}
-              preview={<AutomationPreview nextRun={t('mkt.signup.cardAutomationNext')} />}
-            />
-          </div>
-          <p className="text-xs font-medium text-text-secondary">
-            <span className="mr-1.5 inline-block h-1 w-1 rounded-full bg-mkt-accent align-middle" aria-hidden="true" />
-            {t('mkt.signup.trustNote')}
-          </p>
+        {/* Bottom: capability cards */}
+        <div className="relative hidden gap-3 sm:grid sm:grid-cols-3">
+          <CapabilityCard
+            icon={<Sparkles className="h-4 w-4" aria-hidden="true" />}
+            title={t('mkt.signup.cardAiTitle')}
+            body={t('mkt.signup.cardAiBody')}
+            preview={<AiPreview hint={t('mkt.signup.cardAiHint')} />}
+          />
+          <CapabilityCard
+            icon={<Search className="h-4 w-4" aria-hidden="true" />}
+            title={t('mkt.signup.cardSeoTitle')}
+            body={t('mkt.signup.cardSeoBody')}
+            preview={<SeoPreview scoreLabel={t('mkt.signup.cardSeoScore')} keyword={t('mkt.signup.cardSeoKeyword')} />}
+          />
+          <CapabilityCard
+            icon={<Workflow className="h-4 w-4" aria-hidden="true" />}
+            title={t('mkt.signup.cardAutomationTitle')}
+            body={t('mkt.signup.cardAutomationBody')}
+            preview={<AutomationPreview nextRun={t('mkt.signup.cardAutomationNext')} />}
+          />
         </div>
       </aside>
 
       {/* ============ RIGHT — signup panel ============ */}
       <section className="relative flex flex-1 flex-col bg-card">
-        {/* Top bar: language + theme (page is chrome-less otherwise) */}
-        <div className="flex items-center justify-end gap-1 px-6 pt-5 sm:px-10">
-          <LanguageDropdown />
-          <ThemeToggle />
-        </div>
-
-        {/* Form column */}
+        {/* Form column — the page's only chrome */}
         <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 py-10 sm:px-10">
           <header>
             <h2 className="text-2xl font-bold tracking-tight text-text-primary">
@@ -288,7 +325,24 @@ export function SignupPage() {
             <p className="mt-1.5 text-sm text-text-secondary">{t('mkt.signup.subtitle')}</p>
           </header>
 
-          <form onSubmit={handleSubmit} className="mt-8 space-y-5" noValidate>
+          {/* Google sign-up — REAL OAuth (navigates to
+              /api/auth/google/start → Google consent screen) */}
+          <a
+            href="/api/auth/google/start"
+            className="mkt-focus mt-8 inline-flex h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-border bg-card text-sm font-medium text-text-primary shadow-[0_1px_2px_rgb(0_0_0/0.04)] transition-colors hover:bg-muted/50"
+          >
+            <GoogleIcon />
+            {t('mkt.signup.googleCta')}
+          </a>
+
+          {/* Divider between the two sign-up paths */}
+          <div className="mt-6 flex items-center gap-3" role="separator" aria-label={t('mkt.signup.orContinueWith')}>
+            <span className="h-px flex-1 bg-border" aria-hidden="true" />
+            <span className="text-xs font-normal text-text-muted">{t('mkt.signup.orContinueWith')}</span>
+            <span className="h-px flex-1 bg-border" aria-hidden="true" />
+          </div>
+
+          <form onSubmit={handleSubmit} className="mt-6 space-y-5" noValidate>
             {/* Server-side error (existing email, network, …) */}
             {formError && (
               <div
@@ -390,7 +444,7 @@ export function SignupPage() {
               </div>
               <ul
                 id="signup-password-reqs"
-                className="grid grid-cols-1 gap-x-4 gap-y-1.5 pt-0.5 sm:grid-cols-2"
+                className="space-y-1.5 pt-0.5"
                 aria-label={t('mkt.signup.password')}
               >
                 {reqs.map((r) => (
@@ -527,11 +581,6 @@ export function SignupPage() {
               {t('mkt.signup.signIn')}
             </a>
           </p>
-        </div>
-
-        {/* Bottom: subtle legal line */}
-        <div className="px-6 pb-6 text-center sm:px-10">
-          <p className="text-xs text-text-muted">{copyright}</p>
         </div>
       </section>
     </div>

@@ -300,7 +300,11 @@ export const clientMarketingEn: Record<string, string> = {
 
   // ---- Signup / Create Account page ----
   'mkt.signup.title': 'Create your account',
-  'mkt.signup.subtitle': 'Start building your content workflow today.',
+  'mkt.signup.subtitle': 'Start publishing with Karmax',
+  // Karmax is the brand this page presents (scoped to signup).
+  'mkt.signup.brandName': 'Karmax',
+  'mkt.signup.googleCta': 'Continue with Google',
+  'mkt.signup.orContinueWith': 'Or continue with',
   'mkt.signup.panelTitle': 'Every site you publish, one calm workflow.',
   'mkt.signup.panelBody':
     'Write with AI, optimize for search, and publish to WordPress or any REST CMS — all from a single dashboard built for people who publish.',
@@ -314,7 +318,6 @@ export const clientMarketingEn: Record<string, string> = {
   'mkt.signup.cardSeoScore': 'SEO score',
   'mkt.signup.cardSeoKeyword': 'content workflow',
   'mkt.signup.cardAutomationNext': 'Next run · Tue 09:00',
-  'mkt.signup.trustNote': 'Free plan · No credit card required',
   'mkt.signup.name': 'Full name',
   'mkt.signup.namePlaceholder': 'Your name',
   'mkt.signup.email': 'Email address',
@@ -333,7 +336,6 @@ export const clientMarketingEn: Record<string, string> = {
   'mkt.signup.submitting': 'Creating your account…',
   'mkt.signup.hasAccount': 'Already have an account?',
   'mkt.signup.signIn': 'Sign in',
-  'mkt.signup.copyright': '© {year} {brand} — All rights reserved.',
   'mkt.signup.errName': 'Please enter your name.',
   'mkt.signup.errEmail': 'Please enter a valid email address.',
   'mkt.signup.errPassword': 'Password doesn’t meet the requirements above.',
@@ -341,6 +343,8 @@ export const clientMarketingEn: Record<string, string> = {
   'mkt.signup.errTerms': 'Please accept the Terms of Service and Privacy Policy to continue.',
   'mkt.signup.errEmailExists': 'An account with this email already exists. Try signing in instead.',
   'mkt.signup.errGeneric': 'Couldn’t create your account. Please try again.',
+  'mkt.signup.errGoogle':
+    'Google sign-in didn’t complete. Please try again, or continue with the form below.',
 
   // ---- Final CTA ----
   'mkt.cta.title': 'Ready to publish smarter?',

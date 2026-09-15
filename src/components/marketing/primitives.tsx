@@ -25,11 +25,19 @@ export function useMounted(): boolean {
 }
 
 // -------------------- Brand logo --------------------
-// A geometric mark: an "S" implied by a crafted stroke —
-// tool-like, quiet. Scales from 20px to 48px contexts.
-// Pure SVG (theme-aware via currentColor).
+// A geometric mark implied by a crafted stroke — tool-like,
+// quiet. Scales from 20px to 48px contexts. Pure SVG
+// (theme-aware via currentColor).
+// variant 'S' = the default house mark; variant 'K' = the
+// Karmax presentation used by the Create Account page.
 
-export function Logo({ className = 'h-7 w-7' }: { className?: string }) {
+export function Logo({
+  className = 'h-7 w-7',
+  variant = 'S',
+}: {
+  className?: string;
+  variant?: 'S' | 'K';
+}) {
   return (
     <svg
       viewBox="0 0 32 32"
@@ -38,25 +46,44 @@ export function Logo({ className = 'h-7 w-7' }: { className?: string }) {
       className={className}
     >
       <rect width="32" height="32" rx="8" className="fill-primary" />
-      <path
-        d="M20.5 9.5h-7a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7h-7"
-        stroke="currentColor"
-        className="text-primary-foreground"
-        strokeWidth="2.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      {variant === 'S' ? (
+        <path
+          d="M20.5 9.5h-7a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7h-7"
+          stroke="currentColor"
+          className="text-primary-foreground"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ) : (
+        <path
+          d="M11.5 9v14M21 9.5l-9.5 6.5 9.5 6.5"
+          stroke="currentColor"
+          className="text-primary-foreground"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      )}
     </svg>
   );
 }
 
-export function LogoWordmark({ className = '' }: { className?: string }) {
+export function LogoWordmark({
+  className = '',
+  name,
+  variant,
+}: {
+  className?: string;
+  name?: string;
+  variant?: 'S' | 'K';
+}) {
   const { t } = useT();
   return (
     <span className={`inline-flex items-center gap-2.5 ${className}`}>
-      <Logo className="h-7 w-7" />
+      <Logo className="h-7 w-7" variant={variant} />
       <span className="text-[1.0625rem] font-bold tracking-tight text-text-primary">
-        {t('mkt.brand.name')}
+        {name ?? t('mkt.brand.name')}
       </span>
     </span>
   );

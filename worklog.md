@@ -11380,3 +11380,36 @@ Stage Summary:
 - Create Account page RESTORED and fully wired: #/signup renders the premium split-screen signup (55/45, capability cards, full form) with all auth logic untouched
 - Commit 0acdae8 on main (4 ahead of origin)
 - Known artifacts: agent-browser reload drops URL fragments (testing tool only, not a product bug); Next.js dev badge visible in dev only
+
+---
+Task ID: SIGNUP-2
+Agent: main (orchestrator)
+Task: Targeted UI update of the existing Create Account page — add real Google sign-up button + divider, remove language/theme controls from this page only, subtitle "Start publishing with Karmax", password requirements UI shows only "At least 8 characters" (validation unchanged), remove "Free plan · No credit card required" and copyright line, Karmax branding scoped to this page. NO changes to form/auth/validation logic.
+
+Work Log:
+- i18n en+fr client-marketing: 'mkt.signup.subtitle' → "Start publishing with Karmax" / "Commencez à publier avec Karmax"; added 'mkt.signup.brandName' (Karmax — untranslated brand), 'mkt.signup.googleCta', 'mkt.signup.orContinueWith', 'mkt.signup.errGoogle'; removed dead keys 'mkt.signup.trustNote' + 'mkt.signup.copyright'
+- primitives.tsx: Logo gains variant 'S'|'K' (K = geometric K mark for Karmax, same stroke style); LogoWordmark gains optional name+variant overrides — all existing callers unchanged (default = old behavior)
+- signup-page.tsx: removed LanguageDropdown/ThemeToggle top bar (page-only); added official 4-color Google "G" SVG + full-width "Continue with Google" anchor → /api/auth/google/start; centered "Or continue with" divider (font-normal, subtle lines, role=separator); password reqs list renders ONLY reqLength while allReqsMet still enforces 8+/upper/lower/digit (display-only reduction, server zod untouched); removed trust note + copyright block; logo → Karmax wordmark + K mark; OAuth-failure error read from #/signup?google=<reason> via lazy useState initializer (lint-safe, no setState-in-effect) + pure URL-cleanup effect
+- marketing-site.tsx: signup document title → "Create your account — Karmax" (page-scoped brand); comments updated
+- NEW src/app/api/auth/google/start/route.ts: real OAuth 2.0 start — env GOOGLE_CLIENT_ID/SECRET, CSRF state cookie (10 min, lax), redirect to accounts.google.com; unconfigured → 307 back to #/signup?google=unconfigured (honest, no fake sign-in)
+- NEW src/app/api/auth/google/callback/route.ts: state validation, code→token exchange, OpenID userinfo (requires email_verified), find-or-create user (ADMIN/ACTIVE/EXTERNAL/Free plan/password null/emailVerified true — mirrors /api/auth/signup), P2002 race handling, SUSPENDED/DEACTIVATED gate (mirrors login), Session row + cms_session_token cookie (30d, identical mechanism), redirect to / where the dashboard shell takes over
+- .env: commented GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET placeholders + setup docs
+- lint fix: initial OAuth-error useEffect tripped react-hooks/set-state-in-effect → moved to lazy useState initializer (MarketingSite is ssr:false client-only, so no hydration concern)
+
+Verification (agent-browser + VLM + curl):
+- Route #/signup renders; title "Create your account — Karmax"; NO 404; unknown hashes still 404
+- Exact texts: subtitle "Start publishing with Karmax"; divider "Or continue with" (centered, not bold); Google button "Continue with Google" with official 4-path multicolor G (#EA4335/#4285F4/#FBBC05/#34A853)
+- Google flow E2E: click → GET /api/auth/google/start 307 → returns to clean #/signup with honest error banner "Google sign-in didn't complete…" + transient query auto-stripped; curl confirms 307 Location both endpoints
+- Validation intact: "abcdefgh" (no upper) AND "Abcdefgh" (no number) both rejected while UI shows only "At least 8 characters"; terms toggle-off correctly blocked; full E2E signup (final.check2@example.com → 201, session cookie, cms_auth_user, dashboard takes over, clean URL) — test user deleted from DB afterwards
+- Password visibility toggles flip type + aria-label (Show/Hide) for both password fields
+- Removed: no "Sitesmith"/"RankBolt"/"Free plan"/"©" text anywhere on the page; no language/theme controls on signup — BOTH still present on home page header (scoped removal verified)
+- FR locale full check: title/heading/subtitle/Google/divider/req/submit all translated; Karmax untranslated (brand)
+- Layout: 1440 desktop VLM-verified split 55/45 with all elements; 390/375/360 mobile — zero horizontal overflow, stacked, scrolled sections verified via VLM
+- Regression: all marketing routes render with original titles/branding; login↔signup links both directions; zero console errors; dev.log clean
+- tsc --noEmit: 0 errors in touched files (pre-existing errors elsewhere unchanged); lint: 0 problems in touched files (23 pre-existing repo-wide, verified via git stash); i18n:validate failure pre-existing (verified via git stash)
+- Production build NOT run (sandbox forbids `bun run build`; dev-server-only environment) — type + lint + full runtime browser verification used instead
+
+Stage Summary:
+- Create Account page updated per 13-point spec: Google sign-up (REAL OAuth backend, honest unconfigured error), divider, language/theme removed page-only, Karmax branding (logo/mark/subtitle/title), single length requirement shown with full policy enforced, trust note + copyright removed
+- All auth/form/API logic untouched except the additive Google OAuth routes; 5 files modified + 2 new API routes + .env docs
+- Ready to commit as SIGNUP-2

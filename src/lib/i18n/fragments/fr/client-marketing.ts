@@ -293,7 +293,11 @@ export const clientMarketingFr: Record<string, string> = {
 
   // ---- Page de création de compte ----
   'mkt.signup.title': 'Créez votre compte',
-  'mkt.signup.subtitle': 'Commencez à construire votre flux de contenu dès aujourd’hui.',
+  'mkt.signup.subtitle': 'Commencez à publier avec Karmax',
+  // Karmax est la marque présentée par cette page (signup uniquement).
+  'mkt.signup.brandName': 'Karmax',
+  'mkt.signup.googleCta': 'Continuer avec Google',
+  'mkt.signup.orContinueWith': 'Ou continuer avec',
   'mkt.signup.panelTitle': 'Tous vos sites, un seul flux de travail apaisé.',
   'mkt.signup.panelBody':
     'Écrivez avec l’IA, optimisez pour le référencement et publiez sur WordPress ou n’importe quel CMS REST — le tout depuis un tableau de bord unique, pensé pour ceux qui publient.',
@@ -307,7 +311,6 @@ export const clientMarketingFr: Record<string, string> = {
   'mkt.signup.cardSeoScore': 'Score SEO',
   'mkt.signup.cardSeoKeyword': 'flux de contenu',
   'mkt.signup.cardAutomationNext': 'Prochaine exécution · mar. 09h00',
-  'mkt.signup.trustNote': 'Plan gratuit · Sans carte bancaire',
   'mkt.signup.name': 'Nom complet',
   'mkt.signup.namePlaceholder': 'Votre nom',
   'mkt.signup.email': 'Adresse e-mail',
@@ -326,7 +329,6 @@ export const clientMarketingFr: Record<string, string> = {
   'mkt.signup.submitting': 'Création de votre compte…',
   'mkt.signup.hasAccount': 'Vous avez déjà un compte ?',
   'mkt.signup.signIn': 'Se connecter',
-  'mkt.signup.copyright': '© {year} {brand} — Tous droits réservés.',
   'mkt.signup.errName': 'Veuillez saisir votre nom.',
   'mkt.signup.errEmail': 'Veuillez saisir une adresse e-mail valide.',
   'mkt.signup.errPassword': 'Le mot de passe ne respecte pas les exigences ci-dessus.',
@@ -334,6 +336,8 @@ export const clientMarketingFr: Record<string, string> = {
   'mkt.signup.errTerms': 'Veuillez accepter les Conditions d’utilisation et la Politique de confidentialité pour continuer.',
   'mkt.signup.errEmailExists': 'Un compte existe déjà avec cette adresse e-mail. Essayez de vous connecter.',
   'mkt.signup.errGeneric': 'Impossible de créer votre compte. Veuillez réessayer.',
+  'mkt.signup.errGoogle':
+    'La connexion Google n’a pas abouti. Veuillez réessayer ou continuer avec le formulaire ci-dessous.',
 
   // ---- CTA final ----
   'mkt.cta.title': 'Prêt à publier plus intelligemment ?',

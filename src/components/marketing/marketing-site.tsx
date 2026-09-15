@@ -14,6 +14,9 @@
 //   #/privacy     privacy       #/terms      terms
 //   #/signup      create account (own chrome — no header/footer)
 //
+// Note: the Create Account page presents the Karmax brand
+// (scoped to that page) — its document title follows suit.
+//
 // Also: per-route document titles, JSON-LD organization data,
 // scroll-to-top on route change, cookie banner, footer.
 // ============================================================
@@ -141,7 +144,8 @@ export function MarketingSite() {
       about: `${t('mkt.about.eyebrow')} ${brand}`,
       solutions: `${t('mkt.sol.title')} — ${brand}`,
       login: `${t('mkt.nav.login')} — ${brand}`,
-      signup: `${t('mkt.signup.title')} — ${brand}`,
+      // The signup page presents the Karmax brand (page-scoped).
+      signup: `${t('mkt.signup.title')} — ${t('mkt.signup.brandName')}`,
       privacy: `${t('mkt.privacy.title')} — ${brand}`,
       terms: `${t('mkt.terms.title')} — ${brand}`,
       notfound: `${t('mkt.common.notFoundTitle')} — ${brand}`,
@@ -183,9 +187,10 @@ export function MarketingSite() {
   }, [route, t]);
 
   // The Create Account page is its OWN CHROME: split-screen panel
-  // with the logo in the left half and language/theme controls in
-  // the right half. It renders full-bleed inside the scroll root —
-  // no marketing header, footer or cookie banner around it.
+  // with the Karmax logo in the left half (no language/theme
+  // controls on this page by design). It renders full-bleed inside
+  // the scroll root — no marketing header, footer or cookie banner
+  // around it.
   const isSignup = route.name === 'signup';
 
   return (

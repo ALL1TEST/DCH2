@@ -11345,3 +11345,38 @@ Stage Summary:
 - Dashboard 100% untouched (verified E2E: login → dashboard → navigation → data)
 - New public APIs: /api/plans, /api/public/blog[/slug]; seed script .zscripts/seed-marketing.ts
 - Known testing-tool artifacts (NOT product bugs): agent-browser ref-clicks unreliable on popovers; Next.js dev overlay badge visible in dev only
+
+---
+Task ID: SIGNUP-1
+Agent: main (orchestrator)
+Task: Restore the disappeared Create Account route (was showing "Page not found"), then finish the signup page redesign wiring and verify end-to-end.
+
+Work Log:
+- Diagnosed: commit a599e3a built SignupPage + /api/auth/signup + auth-store signup() + signupSchema + mkt.signup.* i18n (en/fr), but the marketing hash router (marketing-site.tsx) never got the 'signup' case → #/signup fell through to the generic notfound screen
+- marketing-site.tsx: added 'signup' to Route type, parseHash switch, KNOWN hash list, per-route titles, renderPage; signup renders chrome-less (no header/footer/cookie banner) with main as flex column
+- signup-page.tsx: root min-h-full → min-h-svh (percentage min-height doesn't resolve under block-level .mkt-scroll-root; viewport units do)
+- login-page.tsx: "Create account" link was pointing at #/pricing (pre-signup-route workaround) → #/signup
+- mobile-menu.tsx: "Get started" CTA was pointing at #/login → #/signup (header CTA already correct)
+- admin-shell.tsx: added auth-flip effect — leftover marketing hash after login/signup left stale navigation module (breadcrumb showed "signup") and stale document.title; now navigates store to default module + resets title to product default
+- NEW src/lib/brand.ts: SITE_NAME/SITE_TAGLINE/SITE_DESCRIPTION extracted from app/layout.tsx (single source of truth; avoids server↔client circular import); layout.tsx re-exports
+- i18n en+fr: mkt.login.createAccount relabeled "Create an account"/"Créer un compte" to match its new signup target
+- Mid-task regression caught + fixed: mapping marketing hashes inside navigation-store parseHash wiped #/signup BEFORE the marketing router read it on fresh load (initializer canonicalization) — reverted; the mapping lives only in the AdminShell auth-flip effect (runs only when authenticated)
+- Dev server reaped twice by sandbox; restarted both times via double-fork pattern
+
+Verification (agent-browser + VLM):
+- Route: direct URL /#/signup renders signup page (title "Create your account — Sitesmith"); refresh preserves it; unknown hashes still 404 as intended
+- Entry points: header "Get started", mobile menu "Get started", login page "Create account" all → signup; Sign in → #/login; ToS/Privacy links → legal pages
+- Form E2E: real signup (final.check@example.com) → 201, session cookie, cms_auth_user stored, Free-plan subscription, dashboard shell takes over with CLEAN URL (no #/signup leftover), product-default title, Dashboard breadcrumb; test users deleted from DB afterwards
+- Validation: all 5 client errors fire on empty submit; EMAIL_EXISTS (409) shown in alert; password toggles flip input type; live requirement list updates; terms checkbox works
+- i18n: FR fully translated (title, form, requirements, links); EN restored
+- Layout: 1440 desktop (VLM: 9/10 "production-ready, rivals Linear/Vercel/Stripe"), 768 tablet, 390/375/360 mobile — zero horizontal overflow, below-fold elements reachable via .mkt-scroll-root
+- VLM reference comparison: "matches and in several ways exceeds the reference quality — production-ready"; zero reference-brand copying confirmed (Sitesmith identity, emerald accent, real capabilities only)
+- No Google OAuth exists in this codebase (grep-verified) — no fake SSO button rendered (page never shows a control that cannot work)
+- Regression sweep: all 9 other marketing routes render with correct titles; login E2E (admin@example.com) still passes with clean URL/title
+- tsc: 0 errors in touched files (sidebar/site-selector/users errors pre-existing — verified via git stash); lint: 0 problems in touched files (23 pre-existing — verified via git stash)
+- Fresh-load console: clean (only dev-mode React DevTools info); no hydration errors; no network 404s
+
+Stage Summary:
+- Create Account page RESTORED and fully wired: #/signup renders the premium split-screen signup (55/45, capability cards, full form) with all auth logic untouched
+- Commit 0acdae8 on main (4 ahead of origin)
+- Known artifacts: agent-browser reload drops URL fragments (testing tool only, not a product bug); Next.js dev badge visible in dev only

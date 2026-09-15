@@ -59,7 +59,7 @@ export function LoginPage() {
             <div className="mt-auto border-t border-border px-6 py-4 text-center sm:px-8">
               <p className="text-xs text-text-muted">
                 {t('mkt.login.noAccount')}{' '}
-                <a href={MKT.pricing} className="font-medium text-mkt-accent hover:underline">
+                <a href={MKT.signup} className="font-medium text-mkt-accent hover:underline">
                   {t('mkt.login.createAccount')}
                 </a>
               </p>

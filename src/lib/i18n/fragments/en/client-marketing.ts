@@ -294,7 +294,7 @@ export const clientMarketingEn: Record<string, string> = {
   'mkt.login.title': 'Welcome back.',
   'mkt.login.subtitle': 'Sign in to your Sitesmith account.',
   'mkt.login.noAccount': 'New to Sitesmith?',
-  'mkt.login.createAccount': 'Start on the free plan',
+  'mkt.login.createAccount': 'Create an account',
   'mkt.login.panelTitle': 'One dashboard for every site.',
   'mkt.login.panelBody': 'AI writing, SEO suite, media, newsletter and automation — connected to WordPress or any REST CMS.',
 

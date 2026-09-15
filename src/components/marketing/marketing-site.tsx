@@ -12,6 +12,7 @@
 //   #/blog/<slug> article       #/about      about
 //   #/solutions   solutions     #/login      login
 //   #/privacy     privacy       #/terms      terms
+//   #/signup      create account (own chrome — no header/footer)
 //
 // Also: per-route document titles, JSON-LD organization data,
 // scroll-to-top on route change, cookie banner, footer.
@@ -27,6 +28,7 @@ import { PricingPage } from './pricing-page';
 import { BlogPage, BlogArticlePage } from './blog-page';
 import { AboutPage, SolutionsPage, PrivacyPage, TermsPage } from './content-pages';
 import { LoginPage } from './login-page';
+import { SignupPage } from './signup-page';
 import { MarketingButton } from './primitives';
 
 type Route =
@@ -37,6 +39,7 @@ type Route =
   | { name: 'about' }
   | { name: 'solutions'; focus: string | null }
   | { name: 'login' }
+  | { name: 'signup' }
   | { name: 'privacy' }
   | { name: 'terms' }
   | { name: 'notfound' };
@@ -68,6 +71,8 @@ function parseHash(hash: string): Route {
     }
     case 'login':
       return { name: 'login' };
+    case 'signup':
+      return { name: 'signup' };
     case 'privacy':
       return { name: 'privacy' };
     case 'terms':
@@ -97,7 +102,7 @@ export function MarketingSite() {
     // from a pre-logout session (e.g. '#settings') shows the home
     // page instead of "not found".
     const firstSeg = h.replace(/^#\/?/, '').split(/[/?]/)[0];
-    const KNOWN = ['pricing', 'blog', 'about', 'solutions', 'login', 'privacy', 'terms', 'features'];
+    const KNOWN = ['pricing', 'blog', 'about', 'solutions', 'login', 'signup', 'privacy', 'terms', 'features'];
     return KNOWN.includes(firstSeg) ? h : '';
   });
 
@@ -136,6 +141,7 @@ export function MarketingSite() {
       about: `${t('mkt.about.eyebrow')} ${brand}`,
       solutions: `${t('mkt.sol.title')} — ${brand}`,
       login: `${t('mkt.nav.login')} — ${brand}`,
+      signup: `${t('mkt.signup.title')} — ${brand}`,
       privacy: `${t('mkt.privacy.title')} — ${brand}`,
       terms: `${t('mkt.terms.title')} — ${brand}`,
       notfound: `${t('mkt.common.notFoundTitle')} — ${brand}`,
@@ -159,6 +165,8 @@ export function MarketingSite() {
         return <SolutionsPage focus={route.focus} />;
       case 'login':
         return <LoginPage />;
+      case 'signup':
+        return <SignupPage />;
       case 'privacy':
         return <PrivacyPage />;
       case 'terms':
@@ -173,6 +181,12 @@ export function MarketingSite() {
         );
     }
   }, [route, t]);
+
+  // The Create Account page is its OWN CHROME: split-screen panel
+  // with the logo in the left half and language/theme controls in
+  // the right half. It renders full-bleed inside the scroll root —
+  // no marketing header, footer or cookie banner around it.
+  const isSignup = route.name === 'signup';
 
   return (
     <div className="mkt-scroll-root" data-testid="marketing-root">
@@ -198,14 +212,14 @@ export function MarketingSite() {
         }}
       />
 
-      <MarketingHeader currentHash={hash} />
+      {!isSignup && <MarketingHeader currentHash={hash} />}
 
-      <main id="mkt-main" className="flex-1">
+      <main id="mkt-main" className={isSignup ? 'flex flex-col' : 'flex-1'}>
         {renderPage()}
       </main>
 
-      <MarketingFooter />
-      <CookieBanner />
+      {!isSignup && <MarketingFooter />}
+      {!isSignup && <CookieBanner />}
     </div>
   );
 }

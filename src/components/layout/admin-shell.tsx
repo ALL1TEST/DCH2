@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useSiteStore } from '@/lib/stores/site-store';
 import { useNavigationStore } from '@/lib/stores/navigation-store';
+import { SITE_NAME, SITE_TAGLINE } from '@/lib/brand';
 import { MarketingSite } from '@/components/marketing/marketing-site';
 import { AppSidebar } from './sidebar';
 import { Topbar } from './topbar';
@@ -51,6 +52,31 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+
+  // When the session flips to authenticated while a marketing hash
+  // (e.g. #/signup from the Create Account page, or #/login) is
+  // still in the address bar, the navigation store would otherwise
+  // treat that marketing segment as a module name (breadcrumb
+  // "signup", module-router fallback). Redirect the store to the
+  // default module — navigate() also canonicalizes the URL via
+  // replaceState, which fires no hashchange, so no loop is possible.
+  // Runs ONLY when authenticated; the marketing site (unauthenticated)
+  // keeps full control of its own hashes.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const firstSeg = window.location.hash.replace(/^#\/?/, '').split(/[/?]/)[0];
+    if (
+      ['pricing', 'blog', 'about', 'solutions', 'login', 'signup', 'privacy', 'terms', 'features'].includes(
+        firstSeg,
+      )
+    ) {
+      useNavigationStore.getState().navigate('dashboard');
+      // The marketing site owns document.title while unauthenticated —
+      // restore the product default so no stale "Create your account"
+      // / "Log in" title follows the user into the dashboard.
+      document.title = `${SITE_NAME} — ${SITE_TAGLINE}`;
+    }
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (isAuthenticated && !isSiteInitialized) {

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { SITE_NAME, SITE_TAGLINE, SITE_DESCRIPTION } from "@/lib/brand";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,13 +14,10 @@ const geistMono = Geist_Mono({
 });
 
 // ---- Sitesmith product identity -------------------------------------
-// The public brand of this product. All marketing surfaces (metadata,
-// header logo, footer copyright, OG cards) read THIS constant so the
-// name lives in exactly one place.
-export const SITE_NAME = "Sitesmith";
-export const SITE_TAGLINE = "Craft content that ranks.";
-export const SITE_DESCRIPTION =
-  "Sitesmith is the multi-site content platform with AI writing, a full SEO suite, and workflow automation — connect WordPress or any REST CMS and publish from one calm dashboard.";
+// Single source of truth lives in @/lib/brand (importable from client
+// components without a server↔client cycle). Re-exported here for the
+// existing importers of this module.
+export { SITE_NAME, SITE_TAGLINE, SITE_DESCRIPTION };
 
 export const metadata: Metadata = {
   title: {

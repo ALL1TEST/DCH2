@@ -197,7 +197,7 @@ export function MobileMenu({ open, onClose }: { open: boolean; onClose: () => vo
 
         {/* CTA footer */}
         <div className="flex flex-col gap-2.5 border-t border-border p-5">
-          <MarketingButton href={MKT.login} withArrow size="lg" onClick={onClose}>
+          <MarketingButton href={MKT.signup} withArrow size="lg" onClick={onClose}>
             {t('mkt.nav.getStarted')}
           </MarketingButton>
           <MarketingButton href={MKT.login} variant="secondary" size="lg" onClick={onClose}>

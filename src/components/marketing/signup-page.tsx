@@ -215,7 +215,7 @@ export function SignupPage() {
     .replace('{brand}', t('mkt.brand.name'));
 
   return (
-    <div className="flex min-h-full flex-1 flex-col lg:grid lg:grid-cols-[55fr_45fr]">
+    <div className="flex min-h-svh flex-1 flex-col lg:grid lg:grid-cols-[55fr_45fr]">
       {/* ============ LEFT — marketing panel ============ */}
       <aside
         className="relative flex flex-col justify-between gap-10 overflow-hidden border-b border-border p-8 sm:p-10 lg:sticky lg:top-0 lg:h-svh lg:self-start lg:border-b-0 lg:border-e lg:p-12 xl:p-16"

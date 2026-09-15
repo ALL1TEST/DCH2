@@ -8,7 +8,7 @@
 // without a server↔client circular import.
 // ============================================================
 
-export const SITE_NAME = 'Sitesmith';
+export const SITE_NAME = 'Karmax';
 export const SITE_TAGLINE = 'Craft content that ranks.';
 export const SITE_DESCRIPTION =
-  'Sitesmith is the multi-site content platform with AI writing, a full SEO suite, and workflow automation — connect WordPress or any REST CMS and publish from one calm dashboard.';
+  'Karmax is the multi-site content platform with AI writing, a full SEO suite, and workflow automation — connect WordPress or any REST CMS and publish from one calm dashboard.';

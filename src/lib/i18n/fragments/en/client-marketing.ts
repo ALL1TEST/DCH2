@@ -14,7 +14,7 @@
 
 export const clientMarketingEn: Record<string, string> = {
   // ---- Brand ----
-  'mkt.brand.name': 'Sitesmith',
+  'mkt.brand.name': 'Karmax',
   'mkt.brand.tagline': 'Craft content that ranks.',
 
   // ---- Header / navigation ----
@@ -50,12 +50,11 @@ export const clientMarketingEn: Record<string, string> = {
   'mkt.hero.titleA': 'Run every site you publish',
   'mkt.hero.titleAccent': 'from one calm dashboard.',
   'mkt.hero.subtitle':
-    'Sitesmith brings AI-assisted writing, a complete SEO suite, media management, newsletter and automation together — and connects straight to WordPress or any REST CMS.',
+    'Karmax brings AI-assisted writing, a complete SEO suite, media management, newsletter and automation together — and connects straight to WordPress or any REST CMS.',
   'mkt.hero.ctaPrimary': 'Start for free',
   'mkt.hero.ctaSecondary': 'See how it works',
-  'mkt.hero.note': 'Free plan · No credit card required',
   'mkt.hero.demoLabel': 'Live product demo',
-  'mkt.hero.demoCaption': 'The real Sitesmith dashboard — Executive view',
+  'mkt.hero.demoCaption': 'The real Karmax dashboard — Executive view',
 
   // ---- Product showcase labels ----
   'mkt.showcase.ai': 'AI Content',
@@ -66,16 +65,16 @@ export const clientMarketingEn: Record<string, string> = {
   'mkt.showcase.newsletter': 'Newsletter',
 
   // ---- Value proposition ----
-  'mkt.value.eyebrow': 'Why Sitesmith',
+  'mkt.value.eyebrow': 'Why Karmax',
   'mkt.value.title': 'Your content workflow shouldn’t scatter across six tools.',
   'mkt.value.body':
-    'Most teams write in one app, check SEO in another, store media somewhere else, and still publish by hand. Sitesmith replaces that patchwork with one platform that connects to the sites you already run.',
-  'mkt.value.withoutTitle': 'Without Sitesmith',
+    'Most teams write in one app, check SEO in another, store media somewhere else, and still publish by hand. Karmax replaces that patchwork with one platform that connects to the sites you already run.',
+  'mkt.value.withoutTitle': 'Without Karmax',
   'mkt.value.without1': 'Drafts, media and SEO spread across disconnected tools',
   'mkt.value.without2': 'Manual copy-paste publishing for every article',
   'mkt.value.without3': 'SEO checked after publishing — if at all',
   'mkt.value.without4': 'No repeatable process, no history, no overview',
-  'mkt.value.withTitle': 'With Sitesmith',
+  'mkt.value.withTitle': 'With Karmax',
   'mkt.value.with1': 'Writing, media, SEO and publishing in one place',
   'mkt.value.with2': 'Connect WordPress or any REST CMS and publish directly',
   'mkt.value.with3': 'Audit, schema, redirects and indexing handled per site',
@@ -152,9 +151,9 @@ export const clientMarketingEn: Record<string, string> = {
   // ---- Workflow ----
   'mkt.workflow.eyebrow': 'How it works',
   'mkt.workflow.title': 'From idea to published in four steps.',
-  'mkt.workflow.subtitle': 'Connect once — then everything happens inside Sitesmith.',
+  'mkt.workflow.subtitle': 'Connect once — then everything happens inside Karmax.',
   'mkt.workflow.step1.title': 'Connect your website',
-  'mkt.workflow.step1.body': 'Link WordPress or any REST CMS with the connection verifier. Sitesmith confirms write access before you publish.',
+  'mkt.workflow.step1.body': 'Link WordPress or any REST CMS with the connection verifier. Karmax confirms write access before you publish.',
   'mkt.workflow.step2.title': 'Create and optimize content',
   'mkt.workflow.step2.body': 'Draft with AI assistance, manage media, and run per-page SEO checks with focus keywords and social previews.',
   'mkt.workflow.step3.title': 'Review and schedule',
@@ -165,7 +164,7 @@ export const clientMarketingEn: Record<string, string> = {
   // ---- Platform / integrations ----
   'mkt.platform.eyebrow': 'Open platform',
   'mkt.platform.title': 'Connects to what you already use.',
-  'mkt.platform.subtitle': 'Sitesmith talks to your stack through documented APIs — no lock-in, no proprietary plugin.',
+  'mkt.platform.subtitle': 'Karmax talks to your stack through documented APIs — no lock-in, no proprietary plugin.',
   'mkt.platform.wordpress': 'WordPress',
   'mkt.platform.wordpressDesc': 'Native REST API client with connection verification',
   'mkt.platform.cms': 'Any REST CMS',
@@ -204,8 +203,9 @@ export const clientMarketingEn: Record<string, string> = {
   'mkt.pricing.subtitle': 'Start free, upgrade when your sites grow. Every plan includes the full editor, SEO basics and media library.',
   'mkt.pricing.monthly': 'Monthly',
   'mkt.pricing.yearly': 'Yearly',
-  'mkt.pricing.save': '2 months free',
   'mkt.pricing.perMonth': '/ month',
+  'mkt.pricing.perMonthShort': '/mo',
+  'mkt.pricing.billedYearly': 'Billed {amount} yearly',
   'mkt.pricing.perYear': '/ year',
   'mkt.pricing.free': 'Free',
   'mkt.pricing.popular': 'Most popular',
@@ -233,7 +233,7 @@ export const clientMarketingEn: Record<string, string> = {
 
   // ---- Blog ----
   'mkt.blog.title': 'Blog',
-  'mkt.blog.subtitle': 'Notes on content craft, SEO and building Sitesmith.',
+  'mkt.blog.subtitle': 'Notes on content craft, SEO and building Karmax.',
   'mkt.blog.featured': 'Featured article',
   'mkt.blog.allPosts': 'All posts',
   'mkt.blog.categories': 'Categories',
@@ -260,7 +260,7 @@ export const clientMarketingEn: Record<string, string> = {
   'mkt.about.eyebrow': 'About',
   'mkt.about.title': 'We build the tool we publish with.',
   'mkt.about.intro':
-    'Sitesmith is an independent product built by a small team that runs multiple content sites and got tired of stitching six tools together for every article.',
+    'Karmax is an independent product built by a small team that runs multiple content sites and got tired of stitching six tools together for every article.',
   'mkt.about.missionTitle': 'Our mission',
   'mkt.about.missionBody':
     'Give every person who publishes — solo bloggers, agencies, publishers, businesses — one calm, honest platform for the whole content workflow: writing, media, SEO, engagement and automation.',
@@ -269,12 +269,12 @@ export const clientMarketingEn: Record<string, string> = {
     'The tools were all there, but never together. Writing lived in one app, SEO in another, media in a third, publishing by copy-paste. We wanted the workflow itself — so we connected an editor, a full SEO suite, a media library, newsletter and automation into one product that talks to the sites you already run.',
   'mkt.about.howTitle': 'How it works',
   'mkt.about.howBody':
-    'Sitesmith is a multi-tenant platform: you connect your sites — WordPress via its REST API or any CMS with a standard REST endpoint — and manage content, media, SEO, comments and newsletters per site from one dashboard. Roles and permissions mirror real editorial teams, and automations handle the routine parts.',
+    'Karmax is a multi-tenant platform: you connect your sites — WordPress via its REST API or any CMS with a standard REST endpoint — and manage content, media, SEO, comments and newsletters per site from one dashboard. Roles and permissions mirror real editorial teams, and automations handle the routine parts.',
   'mkt.about.principlesTitle': 'Core principles',
   'mkt.about.principle1Title': 'Honest software',
   'mkt.about.principle1Body': 'No fake urgency, no dark patterns, no invented numbers. What the marketing says is what the product does.',
   'mkt.about.principle2Title': 'Your data, your sites',
-  'mkt.about.principle2Body': 'Your content lives in your CMS. Sitesmith manages and publishes — it never holds your site hostage.',
+  'mkt.about.principle2Body': 'Your content lives in your CMS. Karmax manages and publishes — it never holds your site hostage.',
   'mkt.about.principle3Title': 'Calm by default',
   'mkt.about.principle3Body': 'A quiet interface, sensible defaults and zero gratuitous animations. The work is the hero, not the UI.',
   'mkt.about.principle4Title': 'Open connections',
@@ -287,13 +287,13 @@ export const clientMarketingEn: Record<string, string> = {
   // ---- Solutions page ----
   'mkt.sol.eyebrow': 'Solutions',
   'mkt.sol.title': 'One platform, every publisher.',
-  'mkt.sol.subtitle': 'Sitesmith adapts to how you work — solo or with a team, one site or fifty.',
+  'mkt.sol.subtitle': 'Karmax adapts to how you work — solo or with a team, one site or fifty.',
   'mkt.sol.details': 'See how it fits',
 
   // ---- Login page ----
   'mkt.login.title': 'Welcome back.',
-  'mkt.login.subtitle': 'Sign in to your Sitesmith account.',
-  'mkt.login.noAccount': 'New to Sitesmith?',
+  'mkt.login.subtitle': 'Sign in to your Karmax account.',
+  'mkt.login.noAccount': 'New to Karmax?',
   'mkt.login.createAccount': 'Create an account',
   'mkt.login.panelTitle': 'One dashboard for every site.',
   'mkt.login.panelBody': 'AI writing, SEO suite, media, newsletter and automation — connected to WordPress or any REST CMS.',
@@ -427,7 +427,7 @@ export const clientMarketingEn: Record<string, string> = {
   'mkt.footer.cookiePrefs': 'Cookie preferences',
   'mkt.footer.rights': 'All rights reserved.',
   'mkt.footer.language': 'Language',
-  'mkt.footer.builtNote': 'Runs on Sitesmith — of course.',
+  'mkt.footer.builtNote': 'Runs on Karmax — of course.',
 
   // ---- Cookie banner ----
   'mkt.cookie.title': 'Your privacy matters',
@@ -456,7 +456,7 @@ export const clientMarketingEn: Record<string, string> = {
   'mkt.privacy.title': 'Privacy Policy',
   'mkt.privacy.updated': 'Last updated',
   'mkt.privacy.intro':
-    'This policy explains what Sitesmith collects, why, and the choices you have. We keep it short and honest.',
+    'This policy explains what Karmax collects, why, and the choices you have. We keep it short and honest.',
   'mkt.privacy.collectTitle': 'What we collect',
   'mkt.privacy.collectBody':
     'Account data you provide (name, email), the content and media you manage in the product, and technical data such as session cookies needed to keep you signed in. With your consent, anonymous usage statistics.',
@@ -476,13 +476,13 @@ export const clientMarketingEn: Record<string, string> = {
   // ---- Legal: terms ----
   'mkt.terms.title': 'Terms of Service',
   'mkt.terms.intro':
-    'These terms govern your use of Sitesmith. Plain language, no traps.',
+    'These terms govern your use of Karmax. Plain language, no traps.',
   'mkt.terms.accountTitle': 'Your account',
   'mkt.terms.accountBody':
     'You are responsible for your account credentials and for the content you publish through the platform. Keep your password safe and your API keys private.',
   'mkt.terms.serviceTitle': 'The service',
   'mkt.terms.serviceBody':
-    'Sitesmith provides content management, SEO tooling, media storage, newsletter and automation features per your plan. We may improve or change features; material changes will be announced.',
+    'Karmax provides content management, SEO tooling, media storage, newsletter and automation features per your plan. We may improve or change features; material changes will be announced.',
   'mkt.terms.fairUseTitle': 'Fair use',
   'mkt.terms.fairUseBody':
     'Plan limits (sites, storage, AI usage) are enforced for the health of the platform. Use the service lawfully and respect the sites you connect.',

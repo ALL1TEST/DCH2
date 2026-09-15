@@ -9,7 +9,7 @@ import { ok, fail } from '@/lib/platform/platform-auth';
 // editorial content: ContentItems with a NULL siteId (platform-level
 // articles, not any tenant's site data). Tenant site content is
 // NEVER exposed here — the marketing blog only shows what the
-// product team publishes in Sitesmith itself.
+// product team publishes in Karmax itself.
 //
 // Shape (ApiResponse envelope):
 //   {
@@ -63,7 +63,7 @@ export async function GET() {
       category: r.category
         ? { name: r.category.name, slug: r.category.slug }
         : null,
-      author: { name: r.author?.name ?? 'Sitesmith Editorial' },
+      author: { name: r.author?.name ?? 'Karmax Editorial' },
       publishedAt: r.publishedAt?.toISOString() ?? null,
       updatedAt: r.updatedAt.toISOString(),
       readingMinutes: readingMinutes(r.content),

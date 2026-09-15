@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// ---- Sitesmith product identity -------------------------------------
+// ---- Karmax product identity -------------------------------------
 // Single source of truth lives in @/lib/brand (importable from client
 // components without a server↔client cycle). Re-exported here for the
 // existing importers of this module.
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
   },
   description: SITE_DESCRIPTION,
   keywords: [
-    "Sitesmith",
+    "Karmax",
     "CMS",
     "content platform",
     "AI writing",

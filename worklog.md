@@ -11456,3 +11456,39 @@ Stage Summary:
 - Create Account page preserved: identical design/logic for the free + no-selection flows; paid flow adds only the minimal progress indicator + Google next hint
 - 8 files modified + 2 new (plan-selection.ts, checkout-flow.tsx) + 45 i18n keys (en+fr)
 - Stripe unconfigured in this sandbox → real-payment E2E impossible; the failure path, verify-poll logic and webhook-equivalent activation verified end-to-end; the Stripe session/webhook code paths are pre-existing and untouched
+
+---
+Task ID: FLOW-2
+Agent: main (orchestrator)
+Task: UI-focused update of the Karmax pricing page + signup flow per 12-point spec: remove progress indicator from Create Account, center signup title/subtitle, remove "FREE / Free plan · No credit card required" badge, rebrand remaining Sitesmith → Karmax, pricing card presentation (large price, Monthly/Yearly toggle with real -X% savings, yearly monthly-equivalent + "Billed CHF X yearly"), auth-aware CTAs. NO changes to auth/payment/routing/plan backend logic.
+
+Work Log:
+- BRAND → KARMAX (single source of truth): src/lib/brand.ts SITE_NAME/SITE_DESCRIPTION; layout.tsx metadata keywords + comment; i18n en+fr client-marketing ('mkt.brand.name' + every user-visible "Sitesmith" string → "Karmax"); blog API fallback author 'Sitesmith Editorial' → 'Karmax Editorial' (both routes) + blog-page.tsx; marketing header/footer/login/mobile-menu logos switched to the K geometric K-mark (variant="K", built in SIGNUP-2); marketing-site.tsx signup/checkout titles simplified to the shared brand variable
+- SIGNUP PAGE: removed the paid-signup 3-step progress indicator entirely (requirement: must NOT appear anywhere on Create Account) — paidSelection state kept ONLY for the Google ?next=checkout hint; header (Create your account / Start publishing with Karmax) now text-center within the already-centered max-w-md form column; comments updated. Form/validation/auth logic untouched
+- PRICING PAGE: price block redesigned — text-5xl display price; Monthly "CHF X / month"; Yearly "CHF X /mo" (Math.round(priceYearly/12)) + "Billed CHF XXX yearly" underneath (new i18n keys mkt.pricing.perMonthShort + mkt.pricing.billedYearly, en+fr); min-h-[4.5rem] reserves space so CTAs align in both toggle states; removed old "2 months free" card pill; toggle badge now shows the REAL computed savings "-17%" (min across paid plans of round(1 − yearly/(monthly×12))·100 — 490 vs 588 etc.) instead of the static "2 months free" string; dead keys mkt.pricing.save + mkt.hero.note removed from en+fr
+- HOME PAGE: removed the hero pill badge ("FREE" + "Free plan · No credit card required") completely (no replacement); hero "Start for free" + FinalCta "Start for free" CTAs repointed MKT.login → MKT.signup (requirement 3: must NOT navigate to Login)
+- AUTH-AWARE CTAs: pricing cards read useAuthStore.isAuthenticated — paid plan + authenticated → href #/checkout (MKT.checkout added to the MKT route map); unauthenticated paid → #/signup (Create Account → checkout after); Free always → #/signup. savePlanSelection(planId, interval, isFree) still fires before every navigation
+- Dev server reaped mid-verification (sandbox reaper) — restarted via double-fork, dev.log piping restored by the repo's own dev script
+
+Verification (agent-browser E2E + VLM):
+- Progress indicator "1 Create account — 2 Payment — 3 Finish": ABSENT from Create Account in free flow, paid flow (Pro + Max selections), after refresh, FR locale, mobile 390px — while the CHECKOUT page keeps its own step header (correct: only the Create Account page was scoped)
+- Signup title/subtitle centered: VLM-confirmed desktop 1440 (matches polished SaaS reference) + mobile 390; Google button, divider, all fields, terms, validation intact
+- "FREE / Free plan · No credit card required": completely gone (home hero badge removed; no replacement badge)
+- Branding: Karmax everywhere in the pricing/signup flow — header wordmark (K mark), footer, login page, mobile menu, document titles ("Simple, transparent pricing. — Karmax", "Create your account — Karmax", "Créez votre compte — Karmax"), metadata; zero "Sitesmith" strings remain in the marketing tree (grep-verified)
+- Pricing: Monthly shows CHF 9/49/99 "/ month"; Yearly shows CHF 8/41/83 "/mo" + "Billed CHF 90/490/990 yearly" — ALL values from /api/plans (PlanConfig DB rows, nothing hardcoded); toggle badge "-17%" computed from real data; Pro still highlighted "Most popular"; VLM review: cards polished/aligned, no layout defects (desktop + mobile + tablet 768, zero horizontal overflow at all three widths)
+- Flow A (Free): pricing → Start for free → Create Account → submit → DASHBOARD (clean URL, Free badge) ✓
+- Flow B (Paid): Choose Pro → Create Account (no indicator) → submit → #/checkout "Changing from Free | Pro | CHF 49 / month | 10 sites | 100 AI articles | 50 AI images | 10 GB" (all server-resolved) ✓
+- Payment failure: Continue to payment → honest Stripe-unconfigured state "Payment not completed / nothing was charged / No paid features were activated" + Retry payment + Return to plans ✓; Return to plans → authenticated #/billing ✓
+- Flow E (existing user): Pro selection → signup "Sign in" → login free@example.com → lands DIRECTLY on #/checkout (skips signup) ✓
+- Selection persistence: planId + interval survive navigation AND full page refresh during signup (plus/monthly + max/yearly + pro/monthly all verified); yearly interval correctly stored through the CTA click
+- FR locale: "Mensuel/Annuel", "-17%", "CHF 8 /mois", "Facturé CHF 90 par an", "Choisir Pro", fully translated signup ✓
+- Console/page errors: clean (only the pre-existing UNAUTHENTICATED sites fetch while logged out)
+- tsc --noEmit: 0 errors in touched files (all remaining errors pre-existing in unrelated modules, verified against baseline); eslint: 0 problems in all 13 touched files (repo-wide 23 problems = documented pre-existing baseline)
+- Testing-tool artifacts (NOT product bugs): one degraded agent-browser session (all clicks dead after repeated viewport switches) — fixed by browser restart, then all physical clicks worked; agent-browser reload drops URL fragments
+- Test users free.flow.ui@/pro.flow.ui@test-karmax.com deleted from DB after verification
+
+Stage Summary:
+- All 12 spec points implemented as UI/navigation-layer changes only: progress indicator gone from Create Account, title/subtitle centered, FREE badge removed, full Karmax rebrand of the marketing surface, reference-style pricing cards with real computed yearly savings and billing amounts, auth-aware paid CTAs
+- Zero changes to authentication, payment, subscription, webhook, or plan backend logic; plan data still 100% DB-driven
+- 13 files modified + 0 new files; 2 dead i18n keys removed, 4 new keys added (en+fr)
+- Ready to commit as FLOW-2

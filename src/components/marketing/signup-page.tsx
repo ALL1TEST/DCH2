@@ -12,8 +12,8 @@
 //           focused headline, supporting copy, three miniature
 //           product-UI capability cards (AI Content, SEO
 //           Suite, Automation — real features only).
-//   RIGHT — Create your account → “Continue with Google”
-//           (REAL OAuth redirect — see /api/auth/google/*) →
+//   RIGHT — centered “Create your account” header → “Continue with
+//           Google” (REAL OAuth redirect — see /api/auth/google/*) →
 //           divider → the email/password form with terms
 //           acceptance, error states and the sign-in link.
 //
@@ -189,13 +189,12 @@ export function SignupPage() {
   const isLoading = useAuthStore((s) => s.isLoading);
 
   // The PAID plan selected on the pricing page ("Choose Plus/Pro/Max"),
-  // read once on mount — drives (a) the minimal 3-step progress
-  // indicator (paid signup only; the free flow renders exactly as
-  // before) and (b) the Google button's next=checkout hint so the
-  // OAuth return also lands on the checkout step. Post-signup
+  // read once on mount — drives the Google button's next=checkout hint
+  // so the OAuth return also lands on the checkout step. Post-signup
   // ROUTING itself is handled by the AdminShell auth-flip effect
   // (paid → #/checkout, free/none → dashboard) — the form logic is
-  // completely untouched.
+  // completely untouched. The page itself renders identically for
+  // free and paid journeys (no progress indicator — by design).
   const [paidSelection] = useState(() => {
     const sel = readPlanSelection();
     return sel && !sel.isFree ? sel : null;
@@ -332,45 +331,7 @@ export function SignupPage() {
       <section className="relative flex flex-1 flex-col bg-card">
         {/* Form column — the page's only chrome */}
         <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 py-10 sm:px-10">
-          {/* Paid-signup progress indicator — minimal 3-step journey
-              (1 Create account · 2 Payment · 3 Finish). Rendered ONLY
-              when a paid plan was selected on the pricing page; the
-              free flow keeps the exact original layout. */}
-          {paidSelection && (
-            <ol className="mb-8 flex items-center gap-2 text-xs" aria-label={t('mkt.signup.progressLabel')}>
-              <li className="flex items-center gap-1.5 font-semibold text-mkt-accent">
-                <span
-                  className="flex h-5 w-5 items-center justify-center rounded-full bg-mkt-accent text-[0.625rem] font-bold text-mkt-accent-fg"
-                  aria-hidden="true"
-                >
-                  1
-                </span>
-                {t('mkt.signup.stepAccount')}
-              </li>
-              <li className="h-px w-5 bg-border" aria-hidden="true" />
-              <li className="flex items-center gap-1.5 text-text-muted">
-                <span
-                  className="flex h-5 w-5 items-center justify-center rounded-full border border-border bg-muted text-[0.625rem] font-semibold"
-                  aria-hidden="true"
-                >
-                  2
-                </span>
-                {t('mkt.signup.stepPayment')}
-              </li>
-              <li className="h-px w-5 bg-border" aria-hidden="true" />
-              <li className="flex items-center gap-1.5 text-text-muted">
-                <span
-                  className="flex h-5 w-5 items-center justify-center rounded-full border border-border bg-muted text-[0.625rem] font-semibold"
-                  aria-hidden="true"
-                >
-                  3
-                </span>
-                {t('mkt.signup.stepFinish')}
-              </li>
-            </ol>
-          )}
-
-          <header>
+          <header className="text-center">
             <h2 className="text-2xl font-bold tracking-tight text-text-primary">
               {t('mkt.signup.title')}
             </h2>

@@ -13,6 +13,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Check, Loader2, RefreshCw } from 'lucide-react';
 import { useT } from '@/lib/i18n';
+import { useAuthStore } from '@/lib/stores/auth-store';
 import { savePlanSelection } from '@/lib/checkout/plan-selection';
 import { MarketingButton, Reveal, SectionHeader } from './primitives';
 import { MKT } from './marketing-header';
@@ -96,6 +97,10 @@ function PricingCard({
   recommended: boolean;
 }) {
   const { t } = useT();
+  // Authenticated visitors go STRAIGHT to the payment step for paid
+  // plans (never through signup again); unauthenticated visitors
+  // create their account first. Free always opens Create Account.
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   const descKey =
     plan.planId === 'free'
@@ -109,8 +114,11 @@ function PricingCard({
             : 'mkt.plan.default.desc';
   const description = plan.description?.trim() || t(descKey);
 
-  const price = yearly ? plan.priceYearly : plan.priceMonthly;
-  const per = yearly ? t('mkt.pricing.perYear') : t('mkt.pricing.perMonth');
+  // Yearly view shows the discounted MONTHLY EQUIVALENT — the
+  // configured yearly price ÷ 12 — with the full annual amount
+  // underneath. Both derive from the plan configuration; nothing is
+  // hardcoded (the backend stays the single source of truth).
+  const monthlyEquivalent = Math.round(plan.priceYearly / 12);
 
   return (
     <div
@@ -129,31 +137,45 @@ function PricingCard({
       <h3 className="text-lg font-bold text-text-primary">{plan.name}</h3>
       <p className="mt-2 min-h-10 text-sm leading-relaxed text-text-secondary">{description}</p>
 
-      <div className="mt-5 flex items-baseline gap-1.5">
+      {/* Price — large display. Monthly: “CHF X / month”. Yearly:
+          “CHF X /mo” (monthly equivalent) + “Billed CHF XXX yearly”.
+          The reserved min-height keeps CTAs aligned across cards in
+          both toggle states. */}
+      <div className="mt-6 min-h-[4.5rem]">
         {plan.isFree ? (
-          <span className="mkt-display text-4xl text-text-primary">{t('mkt.pricing.free')}</span>
-        ) : (
+          <div className="flex items-baseline">
+            <span className="mkt-display text-5xl text-text-primary">{t('mkt.pricing.free')}</span>
+          </div>
+        ) : yearly ? (
           <>
-            <span className="text-sm font-medium text-text-muted">{currency}</span>
-            <span className="mkt-display text-4xl text-text-primary">{price}</span>
-            <span className="text-sm text-text-muted">{per}</span>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-sm font-medium text-text-muted">{currency}</span>
+              <span className="mkt-display text-5xl text-text-primary">{monthlyEquivalent}</span>
+              <span className="text-sm text-text-muted">{t('mkt.pricing.perMonthShort')}</span>
+            </div>
+            <p className="mt-1.5 text-xs text-text-muted">
+              {t('mkt.pricing.billedYearly').replace('{amount}', `${currency} ${plan.priceYearly}`)}
+            </p>
           </>
+        ) : (
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-sm font-medium text-text-muted">{currency}</span>
+            <span className="mkt-display text-5xl text-text-primary">{plan.priceMonthly}</span>
+            <span className="text-sm text-text-muted">{t('mkt.pricing.perMonth')}</span>
+          </div>
         )}
       </div>
-      {yearly && !plan.isFree && plan.priceYearly < plan.priceMonthly * 12 && (
-        <p className="mt-1.5 inline-flex w-fit items-center gap-1 rounded-full bg-mkt-accent-soft px-2.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-mkt-accent-soft-fg">
-          {t('mkt.pricing.save')}
-        </p>
-      )}
 
       <div className="mt-6">
         {/* Plan CTA — persists the selected plan + billing cycle
-            BEFORE the navigation to #/signup happens (the click
-            handler runs synchronously; the anchor then changes the
-            hash). The whole conversion journey (signup → checkout
-            for paid, signup → dashboard for free) reads it back. */}
+            BEFORE the navigation happens (the click handler runs
+            synchronously; the anchor then changes the hash). The
+            whole conversion journey reads it back: unauthenticated →
+            Create Account (paid continues to checkout afterwards,
+            free lands on the dashboard); ALREADY AUTHENTICATED + paid
+            → checkout directly, never signup again. */}
         <MarketingButton
-          href={MKT.signup}
+          href={!plan.isFree && isAuthenticated ? MKT.checkout : MKT.signup}
           variant={recommended ? 'primary' : 'secondary'}
           className="w-full"
           withArrow={!recommended}
@@ -201,6 +223,19 @@ export function PricingPage() {
 
   const plans = useMemo(() => data?.plans ?? [], [data]);
 
+  // Yearly savings vs 12× monthly, computed from the REAL configured
+  // prices (e.g. −17% when a year costs 490 CHF vs 12 × 49 = 588 CHF).
+  // Shown next to the Yearly option; hidden when there is no discount.
+  // Uses the most conservative (smallest) discount across paid plans
+  // so the badge never overstates any plan's saving.
+  const yearlySavings = useMemo(() => {
+    const paid = plans.filter((p) => !p.isFree && p.priceMonthly > 0 && p.priceYearly > 0);
+    if (paid.length === 0) return 0;
+    return Math.min(
+      ...paid.map((p) => Math.round((1 - p.priceYearly / (p.priceMonthly * 12)) * 100)),
+    );
+  }, [plans]);
+
   return (
     <>
       <section className="relative overflow-hidden pt-32 sm:pt-40">
@@ -235,13 +270,13 @@ export function PricingPage() {
                       }`}
                     >
                       {mode === 'monthly' ? t('mkt.pricing.monthly') : t('mkt.pricing.yearly')}
-                      {mode === 'yearly' && (
+                      {mode === 'yearly' && yearlySavings > 0 && (
                         <span
                           className={`rounded-full px-2 py-0.5 text-[0.625rem] font-semibold ${
                             active ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-mkt-accent-soft text-mkt-accent-soft-fg'
                           }`}
                         >
-                          {t('mkt.pricing.save')}
+                          -{yearlySavings}%
                         </span>
                       )}
                     </button>

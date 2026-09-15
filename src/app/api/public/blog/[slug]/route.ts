@@ -93,7 +93,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
         slug: r.slug,
         title: r.title,
         excerpt: r.excerpt ?? '',
-        author: { name: r.author?.name ?? 'Sitesmith Editorial' },
+        author: { name: r.author?.name ?? 'Karmax Editorial' },
         readingMinutes: readingMinutes(r.content),
         image: r.featuredImage
           ? { url: r.featuredImage.url, alt: r.featuredImage.alt ?? r.title }
@@ -112,7 +112,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
         seoTitle: article.seoTitle,
         seoDescription: article.seoDescription,
         author: {
-          name: article.author?.name ?? 'Sitesmith Editorial',
+          name: article.author?.name ?? 'Karmax Editorial',
           bio: article.author?.bio ?? null,
         },
         category: article.category

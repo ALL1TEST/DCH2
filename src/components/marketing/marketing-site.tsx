@@ -170,9 +170,8 @@ export function MarketingSite() {
       about: `${t('mkt.about.eyebrow')} ${brand}`,
       solutions: `${t('mkt.sol.title')} — ${brand}`,
       login: `${t('mkt.nav.login')} — ${brand}`,
-      // The signup page presents the Karmax brand (page-scoped).
-      signup: `${t('mkt.signup.title')} — ${t('mkt.signup.brandName')}`,
-      checkout: `${t('mkt.checkout.title')} — ${t('mkt.signup.brandName')}`,
+      signup: `${t('mkt.signup.title')} — ${brand}`,
+      checkout: `${t('mkt.checkout.title')} — ${brand}`,
       privacy: `${t('mkt.privacy.title')} — ${brand}`,
       terms: `${t('mkt.terms.title')} — ${brand}`,
       notfound: `${t('mkt.common.notFoundTitle')} — ${brand}`,

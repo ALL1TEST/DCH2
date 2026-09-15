@@ -70,7 +70,7 @@ export function MarketingFooter() {
           {/* Brand column */}
           <div className="col-span-2 flex flex-col gap-4">
             <a href={MKT.home} className="mkt-focus inline-flex items-center gap-2.5" aria-label={t('mkt.brand.name')}>
-              <Logo className="h-7 w-7" />
+              <Logo variant="K" className="h-7 w-7" />
               <span className="text-[1.0625rem] font-bold tracking-tight text-text-primary">
                 {t('mkt.brand.name')}
               </span>

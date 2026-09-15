@@ -35,7 +35,7 @@ export function LoginPage() {
               }}
               aria-hidden="true"
             />
-            <Logo className="relative h-8 w-8" />
+            <Logo variant="K" className="relative h-8 w-8" />
             <div className="relative flex flex-col gap-4">
               <h2 className="mkt-display text-3xl text-primary-foreground">{t('mkt.login.panelTitle')}</h2>
               <p className="max-w-xs text-sm leading-relaxed text-primary-foreground/70">

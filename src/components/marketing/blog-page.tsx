@@ -147,7 +147,7 @@ function BlogCard({ article, featured = false }: { article: BlogArticle; feature
         </p>
         <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-xs text-text-muted">
           <span>
-            {t('mkt.blog.by')} {article.author?.name ?? 'Sitesmith Editorial'}
+            {t('mkt.blog.by')} {article.author?.name ?? 'Karmax Editorial'}
           </span>
           {article.publishedAt && (
             <span className="inline-flex items-center gap-1">

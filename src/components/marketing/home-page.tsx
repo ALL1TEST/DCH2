@@ -59,19 +59,7 @@ function Hero() {
 
       <div className="mkt-container relative flex flex-col items-center text-center">
         <Reveal>
-          <a
-            href={MKT.pricing}
-            className="group inline-flex items-center gap-2 rounded-full border border-mkt-accent-border bg-mkt-accent-soft py-1.5 pl-2 pr-3.5 text-xs font-medium text-mkt-accent-soft-fg transition-colors hover:border-mkt-accent"
-          >
-            <span className="rounded-full bg-mkt-accent px-2 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-mkt-accent-fg">
-              {t('mkt.pricing.free')}
-            </span>
-            {t('mkt.hero.note')}
-          </a>
-        </Reveal>
-
-        <Reveal delay={60}>
-          <h1 className="mkt-display mt-6 max-w-4xl text-[2.35rem] text-text-primary sm:text-6xl lg:text-[4.25rem]">
+          <h1 className="mkt-display max-w-4xl text-[2.35rem] text-text-primary sm:text-6xl lg:text-[4.25rem]">
             {t('mkt.hero.titleA')}{' '}
             <span className="relative whitespace-nowrap text-mkt-accent">
               {t('mkt.hero.titleAccent')}
@@ -96,7 +84,7 @@ function Hero() {
 
         <Reveal delay={180}>
           <div className="mt-9 flex flex-col items-center gap-3 sm:flex-row">
-            <MarketingButton href={MKT.login} size="lg" withArrow>
+            <MarketingButton href={MKT.signup} size="lg" withArrow>
               {t('mkt.hero.ctaPrimary')}
             </MarketingButton>
             <MarketingButton href="#workflow" size="lg" variant="secondary">
@@ -543,7 +531,7 @@ export function FinalCta({
               </h2>
               <p className="max-w-md text-base leading-relaxed text-text-secondary">{t(bodyKey)}</p>
               <div className="mt-3 flex flex-col items-center gap-3 sm:flex-row">
-                <MarketingButton href={MKT.login} size="lg" withArrow>
+                <MarketingButton href={MKT.signup} size="lg" withArrow>
                   {t('mkt.cta.button')}
                 </MarketingButton>
                 <MarketingButton href={MKT.pricing} size="lg" variant="secondary">

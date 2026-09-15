@@ -75,7 +75,7 @@ export function MobileMenu({ open, onClose }: { open: boolean; onClose: () => vo
       <div className="absolute inset-y-0 right-0 flex w-full max-w-sm flex-col border-l border-border bg-background shadow-2xl animate-in slide-in-from-right duration-250">
         {/* Header row */}
         <div className="flex h-16 items-center justify-between border-b border-border px-5">
-          <LogoWordmark />
+          <LogoWordmark variant="K" />
           <button
             type="button"
             aria-label={t('mkt.nav.closeMenu')}

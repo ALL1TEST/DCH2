@@ -28,6 +28,7 @@ export const MKT = {
   about: '#/about',
   login: '#/login',
   signup: '#/signup',
+  checkout: '#/checkout',
   privacy: '#/privacy',
   terms: '#/terms',
 } as const;
@@ -278,7 +279,7 @@ export function MarketingHeader({ currentHash }: { currentHash: string }) {
           }`}
         >
           <a href={MKT.home} className="mkt-focus" aria-label={t('mkt.brand.name')}>
-            <LogoWordmark />
+            <LogoWordmark variant="K" />
           </a>
 
           {/* Center nav (desktop) */}

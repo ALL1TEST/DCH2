@@ -11297,3 +11297,27 @@ Stage Summary:
 - BROWSER-VERIFIED (agent-browser): all 9 languages on login screen, sidebar, dashboard, Articles list (empty state + tabs + placeholder), profile menu, language submenu, theme submenu; German/French editor toolbar + export menu; Spanish site-selector; language toast in the NEW locale; invalid locale 'xx-INVALID' → English fallback; locale persists across reload AND server restart; RTL verified with Arabic (dir=rtl, lang=ar, translated dashboard)
 - i18n tooling: `bun run i18n:validate` (parity gate), `bun run i18n:translate-missing` + `bun run i18n:assemble` (fill pipeline for future key additions)
 - Changed: 30 tracked files + 6 new files (client-editor.ts en/fr, 3 pipeline scripts, progress dir). No languages removed (40-locale registry intact), no competing framework introduced
+
+---
+Task ID: SYNC-2
+Agent: main (orchestrator)
+Task: Re-synchronize local application with GitHub repository ALL1TEST/NEWWDCH (user reported localhost not matching repo)
+
+Work Log:
+- Diagnosed divergence: local HEAD 093dd6c (1 unpushed commit, worklog-only) + dirty working tree (882 files: 879 mode-only, deleted src/app/api/media/upload/route.ts [-140 lines], skills.tar binary, .zscripts/dev.pid)
+- Root cause of UI mismatch: working tree served uncommitted code missing the media upload API route; also 3 orphaned mini-service `bun run dev` instances (incl. 2x dev-runner watchdogs) were respawning duplicate `next dev -p 3000` servers fighting for the port
+- Backed up ALL divergence before reset: branch `backup/local-divergence-20260914`, stash `pre-sync-divergence-backup`, patch at /home/z/my-project-backup/local-divergence-before-sync.patch
+- Hard reset to remote HEAD 8594f3d; updated origin/main ref; verified `git status` clean, HEAD == FETCH_HEAD, diff vs remote = 0 files
+- Killed all duplicate dev servers + both dev-runner watchdog instances (dev-runner conflicts with main dev server by design — documented in Task 0)
+- Ran `bun install` — 1067 installs verified, no changes needed (deps match repo lockfile)
+- Started ONE clean dev server via repo's own `bun run dev` (next dev -p 3000) using double-fork pattern; Ready in 1238ms, HTTP 200
+- Restored backup-scheduler mini-service on port 3010
+- Found User table EMPTY (cause of 401 logins); re-seeded via repo scripts: `bun run src/lib/seed.ts` (3 users, 10 content, 5 categories, 6 tags, 4 media, 7 comments) + `bun run src/lib/platform/bootstrap.ts` (platform staff, demo accounts, 4 plan configs)
+- Browser end-to-end verification (agent-browser): login screen with quick-login buttons; Admin login → Executive Dashboard with sidebar (Articles/Calendar/Media/Users/Comments/Newsletter); profile menu → Language submenu (25+ locales incl. en/fr/de/es/it/pt-BR/pt-PT/nl/ru/ja/ko/zh/ar/hi/th/vi...); switched to Français (full UI translation + toast "Langue définie sur Français"); persisted across reload AND logout (login screen in French); switched to Русский (full translation); Articles page in Russian (filters/search/sort/empty state); logged in as Platform Admin (OWNER) → platform sidebar + Customers table with live data (Max/Pro/Plus/Free users); switched back to English. Zero console errors throughout.
+
+Stage Summary:
+- Local application at /home/z/my-project now serves EXACTLY the repository state (8594f3d = origin/main HEAD), verified by git + browser
+- Single dev server on :3000 (PID chain 9051→9053→9054→9067), backup-scheduler on :3010, Caddy gateway on :81; no dev-runner, no duplicates
+- Database re-seeded with all demo accounts: admin@example.com/admin123, platform@example.com/platform123 (OWNER), internal@example.com/internal123, owner@/free@/plus@/pro@/max@ demo accounts
+- Full i18n functional: 9 core + extended locales, switching/persistence/toasts verified in browser
+- Local divergence preserved in backup branch + stash + patch file (zero data loss)

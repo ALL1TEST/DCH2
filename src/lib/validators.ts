@@ -101,6 +101,23 @@ export const loginSchema = z.object({
 
 export type LoginInput = z.infer<typeof loginSchema>;
 
+// -------------------- Signup (public Create Account) --------------------
+// Mirrors the password requirements already enforced for users created
+// inside the product (passwordSchema: 8+ chars, upper, lower, digit) and
+// requires explicit Terms/Privacy acceptance. Reuses the same email/name
+// patterns as every other form in the app.
+
+export const signupSchema = z.object({
+  name: nameSchema,
+  email: emailSchema,
+  password: passwordSchema,
+  acceptTerms: z
+    .boolean()
+    .refine((v) => v === true, 'You must accept the Terms of Service and Privacy Policy'),
+});
+
+export type SignupInput = z.infer<typeof signupSchema>;
+
 // -------------------- User --------------------
 
 export const userCreateSchema = z.object({

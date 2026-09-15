@@ -27,6 +27,7 @@ export const MKT = {
   blog: '#/blog',
   about: '#/about',
   login: '#/login',
+  signup: '#/signup',
   privacy: '#/privacy',
   terms: '#/terms',
 } as const;
@@ -46,8 +47,10 @@ const NAV_ITEMS: NavItem[] = [
 
 // -------------------- Language selector --------------------
 // Compact dropdown generated from the SAME registry the app uses.
+// Exported for the chrome-less auth pages (signup) which render
+// their own language control.
 
-function LanguageDropdown({ align = 'right' }: { align?: 'left' | 'right' }) {
+export function LanguageDropdown({ align = 'right' }: { align?: 'left' | 'right' }) {
   const { t } = useT();
   const locale = useLocaleStore((s) => s.locale);
   const setLocale = useLocaleStore((s) => s.setLocale);
@@ -124,8 +127,9 @@ function LanguageDropdown({ align = 'right' }: { align?: 'left' | 'right' }) {
 }
 
 // -------------------- Theme toggle --------------------
+// Exported for the chrome-less auth pages (signup).
 
-function ThemeToggle() {
+export function ThemeToggle() {
   const { t } = useT();
   const { resolvedTheme, setTheme } = useTheme();
   const mounted = useMounted();
@@ -311,7 +315,7 @@ export function MarketingHeader({ currentHash }: { currentHash: string }) {
             >
               {t('mkt.nav.login')}
             </a>
-            <MarketingButton href={MKT.login} withArrow className="ml-1 hidden sm:inline-flex">
+            <MarketingButton href={MKT.signup} withArrow className="ml-1 hidden sm:inline-flex">
               {t('mkt.nav.getStarted')}
             </MarketingButton>
 

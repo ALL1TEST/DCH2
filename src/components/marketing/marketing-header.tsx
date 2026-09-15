@@ -4,18 +4,22 @@
 // MARKETING HEADER — floating navigation
 // ============================================================
 // Sticky floating pill header: logo · center nav (Solutions has
-// a lightweight dropdown) · language (from the centralized
-// SUPPORTED_LOCALES registry) · theme toggle · Log in + Get
-// started. Mobile: compact bar + full-screen menu (separate
-// component). Marketing navigation is hash-routed (#/pricing…)
-// and never touches the dashboard's store.
+// a lightweight dropdown) · Log in + Get started. Mobile:
+// compact bar + full-screen menu (separate component).
+// Marketing navigation is hash-routed (#/pricing…) and never
+// touches the dashboard's store.
+//
+// NOTE — the public header intentionally carries NO language
+// selector and NO theme toggle: the visitor-facing site presents
+// one controlled Karmax brand appearance. The underlying i18n +
+// theme infrastructure remains fully intact (used by the
+// authenticated dashboard areas).
 // ============================================================
 
 import React, { useEffect, useRef, useState } from 'react';
-import { useTheme } from 'next-themes';
-import { ChevronDown, Globe, Menu, Monitor, Moon, Sun, X } from 'lucide-react';
-import { useT, useLocaleStore, SUPPORTED_LOCALES, getLocaleNativeName, type Locale } from '@/lib/i18n';
-import { LogoWordmark, MarketingButton, useMounted } from './primitives';
+import { ChevronDown, Menu, X } from 'lucide-react';
+import { useT } from '@/lib/i18n';
+import { LogoWordmark, MarketingButton } from './primitives';
 import { MobileMenu } from './mobile-menu';
 
 // ---- Marketing routes (hash-based, distinct from dashboard hashes) ----
@@ -46,117 +50,7 @@ const NAV_ITEMS: NavItem[] = [
   { labelKey: 'mkt.nav.about', href: MKT.about },
 ];
 
-// -------------------- Language selector --------------------
-// Compact dropdown generated from the SAME registry the app uses.
-// Exported for the chrome-less auth pages (signup) which render
-// their own language control.
-
-export function LanguageDropdown({ align = 'right' }: { align?: 'left' | 'right' }) {
-  const { t } = useT();
-  const locale = useLocaleStore((s) => s.locale);
-  const setLocale = useLocaleStore((s) => s.setLocale);
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        type="button"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-label={t('mkt.nav.changeLanguage')}
-        onClick={() => setOpen((v) => !v)}
-        className="mkt-focus inline-flex h-9 items-center gap-1.5 rounded-full px-2.5 text-sm text-text-secondary transition-colors hover:text-text-primary"
-      >
-        <Globe className="h-4 w-4" aria-hidden="true" />
-        <span className="hidden sm:inline">{getLocaleNativeName(locale as Locale)}</span>
-        <ChevronDown
-          className={`h-3.5 w-3.5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
-          aria-hidden="true"
-        />
-      </button>
-
-      {open && (
-        <div
-          role="listbox"
-          aria-label={t('mkt.nav.changeLanguage')}
-          className={`absolute top-[calc(100%+8px)] ${align === 'right' ? 'right-0' : 'left-0'} z-50 max-h-80 w-52 overflow-y-auto rounded-xl border border-border bg-popover p-1.5 shadow-lg animate-in fade-in-0 zoom-in-95 duration-150`}
-        >
-          {SUPPORTED_LOCALES.map((l) => (
-            <button
-              key={l.code}
-              role="option"
-              aria-selected={locale === l.code}
-              onClick={() => {
-                setLocale(l.code);
-                setOpen(false);
-              }}
-              className={`mkt-focus flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-                locale === l.code
-                  ? 'bg-mkt-accent-soft font-medium text-mkt-accent-soft-fg'
-                  : 'text-text-secondary hover:bg-muted hover:text-text-primary'
-              }`}
-            >
-              <span>{l.nativeName}</span>
-              {l.code === 'en' && (
-                <span className="text-[0.625rem] font-semibold uppercase tracking-wider text-text-muted">
-                  default
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// -------------------- Theme toggle --------------------
-// Exported for the chrome-less auth pages (signup).
-
-export function ThemeToggle() {
-  const { t } = useT();
-  const { resolvedTheme, setTheme } = useTheme();
-  const mounted = useMounted();
-
-  const isDark = mounted && resolvedTheme === 'dark';
-  return (
-    <button
-      type="button"
-      aria-label={t('mkt.nav.themeToggle')}
-      onClick={() => setTheme(isDark ? 'light' : 'dark')}
-      className="mkt-focus inline-flex h-9 w-9 items-center justify-center rounded-full text-text-secondary transition-colors hover:text-text-primary"
-    >
-      {mounted ? (
-        isDark ? (
-          <Sun className="h-4 w-4" aria-hidden="true" />
-        ) : (
-          <Moon className="h-4 w-4" aria-hidden="true" />
-        )
-      ) : (
-        <Monitor className="h-4 w-4" aria-hidden="true" />
-      )}
-    </button>
-  );
-}
-
-// -------------------- Solutions dropdown --------------------
+// -------------------- Solutions dropdown ---------------------
 
 function SolutionsDropdown({ currentHash }: { currentHash: string }) {
   const { t } = useT();
@@ -304,15 +198,13 @@ export function MarketingHeader({ currentHash }: { currentHash: string }) {
             )}
           </nav>
 
-          {/* Right cluster */}
-          <div className="flex items-center gap-1">
-            <div className="hidden sm:block">
-              <LanguageDropdown />
-            </div>
-            <ThemeToggle />
+          {/* Right cluster — auth actions only (language + theme
+              controls were removed from the public header by
+              design; the nav keeps its balanced spacing) */}
+          <div className="flex items-center gap-1.5">
             <a
               href={MKT.login}
-              className="mkt-focus ml-1 hidden h-9 items-center rounded-full px-3 text-sm font-medium text-text-secondary transition-colors hover:text-text-primary sm:inline-flex"
+              className="mkt-focus inline-flex h-9 items-center rounded-full px-3 text-sm font-medium text-text-secondary transition-colors hover:text-text-primary"
             >
               {t('mkt.nav.login')}
             </a>

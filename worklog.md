@@ -11492,3 +11492,43 @@ Stage Summary:
 - Zero changes to authentication, payment, subscription, webhook, or plan backend logic; plan data still 100% DB-driven
 - 13 files modified + 0 new files; 2 dead i18n keys removed, 4 new keys added (en+fr)
 - Ready to commit as FLOW-2
+
+---
+Task ID: MKT-CHROME-1
+Agent: main (orchestrator)
+Task: Redesign the Karmax public marketing footer + global header controls per 12-point spec: large dark enterprise footer (HubSpot-inspired structure, Karmax branding only), remove language selector + theme toggle from the public header, keep i18n/theme infrastructure intact, strengthen Karmax emerald brand system, responsive at all widths.
+
+Work Log:
+- FOOTER (marketing-footer.tsx — full rewrite): dark enterprise footer with theme-INDEPENDENT tokens (--mkt-footer-bg near-black w/ emerald cast, heading/text/muted/accent/border set, declared once outside :root/.dark so it is always dark). Structure: subtle emerald gradient hairline → mkt-container grid (brand column: accent-tone K logo + Karmax wordmark, one-line description from real product facts, emerald Get started CTA; 4 nav columns: Product / Resources / Company / Solutions) → legal bottom bar (deeper bg, © 2026 Karmax. All rights reserved. + Privacy Policy + Terms of Service + Cookie preferences button). CONTENT HONESTY: active links only to real destinations (feature anchors #/features#f-ai|seo|media|automation|platform, #/pricing, #/blog, #/about, solutions ?for= deep links, legal pages); items whose pages do not exist (Newsletter, Analytics, Sites, Documentation, Help Center, Free Tools, Guides, API/Developer, Contact, Careers, Changelog, Status) render visually INACTIVE (muted, cursor-default, aria-disabled) — no fake routes; social row HIDDEN entirely (no configured Karmax profiles — grep-verified); language selector removed. Responsive: desktop 5-col grid (1.35fr brand + 4×1fr), tablet/mobile 2-col, legal bar wraps cleanly.
+- ROUTER FIX (marketing-site.tsx parseHash): nested-fragment support — '#/features#f-ai' (Chromium normalizes to '#features#f-ai') previously hit the 404 branch (verified broken before the change); now the trailing #anchor is parsed and routed to home+scrollTo, and the initial-load KNOWN-hash filter splits on '#' too. Homepage feature CTAs and footer deep links now land on their sections (f-ai verified at viewport top +112px, f-platform likewise).
+- home-page.tsx: PlatformSection gains id="f-platform" + scroll-mt-28 (makes Integrations/WordPress/REST CMS footer links real destinations — section already existed, only addressable now).
+- HEADER (marketing-header.tsx): LanguageDropdown + ThemeToggle components DELETED (no other importers — verified) along with their imports (Globe/Moon/Sun/Monitor, useTheme, locale store); right cluster is now Log in + Get started only, gap rebalanced (gap-1.5, Log in visible on mobile for a balanced compact bar); header comment documents the design decision.
+- MOBILE MENU (mobile-menu.tsx): language accordion + theme button sections removed with their imports; nav + solutions accordion + CTAs untouched.
+- BRAND SCOPE (globals.css + marketing-site.tsx): new .mkt-brand-scope class on the marketing root re-declares the FULL light token set (base + text + mkt-* incl. .dark-bleed card-hover shadow override) so the public site renders ONE controlled brand appearance even when next-themes resolves dark (stored dashboard session or OS preference) — while the theme provider/.dark tokens/dashboard toggle remain untouched.
+- BRAND SYSTEM (requirement 8): MarketingButton primary variant switched from near-black bg-primary to the Karmax emerald accent (bg-mkt-accent → hover:bg-mkt-accent-strong) matching the signup page's established brand CTA; pricing Monthly/Yearly toggle active segment + savings badge → accent; solutions page icon squares → accent; skip-link → accent. Eyebrows/links/highlights/focus rings were already emerald — now the whole surface reads as one Karmax system (VLM: "very strong, deliberate brand accent").
+- STICKY FOOTER: .mkt-scroll-root is now display:flex/flex-direction:column (main already flex-1) — footer sits at the viewport bottom on short pages and is pushed down naturally by long content (verified gapBelow=0 at 390px and 1440px).
+- i18n (en + fr client-marketing.ts): +16 keys (mkt.footer.company, analytics, sites, documentation, helpCenter, freeTools, guides, api, contact, careers, changelog, status, forTeams, description); removed 7 dead keys (mkt.nav.themeToggle, mkt.nav.changeLanguage, mkt.footer.language, mkt.footer.builtNote, mkt.footer.features, mkt.footer.stripe, mkt.footer.smtp, mkt.footer.aiProviders — count 8 with features); key parity verified programmatically (365 = 365, zero mismatches).
+- primitives.tsx: Logo gains tone?: 'primary' | 'accent' prop (accent = emerald square for dark surfaces, used by the footer; default unchanged for every other surface).
+
+Verification (agent-browser E2E + VLM):
+- Header: no globe icon, no sun/moon, no "English" selector (only legitimate product copy "English fallback" in the localization stat); nav = Features/Pricing/Solutions/Blog/About + Log in + emerald Get started; VLM: "exceptionally clean and balanced… no awkward empty gaps"
+- Footer desktop 1440: VLM "premium enterprise dark footer", 5-column layout, active vs inactive links visibly distinct (computed lab L 68.8 vs 47.3, cursor pointer vs default), no overlap/truncation (the one flagged issue was the undismissed cookie banner overlaying the footer — dismissed, re-verified clean)
+- Legal bar: "© 2026 Karmax. All rights reserved." + Privacy Policy / Terms of Service / Cookie preferences, no truncation (right edge 369px within 1440 viewport)
+- Deep links: footer "AI Content" → #features#f-ai scrolls to the AI block (section top +112px, NOT 404 — previously broken); "For Teams" → solutions page with the content-teams card highlighted; footer "Pricing" → pricing page; footer "Get started" → Create Account
+- Pinned brand appearance: emulated dark OS preference → html.dark true but marketing root bg pure white (VLM: fully light, no mixed elements, only the intentionally dark footer); logged into dashboard, toggled dark, logged out → marketing site STILL light with html.dark present; dashboard theme toggle still flips dark mode (admin infrastructure intact)
+- Mobile menu: no language, no theme — nav + solutions accordion + Get started/Log in only
+- Responsive: tablet 768 (2-col grid, no overflow) and mobile 390 (2-col stacked, docW=390 zero horizontal overflow, legal bar readable) VLM-verified
+- FR locale: footer fully translated (Produit/Ressources/Entreprise/Solutions, "© 2026 Karmax. Tous droits réservés.", Commencer CTA) — i18n architecture works without the visible selector
+- Pricing page: emerald toggle (Monthly/Yearly −17%), all 4 plans load from the API (CHF 9/49/99 + Free), Pro highlighted; VLM: no defects
+- Login page: renders cleanly (split panel + real LoginScreen); Signup page: own chrome intact, form header centered, Google button present, no language/theme
+- Sticky footer: gapBelow = 0px at mobile + desktop; 404/blog/pricing/solutions/login all render with the new footer
+- Brand audit: zero "Sitesmith"/"HubSpot" in rendered text and source (only one unrelated code comment); Karmax everywhere
+- Console/page errors: none; dev.log clean (only normal unauthenticated 401s); eslint: 0 problems in all touched files (repo baseline unchanged); tsc: no new errors in touched files
+- Dashboard regression: quick-login → sidebar + theme toggle + dark mode verified working (untouched by this task)
+
+Stage Summary:
+- Public marketing chrome fully renewed: enterprise dark footer (real-routes-only, honest inactive items, no fake social), language + theme controls removed from every public surface, one pinned light brand appearance, coherent emerald brand system
+- 8 files modified (marketing-footer rewrite, marketing-header, mobile-menu, marketing-site, home-page, content-pages, pricing-page, primitives) + globals.css + 2 i18n fragments; 0 new files
+- Bonus fixes: nested-hash deep links repaired (were silently 404ing), f-platform anchor added, sticky-footer flex layout
+- Zero changes to auth, payment, subscription, webhook, plan, or dashboard logic; i18n + theme infrastructure fully preserved (verified: FR renders, dashboard toggle works)
+- Ready to commit as MKT-CHROME-1

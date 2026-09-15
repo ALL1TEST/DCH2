@@ -404,7 +404,11 @@ function PlatformSection() {
   ];
 
   return (
-    <section className="mkt-section" aria-labelledby="platform-heading">
+    <section
+      id="f-platform"
+      aria-labelledby="platform-heading"
+      className="mkt-section scroll-mt-28"
+    >
       <div className="mkt-container">
         <Reveal>
           <SectionHeader

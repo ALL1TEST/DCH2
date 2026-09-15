@@ -74,8 +74,13 @@ function parseHash(hash: string): Route {
   // NOT collide with dashboard module hashes — and only one of the
   // two trees is ever mounted (marketing = unauthenticated,
   // dashboard = authenticated).
+  //
+  // A trailing "#anchor" is also supported (Chromium keeps it in
+  // the fragment: '#/features#f-ai' → '#features#f-ai'), which
+  // lets the footer deep-link to a specific home-page section.
   const raw = hash.replace(/^#\/?/, '');
-  const [path, query] = raw.split('?');
+  const anchor = raw.includes('#') ? (raw.split('#')[1] ?? null) : null;
+  const [path, query] = raw.split('#')[0].split('?');
   const parts = path.split('/').filter(Boolean);
 
   if (parts.length === 0) return { name: 'home' };
@@ -107,8 +112,10 @@ function parseHash(hash: string): Route {
     case 'terms':
       return { name: 'terms' };
     case 'features':
-      // Features live on the home page as anchor sections
-      return { name: 'home', scrollTo: 'features-list' };
+      // Features live on the home page as anchor sections —
+      // '#/features' scrolls to the list, '#/features#f-ai' to a
+      // specific feature block (unknown anchors fall back to top).
+      return { name: 'home', scrollTo: anchor ?? 'features-list' };
     default:
       return { name: 'notfound' };
   }
@@ -129,8 +136,9 @@ export function MarketingSite() {
     if (h === '') return '';
     // Keep ONLY known marketing hashes — a dashboard hash left over
     // from a pre-logout session (e.g. '#settings') shows the home
-    // page instead of "not found".
-    const firstSeg = h.replace(/^#\/?/, '').split(/[/?]/)[0];
+    // page instead of "not found". (Split on '#' too so a nested
+    // deep link like '#features#f-ai' still resolves.)
+    const firstSeg = h.replace(/^#\/?/, '').split(/[/?#]/)[0];
     const KNOWN = ['pricing', 'blog', 'about', 'solutions', 'login', 'signup', 'checkout', 'privacy', 'terms', 'features'];
     return KNOWN.includes(firstSeg) ? h : '';
   });
@@ -222,11 +230,11 @@ export function MarketingSite() {
   const isSignup = route.name === 'signup';
 
   return (
-    <div className="mkt-scroll-root" data-testid="marketing-root">
+    <div className="mkt-scroll-root mkt-brand-scope" data-testid="marketing-root">
       {/* Accessibility: skip link */}
       <a
         href="#mkt-main"
-        className="mkt-skip-link mkt-focus rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+        className="mkt-skip-link mkt-focus rounded-full bg-mkt-accent px-4 py-2 text-sm font-medium text-mkt-accent-fg"
       >
         {t('mkt.nav.skipToContent')}
       </a>

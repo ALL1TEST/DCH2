@@ -266,14 +266,14 @@ export function PricingPage() {
                       aria-checked={active}
                       onClick={() => setYearly(mode === 'yearly')}
                       className={`mkt-focus inline-flex h-9 items-center gap-2 rounded-full px-4 text-sm font-medium transition-all ${
-                        active ? 'bg-primary text-primary-foreground' : 'text-text-secondary hover:text-text-primary'
+                        active ? 'bg-mkt-accent text-mkt-accent-fg' : 'text-text-secondary hover:text-text-primary'
                       }`}
                     >
                       {mode === 'monthly' ? t('mkt.pricing.monthly') : t('mkt.pricing.yearly')}
                       {mode === 'yearly' && yearlySavings > 0 && (
                         <span
                           className={`rounded-full px-2 py-0.5 text-[0.625rem] font-semibold ${
-                            active ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-mkt-accent-soft text-mkt-accent-soft-fg'
+                            active ? 'bg-mkt-accent-fg/20 text-mkt-accent-fg' : 'bg-mkt-accent-soft text-mkt-accent-soft-fg'
                           }`}
                         >
                           -{yearlySavings}%

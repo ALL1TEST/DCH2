@@ -203,7 +203,7 @@ export function SolutionsPage({ focus }: { focus?: string | null }) {
                 >
                   <div className="grid gap-6 lg:grid-cols-[1fr_1.1fr] lg:gap-12">
                     <div className="flex flex-col items-start gap-4">
-                      <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+                      <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-mkt-accent text-mkt-accent-fg">
                         <Icon className="h-5 w-5" aria-hidden="true" />
                       </span>
                       <h2 className="mkt-h2 text-2xl text-text-primary">{t(s.titleKey)}</h2>

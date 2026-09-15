@@ -29,14 +29,19 @@ export function useMounted(): boolean {
 // quiet. Scales from 20px to 48px contexts. Pure SVG
 // (theme-aware via currentColor).
 // variant 'S' = the default house mark; variant 'K' = the
-// Karmax presentation used by the Create Account page.
+// Karmax presentation used by the public site.
+// tone 'primary' = near-black square (default, light surfaces);
+// tone 'accent'  = Karmax emerald square (dark surfaces such as
+//                  the always-dark enterprise footer).
 
 export function Logo({
   className = 'h-7 w-7',
   variant = 'S',
+  tone = 'primary',
 }: {
   className?: string;
   variant?: 'S' | 'K';
+  tone?: 'primary' | 'accent';
 }) {
   return (
     <svg
@@ -45,12 +50,17 @@ export function Logo({
       aria-hidden="true"
       className={className}
     >
-      <rect width="32" height="32" rx="8" className="fill-primary" />
+      <rect
+        width="32"
+        height="32"
+        rx="8"
+        className={tone === 'accent' ? 'fill-mkt-accent' : 'fill-primary'}
+      />
       {variant === 'S' ? (
         <path
           d="M20.5 9.5h-7a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7h-7"
           stroke="currentColor"
-          className="text-primary-foreground"
+          className={tone === 'accent' ? 'text-mkt-accent-fg' : 'text-primary-foreground'}
           strokeWidth="2.4"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -59,7 +69,7 @@ export function Logo({
         <path
           d="M11.5 9v14M21 9.5l-9.5 6.5 9.5 6.5"
           stroke="currentColor"
-          className="text-primary-foreground"
+          className={tone === 'accent' ? 'text-mkt-accent-fg' : 'text-primary-foreground'}
           strokeWidth="2.4"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -90,9 +100,10 @@ export function LogoWordmark({
 }
 
 // -------------------- Buttons --------------------
-// Primary: dark, pill, hover shadow + arrow slides.
-// Secondary: transparent w/ border, same height/radius.
-// Both render <a> (marketing navigation is link-shaped).
+// Primary: the Karmax brand action — emerald pill, darkening
+// hover, soft shadow + arrow slides. Secondary: transparent
+// w/ border, same height/radius. Ghost: quiet text link.
+// Both rendered <a> (marketing navigation is link-shaped).
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost';
 
@@ -105,7 +116,7 @@ interface MarketingButtonProps extends React.AnchorHTMLAttributes<HTMLAnchorElem
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    'bg-primary text-primary-foreground hover:opacity-90 shadow-[0_1px_2px_rgb(0_0_0/0.06)] hover:shadow-[0_4px_16px_-4px_rgb(0_0_0/0.25)]',
+    'bg-mkt-accent text-mkt-accent-fg hover:bg-mkt-accent-strong shadow-[0_1px_2px_rgb(0_0_0/0.06)] hover:shadow-[0_4px_16px_-4px_rgb(0_0_0/0.25)]',
   secondary:
     'bg-transparent text-text-primary border border-border hover:border-muted-foreground/50 hover:bg-muted/40',
   ghost: 'bg-transparent text-text-secondary hover:text-text-primary',

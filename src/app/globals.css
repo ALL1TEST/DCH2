@@ -350,6 +350,23 @@
   --mkt-code-fg: oklch(0.92 0.005 120);
 }
 
+/* ---- Enterprise footer palette (theme-INDEPENDENT) ----
+   The public footer is always dark — the same premium near-black
+   surface in every appearance — so these values are declared once
+   (outside :root/.dark) with a faint emerald cast that ties the
+   surface to the Karmax brand accent. */
+:root {
+  --mkt-footer-bg: oklch(0.185 0.012 170);            /* near-black, emerald cast */
+  --mkt-footer-bg-deep: oklch(0.155 0.01 170);        /* legal bottom bar */
+  --mkt-footer-border: oklch(1 0 0 / 9%);             /* subtle dividers */
+  --mkt-footer-heading: oklch(0.975 0.002 170);       /* column titles */
+  --mkt-footer-text: oklch(0.73 0.008 170);           /* links */
+  --mkt-footer-text-active: oklch(0.99 0 0);          /* hover */
+  --mkt-footer-muted: oklch(0.545 0.008 170);         /* inactive items, copyright */
+  --mkt-footer-accent: oklch(0.765 0.177 163.223);    /* emerald brand accent */
+  --mkt-footer-accent-soft: oklch(0.765 0.177 163.223 / 14%);
+}
+
 @theme inline {
   --color-mkt-accent: var(--mkt-accent);
   --color-mkt-accent-strong: var(--mkt-accent-strong);
@@ -361,15 +378,81 @@
   --color-mkt-surface-2: var(--mkt-surface-2);
   --color-mkt-code-bg: var(--mkt-code-bg);
   --color-mkt-code-fg: var(--mkt-code-fg);
+  --color-mkt-footer-bg: var(--mkt-footer-bg);
+  --color-mkt-footer-bg-deep: var(--mkt-footer-bg-deep);
+  --color-mkt-footer-border: var(--mkt-footer-border);
+  --color-mkt-footer-heading: var(--mkt-footer-heading);
+  --color-mkt-footer-text: var(--mkt-footer-text);
+  --color-mkt-footer-text-active: var(--mkt-footer-text-active);
+  --color-mkt-footer-muted: var(--mkt-footer-muted);
+  --color-mkt-footer-accent: var(--mkt-footer-accent);
+  --color-mkt-footer-accent-soft: var(--mkt-footer-accent-soft);
+}
+
+/* ---- Public brand appearance lock (`.mkt-brand-scope`) ----
+   The public marketing website presents ONE controlled brand
+   appearance. The visitor-facing theme toggle was removed, so this
+   scope re-declares the full LIGHT token set inside the marketing
+   root — even when next-themes resolves a dark <html> from a
+   previous dashboard session or OS preference. The underlying
+   theme infrastructure (provider, .dark tokens, admin toggle)
+   remains fully intact for authenticated areas. */
+.mkt-brand-scope {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+
+  --text-primary: oklch(0.145 0 0);
+  --text-secondary: oklch(0.371 0 0);
+  --text-muted: oklch(0.556 0 0);
+
+  --mkt-accent: oklch(0.596 0.145 163.225);
+  --mkt-accent-strong: oklch(0.508 0.118 165.612);
+  --mkt-accent-fg: oklch(0.985 0 0);
+  --mkt-accent-soft: oklch(0.979 0.021 166.113);
+  --mkt-accent-soft-fg: oklch(0.377 0.074 169.36);
+  --mkt-accent-border: oklch(0.929 0.032 163.051);
+  --mkt-surface: oklch(0.992 0 0);
+  --mkt-surface-2: oklch(0.975 0.002 120);
+  --mkt-grid-line: oklch(0.922 0 0 / 55%);
+  --mkt-hero-glow: oklch(0.696 0.17 162.48 / 10%);
+  --mkt-code-bg: oklch(0.205 0 0);
+  --mkt-code-fg: oklch(0.95 0.005 120);
+}
+
+/* The `.dark`-scoped hover shadow would otherwise bleed into the
+   pinned-light marketing scope — re-assert the light shadow. */
+.mkt-brand-scope .mkt-card-hover:hover {
+  box-shadow: 0 12px 32px -12px oklch(0.205 0 0 / 14%);
 }
 
 /* ---- Marketing layout utilities ---- */
 
 /* Page scroll container — the app locks html/body scrolling (the
    dashboard shell scrolls in <main>); the marketing site mounts its
-   own document-like scroll root so long pages scroll normally. */
+   own document-like scroll root so long pages scroll normally.
+   Flex column so the footer always sits at the bottom of the
+   viewport on short pages (main is flex-1) and is pushed down
+   naturally by longer content. */
 .mkt-scroll-root {
   height: 100svh;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   scroll-behavior: smooth;
   background: var(--background);
@@ -471,6 +554,14 @@
 /* Focus visibility — marketing links/buttons */
 .mkt-focus:focus-visible {
   outline: 2px solid var(--mkt-accent);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
+/* Focus visibility — always-dark footer (brighter accent so the
+   ring reads on the near-black surface) */
+.mkt-footer-focus:focus-visible {
+  outline: 2px solid var(--mkt-footer-accent);
   outline-offset: 2px;
   border-radius: inherit;
 }

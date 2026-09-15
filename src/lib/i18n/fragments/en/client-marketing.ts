@@ -28,8 +28,6 @@ export const clientMarketingEn: Record<string, string> = {
   'mkt.nav.menu': 'Menu',
   'mkt.nav.openMenu': 'Open menu',
   'mkt.nav.closeMenu': 'Close menu',
-  'mkt.nav.themeToggle': 'Toggle theme',
-  'mkt.nav.changeLanguage': 'Change language',
   'mkt.nav.skipToContent': 'Skip to content',
 
   // ---- Solutions dropdown ----
@@ -403,31 +401,42 @@ export const clientMarketingEn: Record<string, string> = {
   'mkt.cta.secondary': 'View pricing',
 
   // ---- Footer ----
+  // (enterprise footer: active links point at real pages/sections;
+  //  items without a destination yet render visually inactive)
+  'mkt.footer.description':
+    'The multi-site content platform — AI writing, SEO, media and automation, connected to WordPress or any REST CMS.',
   'mkt.footer.product': 'Product',
-  'mkt.footer.features': 'Features',
   'mkt.footer.pricing': 'Pricing',
   'mkt.footer.solutions': 'Solutions',
   'mkt.footer.integrations': 'Integrations',
   'mkt.footer.wordpress': 'WordPress',
   'mkt.footer.restCms': 'Any REST CMS',
-  'mkt.footer.stripe': 'Stripe billing',
-  'mkt.footer.smtp': 'SMTP email',
-  'mkt.footer.aiProviders': 'AI providers',
   'mkt.footer.featureAi': 'AI Content',
   'mkt.footer.featureSeo': 'SEO Suite',
   'mkt.footer.featureAutomation': 'Automation',
   'mkt.footer.featureMedia': 'Media Library',
   'mkt.footer.featureNewsletter': 'Newsletter',
+  'mkt.footer.analytics': 'Analytics',
+  'mkt.footer.sites': 'Sites',
   'mkt.footer.resources': 'Resources',
   'mkt.footer.blog': 'Blog',
+  'mkt.footer.documentation': 'Documentation',
+  'mkt.footer.helpCenter': 'Help Center',
+  'mkt.footer.freeTools': 'Free Tools',
+  'mkt.footer.guides': 'Guides',
+  'mkt.footer.api': 'API / Developer',
+  'mkt.footer.company': 'Company',
   'mkt.footer.about': 'About',
+  'mkt.footer.contact': 'Contact',
+  'mkt.footer.careers': 'Careers',
+  'mkt.footer.changelog': 'Changelog',
+  'mkt.footer.status': 'Status',
+  'mkt.footer.forTeams': 'For Teams',
   'mkt.footer.legal': 'Legal',
   'mkt.footer.privacy': 'Privacy Policy',
   'mkt.footer.terms': 'Terms of Service',
   'mkt.footer.cookiePrefs': 'Cookie preferences',
   'mkt.footer.rights': 'All rights reserved.',
-  'mkt.footer.language': 'Language',
-  'mkt.footer.builtNote': 'Runs on Karmax — of course.',
 
   // ---- Cookie banner ----
   'mkt.cookie.title': 'Your privacy matters',

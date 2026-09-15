@@ -49,7 +49,7 @@ const QUICK_ACCOUNTS = [
 // Translated quick-account label (identity for the pending spinner).
 const quickLabel = (a: (typeof QUICK_ACCOUNTS)[number], t: (k: string) => string) => t(a.labelKey);
 
-export function LoginScreen() {
+export function LoginScreen({ embedded = false }: { embedded?: boolean }) {
   const login = useAuthStore((s) => s.login);
   const isLoading = useAuthStore((s) => s.isLoading);
   const error = useAuthStore((s) => s.error);
@@ -97,22 +97,30 @@ export function LoginScreen() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted p-4">
-      <div className="w-full max-w-sm">
+    <div
+      className={
+        embedded
+          ? 'w-full'
+          : 'min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted p-4'
+      }
+    >
+      <div className="w-full max-w-sm mx-auto">
         <Card className="border-0 shadow-lg">
-          <CardHeader className="text-center space-y-3 pb-2">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-xl">
-              C
-            </div>
-            <div>
-              <CardTitle className="text-xl">{t('auth.welcomeBack')}</CardTitle>
-              <CardDescription className="mt-1.5">
-                {t('auth.signInSubtitle')}
-              </CardDescription>
-            </div>
-          </CardHeader>
+          {!embedded && (
+            <CardHeader className="text-center space-y-3 pb-2">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-xl">
+                C
+              </div>
+              <div>
+                <CardTitle className="text-xl">{t('auth.welcomeBack')}</CardTitle>
+                <CardDescription className="mt-1.5">
+                  {t('auth.signInSubtitle')}
+                </CardDescription>
+              </div>
+            </CardHeader>
+          )}
 
-          <CardContent>
+          <CardContent className={embedded ? 'pt-6' : undefined}>
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
                 <Alert variant="destructive">

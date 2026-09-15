@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useSiteStore } from '@/lib/stores/site-store';
 import { useNavigationStore } from '@/lib/stores/navigation-store';
-import { LoginScreen } from './login-screen';
+import { MarketingSite } from '@/components/marketing/marketing-site';
 import { AppSidebar } from './sidebar';
 import { Topbar } from './topbar';
 import { CommandPalette } from '@/components/patterns/command-palette';
@@ -67,7 +67,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   }
 
   if (!isAuthenticated) {
-    return <LoginScreen />;
+    // PUBLIC MARKETING SITE — the unauthenticated surface is the
+    // full marketing website (home / pricing / blog / about /
+    // solutions / legal) with the login experience at #/login
+    // (the LoginScreen itself is embedded there, auth logic
+    // untouched). On successful login the auth store flips and
+    // this shell re-renders into the dashboard below.
+    return <MarketingSite />;
   }
 
   return (

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -12,26 +12,61 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// ---- Sitesmith product identity -------------------------------------
+// The public brand of this product. All marketing surfaces (metadata,
+// header logo, footer copyright, OG cards) read THIS constant so the
+// name lives in exactly one place.
+export const SITE_NAME = "Sitesmith";
+export const SITE_TAGLINE = "Craft content that ranks.";
+export const SITE_DESCRIPTION =
+  "Sitesmith is the multi-site content platform with AI writing, a full SEO suite, and workflow automation — connect WordPress or any REST CMS and publish from one calm dashboard.";
+
 export const metadata: Metadata = {
-  title: "Z.ai Code Scaffold - AI-Powered Development",
-  description: "Modern Next.js scaffold optimized for AI-powered development with Z.ai. Built with TypeScript, Tailwind CSS, and shadcn/ui.",
-  keywords: ["Z.ai", "Next.js", "TypeScript", "Tailwind CSS", "shadcn/ui", "AI development", "React"],
-  authors: [{ name: "Z.ai Team" }],
+  title: {
+    default: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    template: `%s — ${SITE_NAME}`,
+  },
+  description: SITE_DESCRIPTION,
+  keywords: [
+    "Sitesmith",
+    "CMS",
+    "content platform",
+    "AI writing",
+    "SEO suite",
+    "content automation",
+    "WordPress",
+    "multi-site",
+    "newsletter",
+  ],
+  authors: [{ name: `${SITE_NAME} Team` }],
+  applicationName: SITE_NAME,
   icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
+    icon: "/logo.svg",
   },
   openGraph: {
-    title: "Z.ai Code Scaffold",
-    description: "AI-powered development with modern React stack",
-    url: "https://chat.z.ai",
-    siteName: "Z.ai",
+    title: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    description: SITE_DESCRIPTION,
+    siteName: SITE_NAME,
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Z.ai Code Scaffold",
-    description: "AI-powered development with modern React stack",
+    title: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    description: SITE_DESCRIPTION,
   },
+  robots: {
+    index: true,
+    follow: true,
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+  ],
 };
 
 export default function RootLayout({

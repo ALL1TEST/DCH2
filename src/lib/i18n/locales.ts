@@ -78,6 +78,7 @@ import { clientAuditEn } from './fragments/en/client-audit';
 import { clientJobsEn } from './fragments/en/client-jobs';
 import { clientTaxonomyEn } from './fragments/en/client-taxonomy';
 import { clientSeoEn } from './fragments/en/client-seo';
+import { clientMarketingEn } from './fragments/en/client-marketing';
 import { clientTasksEn } from './fragments/en/client-tasks';
 import { clientEditorEn } from './fragments/en/client-editor';
 import { platformAEn } from './fragments/en/platform-a';
@@ -93,6 +94,7 @@ import { clientAuditFr } from './fragments/fr/client-audit';
 import { clientJobsFr } from './fragments/fr/client-jobs';
 import { clientTaxonomyFr } from './fragments/fr/client-taxonomy';
 import { clientSeoFr } from './fragments/fr/client-seo';
+import { clientMarketingFr } from './fragments/fr/client-marketing';
 import { clientTasksFr } from './fragments/fr/client-tasks';
 import { clientEditorFr } from './fragments/fr/client-editor';
 import { platformAFr } from './fragments/fr/platform-a';
@@ -155,6 +157,7 @@ const en: Record<string, string> = {
   ...clientJobsEn,
   ...clientTaxonomyEn,
   ...clientSeoEn,
+  ...clientMarketingEn,
   ...clientTasksEn,
   ...clientEditorEn,
   ...platformAEn,
@@ -174,6 +177,7 @@ const fr: Record<string, string> = {
   ...clientJobsFr,
   ...clientTaxonomyFr,
   ...clientSeoFr,
+  ...clientMarketingFr,
   ...clientTasksFr,
   ...clientEditorFr,
   ...platformAFr,

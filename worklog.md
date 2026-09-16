@@ -11532,3 +11532,37 @@ Stage Summary:
 - Bonus fixes: nested-hash deep links repaired (were silently 404ing), f-platform anchor added, sticky-footer flex layout
 - Zero changes to auth, payment, subscription, webhook, plan, or dashboard logic; i18n + theme infrastructure fully preserved (verified: FR renders, dashboard toggle works)
 - Ready to commit as MKT-CHROME-1
+
+---
+Task ID: MKT-FOOTER-2
+Agent: main (orchestrator)
+Task: Clone the footer layout pattern of hubspot.com for the Karmax marketing footer (user request: "clone foter this site"). Structure/visual pattern only — all content remains Karmax's real routes, brand, and copy per the established content-honesty rules.
+
+Work Log:
+- Analyzed the reference footer at desktop 1440 and mobile 390 (structural pattern only, no content copied): near-black bg, nav band of 5 columns with large light medium-weight headings (22px) + small dimmed links (12px), phone breakpoint collapses nav groups into chevron accordions (collapsed by default), flex legal bar (copyright left + legal links right)
+- marketing-footer.tsx restructured to match the pattern:
+  - Typography: column headings 13px semibold → 22px (text-[1.375rem]) font-medium leading-snug; links 13px → 12px (text-xs) leading-6 with gap-1 rows
+  - Desktop (lg+): unchanged 5-col grid (brand + Product/Resources/Company/Solutions)
+  - Tablet (sm–lg): 2-col static grid (brand spans both columns)
+  - Phone (<sm): NEW collapsible accordion groups — heading button + ChevronDown, collapsed by default, grid-template-rows 0fr→1fr height animation, inert on collapsed regions (a11y-safe tab-order removal), border-t separators, 62px touch rows; brand block (logo/description/CTA) and legal stack remain
+  - Legal bar: py-6 → py-7; keeps "© 2026 Karmax. All rights reserved." + Privacy Policy / Terms of Service / Cookie preferences (real destinations only)
+  - Removed the emerald gradient hairline at the footer top (flat near-black start like the reference pattern)
+  - Extracted BrandBlock / AccordionGroup / FooterLinkList local components; two sub-layouts (mobile accordion stack vs sm+ grid) replace the single col-span-juggling grid
+  - Social row: still omitted — Karmax has no configured social profiles (honesty rule), comment documents where to add it
+- No i18n changes needed (all keys existed); no CSS token changes (Karmax emerald/dark palette kept — not the reference's warm neutrals)
+
+Verification (agent-browser E2E + VLM):
+- Desktop 1440: 4 static columns + brand column, headings 22px/500, links 12px, 4 accordion buttons in DOM but 0 visible, docW=1440 no overflow; VLM review 9.5/10 "production-ready, flawless layout, perfect typography/grid alignment"
+- Tablet 768: 2-col grid (5 visible navs incl. legal), gridCols 332px/332px, no overflow, footerH 1009
+- Mobile 390: 4 accordion groups collapsed (aria-expanded=false, 62px rows), docW=390 zero horizontal overflow; expanding Product → region 277px tall with links visible; other collapsed groups inert=true
+- Mobile navigation: accordion "Pricing" link → #/pricing (document title becomes "Simple, transparent pricing. — Karmax") ✓
+- Desktop deep link: footer "AI Content" → #features#f-ai scrolls the section to viewport top (+112px) ✓
+- Sticky footer: short 404 page → at scroll-root bottom the footer bottom edge is exactly at the viewport bottom (gapBelow=0, no floating gap); long pages (about) push the footer down naturally
+- FR locale: Produit/Ressources/Entreprise/Solutions + "© 2026 Karmax. Tous droits réservés." + translated links; locale restored to EN afterwards
+- Cookie preferences link: DOM-measured fully within viewport (right edge 364 < 390, no clipping — VLM's flag was the dev-only Next.js tools badge overlaying the screenshot, not a product element)
+- Console/page errors: none; dev.log clean; eslint 0 problems on the whole marketing tree; single file changed (127 insertions, 59 deletions)
+
+Stage Summary:
+- Footer now follows the reference's enterprise layout pattern (dark multi-column nav band, large light headings, small dim links, phone accordions, flex legal bar) while keeping 100% Karmax content: real routes only, honest inactive items, no fake socials, Karmax brand palette and copyright format
+- 1 file modified (marketing-footer.tsx); zero backend/i18n/token/route changes
+- Ready to commit as MKT-FOOTER-2

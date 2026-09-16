@@ -394,12 +394,15 @@ export const clientMarketingFr: Record<string, string> = {
   'mkt.cta.secondary': 'Voir les tarifs',
 
   // ---- Pied de page ----
-  'mkt.footer.ctaTitle': 'Prêt à simplifier la gestion de vos sites ?',
-  'mkt.footer.ctaSubtitle':
-    'Rejoignez des milliers de créateurs qui utilisent Karmax pour piloter leurs sites depuis un tableau de bord apaisé.',
-  'mkt.footer.ctaPrimary': 'Commencer gratuitement',
-  'mkt.footer.ctaSecondary': 'Planifier une démo',
+  // (footer architecture HubSpot : grille de navigation 4 colonnes
+  //  avec le groupe Fonctionnalités populaires en 2 sous-colonnes,
+  //  rangée sociale entre filets, logo centré + copyright + liens
+  //  légaux séparés par des barres verticales ; les liens actifs
+  //  pointent vers de vraies pages/sections, les éléments sans
+  //  destination sont affichés inactifs)
+  'mkt.footer.navigation': 'Pied de page',
   'mkt.footer.popularFeatures': 'Fonctionnalités populaires',
+  'mkt.footer.allFeatures': 'Toutes les fonctionnalités',
   'mkt.footer.aiWriting': 'Rédaction assistée par IA',
   'mkt.footer.seoSuite': 'Suite SEO',
   'mkt.footer.mediaManagement': 'Gestion des médias',
@@ -416,8 +419,11 @@ export const clientMarketingFr: Record<string, string> = {
   'mkt.footer.careers': 'Carrières',
   'mkt.footer.managementTeam': 'Équipe de direction',
   'mkt.footer.investorRelations': 'Relations investisseurs',
+  'mkt.footer.blog': 'Blog',
   'mkt.footer.contactUs': 'Nous contacter',
   'mkt.footer.customers': 'Clients',
+  'mkt.footer.customerSupport': 'Assistance clientèle',
+  'mkt.footer.joinUserGroup': "Rejoindre un groupe d'utilisateurs local",
   'mkt.footer.customerStories': 'Témoignages clients',
   'mkt.footer.community': 'Communauté',
   'mkt.footer.userGroups': "Groupes d'utilisateurs",
@@ -427,16 +433,20 @@ export const clientMarketingFr: Record<string, string> = {
   'mkt.footer.findAPartner': 'Trouver un partenaire',
   'mkt.footer.marketplace': 'Marketplace',
   'mkt.footer.legal': 'Légal',
+  'mkt.footer.legalCenter': 'Centre juridique',
   'mkt.footer.privacy': 'Politique de confidentialité',
   'mkt.footer.terms': "Conditions d'utilisation",
+  'mkt.footer.security': 'Sécurité',
+  'mkt.footer.accessibility': 'Accessibilité du site',
   'mkt.footer.cookiePrefs': 'Paramètres des cookies',
-  'mkt.footer.rights': 'Tous droits réservés.',
-  'mkt.footer.changeLanguage': 'Changer de langue',
   'mkt.footer.social': 'Réseaux sociaux',
+  'mkt.footer.socialFacebook': 'Karmax sur Facebook',
+  'mkt.footer.socialInstagram': 'Karmax sur Instagram',
+  'mkt.footer.socialYouTube': 'Karmax sur YouTube',
   'mkt.footer.socialX': 'Karmax sur X (Twitter)',
   'mkt.footer.socialLinkedIn': 'Karmax sur LinkedIn',
-  'mkt.footer.socialGitHub': 'Karmax sur GitHub',
-  'mkt.footer.socialYouTube': 'Karmax sur YouTube',
+  'mkt.footer.socialReddit': 'Karmax sur Reddit',
+  'mkt.footer.socialTikTok': 'Karmax sur TikTok',
 
   // ---- Bandeau cookies ----
   'mkt.cookie.title': 'Votre vie privée compte',
@@ -501,6 +511,46 @@ export const clientMarketingFr: Record<string, string> = {
   'mkt.terms.liabilityTitle': 'Responsabilité',
   'mkt.terms.liabilityBody':
     'Le service est fourni « en l’état ». Nous travaillons dur sur la fiabilité — sauvegardes, supervision, disponibilité honnête — mais nous ne sommes pas responsables des dommages indirects ou de la perte de profits.',
+
+  // ---- Page Sécurité ----
+  'mkt.security.title': 'La sécurité chez Karmax',
+  'mkt.security.intro':
+    'Comment nous protégeons votre compte, vos contenus et les données de vos lecteurs — décrit honnêtement, d’après ce que la plateforme fait réellement aujourd’hui.',
+  'mkt.security.accountsTitle': 'Comptes et connexion',
+  'mkt.security.accountsBody':
+    'Les comptes Karmax se connectent avec une adresse e-mail et un mot de passe, ou avec Google. Les sessions prennent fin à la déconnexion, et vous pouvez consulter les détails de votre compte depuis votre profil à tout moment.',
+  'mkt.security.dataTitle': 'Protection des données',
+  'mkt.security.dataBody':
+    'Le trafic entre votre navigateur et Karmax transite par des connexions HTTPS chiffrées. Chaque site géré conserve ses contenus, médias et réglages dans votre espace de travail, séparé des autres sites.',
+  'mkt.security.backupsTitle': 'Sauvegardes et restauration',
+  'mkt.security.backupsBody':
+    'Vous pouvez sauvegarder un site à la demande ou selon un calendrier récurrent, télécharger ou archiver les sauvegardes à l’extérieur, consulter le journal détaillé de chaque exécution et restaurer un site depuis une sauvegarde au besoin.',
+  'mkt.security.auditTitle': 'Journal d’audit et autorisations',
+  'mkt.security.auditBody':
+    'Les activités importantes du compte sont consignées dans le journal d’audit, et l’accès de vos coéquipiers est contrôlé utilisateur par utilisateur via des rôles — vous savez toujours qui a fait quoi.',
+  'mkt.security.reportTitle': 'Divulgation responsable',
+  'mkt.security.reportBody':
+    'Si vous pensez avoir trouvé un problème de sécurité dans Karmax, signalez-le-nous via un canal officiel listé sur ce site afin que nous puissions l’examiner et le corriger. Nous demandons un délai raisonnable avant toute divulgation publique.',
+
+  // ---- Page Accessibilité ----
+  'mkt.a11y.intro':
+    'Notre engagement pour que ce site reste utilisable par tous, et comment nous y travaillons.',
+  'mkt.a11y.keyboardTitle': 'Navigation au clavier',
+  'mkt.a11y.keyboardBody':
+    'Chaque élément interactif — liens, boutons, menus et formulaires — est accessible et actionnable au clavier seul, et l’élément actif est toujours clairement mis en évidence.',
+  'mkt.a11y.motionTitle': 'Réduction des animations',
+  'mkt.a11y.motionBody':
+    'Le site respecte la préférence « réduire les animations » de votre système : les animations d’entrée et le défilement fluide sont automatiquement atténués.',
+  'mkt.a11y.contrastTitle': 'Lisibilité des couleurs',
+  'mkt.a11y.contrastBody':
+    'Nous concevons avec une palette de texte à fort contraste sur une échelle typographique cohérente, et nous continuons de tester nos couples de couleurs par rapport aux cibles WCAG AA.',
+  'mkt.a11y.feedbackTitle': 'Vos retours',
+  'mkt.a11y.feedbackBody':
+    'Si un élément de ce site vous est difficile à utiliser, nous voulons le savoir — écrivez-nous via n’importe quel canal officiel Karmax et nous ferons de notre mieux pour corriger.',
+
+  // ---- Page Centre juridique ----
+  'mkt.legal.intro':
+    'Les politiques et informations juridiques de la plateforme Karmax, au même endroit.',
 
     'mkt.plan.free.desc': 'Pour bien démarrer — vos premiers sites, l’éditeur complet et les bases du SEO.',
   'mkt.plan.plus.desc': 'Pour les blogueurs en croissance — l’écriture IA et plus de sites sur un seul compte.',

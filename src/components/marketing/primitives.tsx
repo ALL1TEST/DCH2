@@ -31,8 +31,8 @@ export function useMounted(): boolean {
 // variant 'S' = the default house mark; variant 'K' = the
 // Karmax presentation used by the public site.
 // tone 'primary' = near-black square (default, light surfaces);
-// tone 'accent'  = Karmax emerald square (dark surfaces such as
-//                  the always-dark enterprise footer).
+// tone 'accent'  = Karmax brand-orange square (dark surfaces such
+//                  as the always-dark enterprise footer).
 
 export function Logo({
   className = 'h-7 w-7',
@@ -100,7 +100,7 @@ export function LogoWordmark({
 }
 
 // -------------------- Buttons --------------------
-// Primary: the Karmax brand action — emerald pill, darkening
+// Primary: the Karmax brand action — orange pill, darkening
 // hover, soft shadow + arrow slides. Secondary: transparent
 // w/ border, same height/radius. Ghost: quiet text link.
 // Both rendered <a> (marketing navigation is link-shaped).
@@ -119,7 +119,7 @@ interface MarketingButtonProps extends React.AnchorHTMLAttributes<HTMLAnchorElem
 
 function variantClasses(variant: ButtonVariant, onDark: boolean): string {
   if (onDark && variant === 'secondary') {
-    return 'bg-transparent text-mkt-footer-heading border border-mkt-footer-border-strong hover:border-slate-300/60 hover:bg-white/10';
+    return 'bg-transparent text-mkt-footer-heading border border-mkt-footer-border-strong hover:border-white/45 hover:bg-white/10';
   }
   if (onDark && variant === 'ghost') {
     return 'bg-transparent text-mkt-footer-text hover:text-mkt-footer-heading';

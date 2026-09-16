@@ -401,15 +401,14 @@ export const clientMarketingEn: Record<string, string> = {
   'mkt.cta.secondary': 'View pricing',
 
   // ---- Footer ----
-  // (enterprise footer: CTA banner + 5 nav columns + bottom bar;
-  //  active links point at real pages/sections, items without a
-  //  destination yet render visually inactive)
-  'mkt.footer.ctaTitle': 'Ready to simplify your site management?',
-  'mkt.footer.ctaSubtitle':
-    'Join thousands of creators using Karmax to run their sites from one calm dashboard.',
-  'mkt.footer.ctaPrimary': 'Get started free',
-  'mkt.footer.ctaSecondary': 'Schedule Demo',
+  // (HubSpot-architecture footer: 4-column nav grid with a
+  //  two-sub-column Popular Features group, social row between
+  //  hairlines, centered logo + copyright + pipe-separated legal
+  //  links; active links point at real pages/sections, items
+  //  without a destination yet render visually inactive)
+  'mkt.footer.navigation': 'Footer',
   'mkt.footer.popularFeatures': 'Popular Features',
+  'mkt.footer.allFeatures': 'All Features',
   'mkt.footer.aiWriting': 'AI-Assisted Writing',
   'mkt.footer.seoSuite': 'SEO Suite',
   'mkt.footer.mediaManagement': 'Media Management',
@@ -426,8 +425,11 @@ export const clientMarketingEn: Record<string, string> = {
   'mkt.footer.careers': 'Careers',
   'mkt.footer.managementTeam': 'Management Team',
   'mkt.footer.investorRelations': 'Investor Relations',
+  'mkt.footer.blog': 'Blog',
   'mkt.footer.contactUs': 'Contact Us',
   'mkt.footer.customers': 'Customers',
+  'mkt.footer.customerSupport': 'Customer Support',
+  'mkt.footer.joinUserGroup': 'Join a Local User Group',
   'mkt.footer.customerStories': 'Customer Stories',
   'mkt.footer.community': 'Community',
   'mkt.footer.userGroups': 'User Groups',
@@ -437,16 +439,20 @@ export const clientMarketingEn: Record<string, string> = {
   'mkt.footer.findAPartner': 'Find a Partner',
   'mkt.footer.marketplace': 'Marketplace',
   'mkt.footer.legal': 'Legal',
+  'mkt.footer.legalCenter': 'Legal Center',
   'mkt.footer.privacy': 'Privacy Policy',
   'mkt.footer.terms': 'Terms of Service',
+  'mkt.footer.security': 'Security',
+  'mkt.footer.accessibility': 'Website Accessibility',
   'mkt.footer.cookiePrefs': 'Cookie Settings',
-  'mkt.footer.rights': 'All Rights Reserved.',
-  'mkt.footer.changeLanguage': 'Change language',
   'mkt.footer.social': 'Social media',
+  'mkt.footer.socialFacebook': 'Karmax on Facebook',
+  'mkt.footer.socialInstagram': 'Karmax on Instagram',
+  'mkt.footer.socialYouTube': 'Karmax on YouTube',
   'mkt.footer.socialX': 'Karmax on X (Twitter)',
   'mkt.footer.socialLinkedIn': 'Karmax on LinkedIn',
-  'mkt.footer.socialGitHub': 'Karmax on GitHub',
-  'mkt.footer.socialYouTube': 'Karmax on YouTube',
+  'mkt.footer.socialReddit': 'Karmax on Reddit',
+  'mkt.footer.socialTikTok': 'Karmax on TikTok',
 
   // ---- Cookie banner ----
   'mkt.cookie.title': 'Your privacy matters',
@@ -511,6 +517,46 @@ export const clientMarketingEn: Record<string, string> = {
   'mkt.terms.liabilityTitle': 'Liability',
   'mkt.terms.liabilityBody':
     'The service is provided “as is”. We work hard on reliability — backups, monitoring, honest uptime — but we are not liable for indirect damages or lost profits.',
+
+  // ---- Security page ----
+  'mkt.security.title': 'Security at Karmax',
+  'mkt.security.intro':
+    'How we protect your account, your content and your readers’ data — described honestly, based on what the platform actually does today.',
+  'mkt.security.accountsTitle': 'Accounts & sign-in',
+  'mkt.security.accountsBody':
+    'Karmax accounts sign in with an email address and a password, or with Google. Sessions end when you sign out, and you can review your account details from your profile at any time.',
+  'mkt.security.dataTitle': 'Data protection',
+  'mkt.security.dataBody':
+    'Traffic between your browser and Karmax travels over encrypted HTTPS connections. Each site you manage keeps its own content, media and settings inside your workspace, separate from other sites.',
+  'mkt.security.backupsTitle': 'Backups & recovery',
+  'mkt.security.backupsBody':
+    'You can back up a site on demand or on a recurring schedule, download or store archives externally, review a detailed log of every run, and restore a site from a backup when you need to.',
+  'mkt.security.auditTitle': 'Audit trail & permissions',
+  'mkt.security.auditBody':
+    'Important account activity is recorded in the audit log, and access for teammates is controlled per user with roles — so you always know who did what.',
+  'mkt.security.reportTitle': 'Responsible disclosure',
+  'mkt.security.reportBody':
+    'If you believe you have found a security issue in Karmax, please tell us through an official channel listed on this site so we can investigate and fix it. We ask for reasonable time to respond before any public disclosure.',
+
+  // ---- Accessibility page ----
+  'mkt.a11y.intro':
+    'Our commitment to keeping this website usable by everyone, and how we work toward it.',
+  'mkt.a11y.keyboardTitle': 'Keyboard navigation',
+  'mkt.a11y.keyboardBody':
+    'Every interactive element — links, buttons, menus and forms — can be reached and operated with the keyboard alone, and the focused element is always clearly outlined.',
+  'mkt.a11y.motionTitle': 'Reduced motion',
+  'mkt.a11y.motionBody':
+    'The site honors your operating system’s reduced-motion preference: entrance animations and smooth scrolling are toned down automatically.',
+  'mkt.a11y.contrastTitle': 'Readable design',
+  'mkt.a11y.contrastBody':
+    'We design with a high-contrast text palette on a consistent type scale, and keep testing our color pairs against WCAG AA contrast targets.',
+  'mkt.a11y.feedbackTitle': 'Feedback',
+  'mkt.a11y.feedbackBody':
+    'If anything on this site is hard for you to use, we want to hear about it — tell us through any official Karmax channel and we will do our best to fix it.',
+
+  // ---- Legal Center page ----
+  'mkt.legal.intro':
+    'Policies and legal information for the Karmax platform, in one place.',
 
     'mkt.plan.free.desc': 'For getting started — your first sites, the full editor and SEO basics.',
   'mkt.plan.plus.desc': 'For growing bloggers — AI writing and more sites on one account.',

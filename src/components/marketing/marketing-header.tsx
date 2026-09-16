@@ -35,6 +35,9 @@ export const MKT = {
   checkout: '#/checkout',
   privacy: '#/privacy',
   terms: '#/terms',
+  security: '#/security',
+  accessibility: '#/accessibility',
+  legal: '#/legal',
 } as const;
 
 interface NavItem {

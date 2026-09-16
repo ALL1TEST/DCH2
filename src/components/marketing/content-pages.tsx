@@ -11,7 +11,10 @@
 
 import React from 'react';
 import {
+  Accessibility,
+  BookOpen,
   Compass,
+  Cookie,
   FileText,
   Globe2,
   HeartHandshake,
@@ -28,6 +31,7 @@ import {
 import { useT } from '@/lib/i18n';
 import { Eyebrow, MarketingButton, PointList, Reveal, SectionHeader } from './primitives';
 import { MKT } from './marketing-header';
+import { openCookiePreferences } from './cookie-banner';
 import { FinalCta } from './home-page';
 
 // -------------------- About --------------------
@@ -292,6 +296,139 @@ export function TermsPage() {
         <Reveal><LegalSection titleKey="mkt.terms.billingTitle" bodyKey="mkt.terms.billingBody" /></Reveal>
         <Reveal><LegalSection titleKey="mkt.terms.liabilityTitle" bodyKey="mkt.terms.liabilityBody" /></Reveal>
       </div>
+    </div>
+  );
+}
+
+// -------------------- Security --------------------
+
+export function SecurityPage() {
+  const { t } = useT();
+  return (
+    <div className="mkt-container max-w-2xl pt-32 pb-10 sm:pt-40">
+      <Reveal>
+        <header className="flex flex-col gap-4 border-b border-border pb-8">
+          <Eyebrow>
+            <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+            {t('mkt.footer.legal')}
+          </Eyebrow>
+          <h1 className="mkt-display text-3xl text-text-primary sm:text-4xl">{t('mkt.security.title')}</h1>
+          <p className="text-sm text-text-muted">
+            {t('mkt.privacy.updated')}: {new Date().toLocaleDateString('en', { year: 'numeric', month: 'long', day: 'numeric' })}
+          </p>
+          <p className="text-sm leading-relaxed text-text-secondary">{t('mkt.security.intro')}</p>
+        </header>
+      </Reveal>
+      <div className="mt-8 flex flex-col gap-8">
+        <Reveal><LegalSection titleKey="mkt.security.accountsTitle" bodyKey="mkt.security.accountsBody" /></Reveal>
+        <Reveal><LegalSection titleKey="mkt.security.dataTitle" bodyKey="mkt.security.dataBody" /></Reveal>
+        <Reveal><LegalSection titleKey="mkt.security.backupsTitle" bodyKey="mkt.security.backupsBody" /></Reveal>
+        <Reveal><LegalSection titleKey="mkt.security.auditTitle" bodyKey="mkt.security.auditBody" /></Reveal>
+        <Reveal><LegalSection titleKey="mkt.security.reportTitle" bodyKey="mkt.security.reportBody" /></Reveal>
+      </div>
+    </div>
+  );
+}
+
+// -------------------- Accessibility --------------------
+
+export function AccessibilityPage() {
+  const { t } = useT();
+  return (
+    <div className="mkt-container max-w-2xl pt-32 pb-10 sm:pt-40">
+      <Reveal>
+        <header className="flex flex-col gap-4 border-b border-border pb-8">
+          <Eyebrow>
+            <Accessibility className="h-3.5 w-3.5" aria-hidden="true" />
+            {t('mkt.footer.legal')}
+          </Eyebrow>
+          <h1 className="mkt-display text-3xl text-text-primary sm:text-4xl">{t('mkt.footer.accessibility')}</h1>
+          <p className="text-sm leading-relaxed text-text-secondary">{t('mkt.a11y.intro')}</p>
+        </header>
+      </Reveal>
+      <div className="mt-8 flex flex-col gap-8">
+        <Reveal><LegalSection titleKey="mkt.a11y.keyboardTitle" bodyKey="mkt.a11y.keyboardBody" /></Reveal>
+        <Reveal><LegalSection titleKey="mkt.a11y.motionTitle" bodyKey="mkt.a11y.motionBody" /></Reveal>
+        <Reveal><LegalSection titleKey="mkt.a11y.contrastTitle" bodyKey="mkt.a11y.contrastBody" /></Reveal>
+        <Reveal><LegalSection titleKey="mkt.a11y.feedbackTitle" bodyKey="mkt.a11y.feedbackBody" /></Reveal>
+      </div>
+    </div>
+  );
+}
+
+// -------------------- Legal Center --------------------
+
+export function LegalCenterPage() {
+  const { t } = useT();
+
+  const docs = [
+    { labelKey: 'mkt.footer.privacy', href: MKT.privacy, icon: ShieldCheck },
+    { labelKey: 'mkt.footer.terms', href: MKT.terms, icon: Scale },
+    { labelKey: 'mkt.footer.security', href: MKT.security, icon: Lock },
+    { labelKey: 'mkt.footer.accessibility', href: MKT.accessibility, icon: Accessibility },
+  ];
+
+  return (
+    <div className="mkt-container max-w-2xl pt-32 pb-10 sm:pt-40">
+      <Reveal>
+        <header className="flex flex-col gap-4 border-b border-border pb-8">
+          <Eyebrow>
+            <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
+            {t('mkt.footer.legal')}
+          </Eyebrow>
+          <h1 className="mkt-display text-3xl text-text-primary sm:text-4xl">{t('mkt.footer.legalCenter')}</h1>
+          <p className="text-sm leading-relaxed text-text-secondary">{t('mkt.legal.intro')}</p>
+        </header>
+      </Reveal>
+
+      <ul className="mt-8 flex flex-col gap-3">
+        {docs.map((d, i) => {
+          const Icon = d.icon;
+          return (
+            <Reveal key={d.labelKey} delay={i * 40} as="li">
+              <a
+                href={d.href}
+                className="mkt-focus mkt-card-hover group flex items-center justify-between gap-4 rounded-2xl border border-border bg-card px-5 py-4 transition-colors hover:border-mkt-accent-border"
+              >
+                <span className="flex items-center gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-mkt-accent-soft text-mkt-accent-soft-fg">
+                    <Icon className="h-4.5 w-4.5" aria-hidden="true" />
+                  </span>
+                  <span className="text-sm font-semibold text-text-primary">{t(d.labelKey)}</span>
+                </span>
+                <span
+                  className="text-mkt-accent transition-transform duration-200 group-hover:translate-x-0.5"
+                  aria-hidden="true"
+                >
+                  →
+                </span>
+              </a>
+            </Reveal>
+          );
+        })}
+
+        {/* Cookie preferences — the real control from the banner */}
+        <Reveal delay={200} as="li">
+          <button
+            type="button"
+            onClick={openCookiePreferences}
+            className="mkt-focus mkt-card-hover group flex w-full items-center justify-between gap-4 rounded-2xl border border-border bg-card px-5 py-4 text-left transition-colors hover:border-mkt-accent-border"
+          >
+            <span className="flex items-center gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-mkt-accent-soft text-mkt-accent-soft-fg">
+                <Cookie className="h-4.5 w-4.5" aria-hidden="true" />
+              </span>
+              <span className="text-sm font-semibold text-text-primary">{t('mkt.footer.cookiePrefs')}</span>
+            </span>
+            <span
+              className="text-mkt-accent transition-transform duration-200 group-hover:translate-x-0.5"
+              aria-hidden="true"
+            >
+              →
+            </span>
+          </button>
+        </Reveal>
+      </ul>
     </div>
   );
 }

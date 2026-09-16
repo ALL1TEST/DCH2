@@ -11635,3 +11635,29 @@ Stage Summary:
 - Footer rebuilt to the full reference architecture (CTA banner + 5-column grid + logo/legal/social/language bottom bar) on the new slate-navy token family with emerald accents — every band responsive (accordions on phones, 3-col tablet, 5-col desktop)
 - 4 files changed: marketing-footer.tsx (rebuild), primitives.tsx (onDark), globals.css (tokens), i18n en+fr (26 added, 3 updated, 24 removed)
 - Ready to commit as MKT-FOOTER-4
+
+---
+Task ID: MKT-BRAND-1
+Agent: main (orchestrator)
+Task: Global brand-color migration to the HubSpot palette (#FF4800 orange / #1F1F1F dark charcoal / #FDB699 peach) across the whole marketing site, plus a full footer rebuild cloning HubSpot's exact 3-band architecture (4-column nav with sub-columns + vertical divider, social row between hairlines, centered logo + pipe-separated legal links).
+
+Work Log:
+- globals.css token families swapped: mkt-accent emerald→#ff4800 (strong #e03e00, soft #fff1eb, border #fcd0bb); dark-theme accent #ff7a59 with #fdb699 soft-fg; surface-2 warm-tinted; hero-glow orange
+- Footer palette replaced: bg #1f1f1f charcoal, headings #ffffff, links #d0d0d0, hover #fdb699, muted #9ca3af, accent #ff4800; removed bg-deep/bg-raised tokens (no longer used)
+- marketing-footer.tsx REBUILT to the reference architecture: Band 1 = 4-column grid (Popular Features wide group with 2 sub-lists + vertical divider before Free Tools, Company, Customers+Partners stacked group); Band 2 = 7 social icons (fb/ig/yt/x/in/reddit/tiktok — reddit+tiktok as verified fill SVGs, X custom SVG) centered between flanking hairlines; Band 3 = centered K-logo (orange) + Karmax wordmark, "Copyright © 2026 Karmax, Inc.", legal row with white bold underlined-on-hover links separated by pipes
+- Honest content mapping: HubSpot product names → Karmax real features (AI-Assisted Writing→#f-ai, SEO Suite→#f-seo, Automation→#f-automation, Media Management→#f-media, WordPress/REST CMS/Webhooks→#f-platform, All Features→#/features, About→#/about, Blog→#/blog, Agencies→solutions?for=agencies); items without real pages render visually inactive (aria-disabled, muted)
+- NEW real legal pages so the legal row is 100% honest: #/security (Security at Karmax — accounts/data/backups/audit/disclosure sections), #/accessibility (keyboard/motion/contrast/feedback), #/legal (Legal Center directory + cookie-settings control); MKT route map + marketing-site hash router + per-route titles extended (KNOWN list updated)
+- i18n en+fr: +30 keys (allFeatures, blog, customerSupport, joinUserGroup, legalCenter, security, accessibility, 7 social labels incl. facebook/instagram/reddit/tiktok, security.* 10, a11y.* 8, legal.intro, navigation); removed dead keys (ctaTitle/ctaSubtitle/ctaPrimary/ctaSecondary, rights, changeLanguage, socialGitHub, userGroups kept); FR straight-apostrophe syntax errors fixed to typographic ’; parity 440=440 zero mismatches
+- primitives.tsx: comments updated to brand-orange; onDark secondary hover border neutralized (slate→white/45)
+- Fixed stale Turbopack cache (served CSS held pre-session values): killed dev processes, cleared .next/dev, restarted — fresh compile serves the orange tokens (verified computed --mkt-accent = #ff4800 in .mkt-brand-scope)
+
+Verification:
+- bun import of both i18n fragments: OK (440=440 keys, no mismatches); eslint on all 7 changed files: 0 problems
+- Fresh dev server: GET / 200; homepage renders (VLM: orange accents, no errors/blank areas)
+- Footer: dark charcoal bg, wide Popular Features group, 7-icon social row, centered logo + copyright + legal row all present (VLM review)
+- Local commits ready to push to github.com/ALL1TEST/NEWWDCH
+
+Stage Summary:
+- Global brand palette migrated emerald→HubSpot orange/charcoal/peach (tokens only — all components inherit)
+- Footer rebuilt to the exact HubSpot 3-band architecture with honest Karmax content; 3 new real legal pages + routes; i18n en/fr complete
+- 8 files modified; dev cache issue diagnosed and fixed

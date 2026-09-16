@@ -314,59 +314,60 @@
    MARKETING SITE — design tokens & utilities
    ------------------------------------------------------------
    Public frontend tokens. The marketing site keeps the product's
-   near-black primary (buttons) and adds ONE restrained brand
-   accent (emerald) used for eyebrows, highlights, badges and
-   active states only — never large surfaces. Theme-aware pairs
-   for light + dark. Utilities scope all marketing-only styling.
+   near-black primary (buttons) and adds ONE confident brand
+   accent (HubSpot-style orange #FF4800) used for eyebrows,
+   highlights, badges and active states — with warm peach
+   supporting tones (#FF7A59 / #FDB699) on dark surfaces.
+   Theme-aware pairs for light + dark. Utilities scope all
+   marketing-only styling.
    ============================================================ */
 
 :root {
-  --mkt-accent: oklch(0.596 0.145 163.225);          /* emerald-600 */
-  --mkt-accent-strong: oklch(0.508 0.118 165.612);   /* emerald-700 */
-  --mkt-accent-fg: oklch(0.985 0 0);
-  --mkt-accent-soft: oklch(0.979 0.021 166.113);     /* emerald-50  */
-  --mkt-accent-soft-fg: oklch(0.377 0.074 169.36);   /* emerald-800 */
-  --mkt-accent-border: oklch(0.929 0.032 163.051);   /* emerald-100 */
+  --mkt-accent: #ff4800;                             /* brand orange */
+  --mkt-accent-strong: #e03e00;                      /* pressed/hover orange */
+  --mkt-accent-fg: #ffffff;
+  --mkt-accent-soft: #fff1eb;                        /* soft peach wash */
+  --mkt-accent-soft-fg: #9c3500;                     /* deep burnt-orange text */
+  --mkt-accent-border: #fcd0bb;                      /* peach border */
   --mkt-surface: oklch(0.992 0 0);                   /* off-white section bg */
-  --mkt-surface-2: oklch(0.975 0.002 120);           /* slightly tinted bg */
+  --mkt-surface-2: #faf5f0;                          /* warm-tinted bg */
   --mkt-grid-line: oklch(0.922 0 0 / 55%);
-  --mkt-hero-glow: oklch(0.696 0.17 162.48 / 10%);
+  --mkt-hero-glow: rgb(255 72 0 / 8%);
   --mkt-code-bg: oklch(0.205 0 0);
-  --mkt-code-fg: oklch(0.95 0.005 120);
+  --mkt-code-fg: oklch(0.95 0.005 55);
 }
 
 .dark {
-  --mkt-accent: oklch(0.765 0.177 163.223);          /* emerald-300/400 */
-  --mkt-accent-strong: oklch(0.696 0.17 162.48);     /* emerald-500 */
-  --mkt-accent-fg: oklch(0.205 0 0);
-  --mkt-accent-soft: oklch(0.696 0.17 162.48 / 12%);
-  --mkt-accent-soft-fg: oklch(0.765 0.177 163.223);
-  --mkt-accent-border: oklch(0.696 0.17 162.48 / 28%);
+  --mkt-accent: #ff7a59;                             /* warm highlight on dark */
+  --mkt-accent-strong: #ff4800;
+  --mkt-accent-fg: #1f1f1f;
+  --mkt-accent-soft: rgb(255 122 89 / 14%);
+  --mkt-accent-soft-fg: #fdb699;
+  --mkt-accent-border: rgb(255 122 89 / 32%);
   --mkt-surface: oklch(0.17 0 0);
-  --mkt-surface-2: oklch(0.185 0.003 120);
+  --mkt-surface-2: #211c19;
   --mkt-grid-line: oklch(1 0 0 / 6%);
-  --mkt-hero-glow: oklch(0.696 0.17 162.48 / 14%);
+  --mkt-hero-glow: rgb(255 122 89 / 10%);
   --mkt-code-bg: oklch(0.17 0 0);
-  --mkt-code-fg: oklch(0.92 0.005 120);
+  --mkt-code-fg: oklch(0.92 0.005 55);
 }
 
 /* ---- Enterprise footer palette (theme-INDEPENDENT) ----
-   The public footer is always dark — the same premium deep
-   slate-navy surface in every appearance — so these values are
-   declared once (outside :root/.dark). The emerald accent ties
-   the surface to the Karmax brand. */
+   The public footer is always dark — a flat HubSpot-style dark
+   charcoal (#1F1F1F) surface in every appearance — so these
+   values are declared once (outside :root/.dark). White bold
+   headings, light-grey link items, muted-grey secondary text and
+   the brand orange for icon hovers/focus. */
 :root {
-  --mkt-footer-bg: #0a192f;                           /* deep slate navy band */
-  --mkt-footer-bg-deep: #071325;                      /* bottom bar */
-  --mkt-footer-bg-raised: #0f2440;                    /* dropdown panel */
-  --mkt-footer-border: rgb(148 163 184 / 12%);        /* subtle slate dividers */
-  --mkt-footer-border-strong: rgb(148 163 184 / 35%); /* hover outlines */
-  --mkt-footer-heading: #f1f5f9;                      /* column titles */
-  --mkt-footer-text: #94a3b8;                         /* links */
-  --mkt-footer-text-active: #f8fafc;                  /* hover */
-  --mkt-footer-muted: #64748b;                        /* inactive items, copyright */
-  --mkt-footer-accent: oklch(0.765 0.177 163.223);    /* emerald brand accent */
-  --mkt-footer-accent-soft: oklch(0.765 0.177 163.223 / 14%);
+  --mkt-footer-bg: #1f1f1f;                          /* dark charcoal band */
+  --mkt-footer-border: rgb(255 255 255 / 14%);       /* thin grey dividers */
+  --mkt-footer-border-strong: rgb(255 255 255 / 35%);/* hover outlines */
+  --mkt-footer-heading: #ffffff;                     /* bold column headings */
+  --mkt-footer-text: #d0d0d0;                        /* link items */
+  --mkt-footer-text-active: #fdb699;                 /* warm peach link hover */
+  --mkt-footer-muted: #9ca3af;                       /* inactive items, copyright */
+  --mkt-footer-accent: #ff4800;                      /* social hover + focus ring */
+  --mkt-footer-accent-soft: rgb(255 72 0 / 15%);
 }
 
 @theme inline {
@@ -381,8 +382,6 @@
   --color-mkt-code-bg: var(--mkt-code-bg);
   --color-mkt-code-fg: var(--mkt-code-fg);
   --color-mkt-footer-bg: var(--mkt-footer-bg);
-  --color-mkt-footer-bg-deep: var(--mkt-footer-bg-deep);
-  --color-mkt-footer-bg-raised: var(--mkt-footer-bg-raised);
   --color-mkt-footer-border: var(--mkt-footer-border);
   --color-mkt-footer-border-strong: var(--mkt-footer-border-strong);
   --color-mkt-footer-heading: var(--mkt-footer-heading);
@@ -425,18 +424,18 @@
   --text-secondary: oklch(0.371 0 0);
   --text-muted: oklch(0.556 0 0);
 
-  --mkt-accent: oklch(0.596 0.145 163.225);
-  --mkt-accent-strong: oklch(0.508 0.118 165.612);
-  --mkt-accent-fg: oklch(0.985 0 0);
-  --mkt-accent-soft: oklch(0.979 0.021 166.113);
-  --mkt-accent-soft-fg: oklch(0.377 0.074 169.36);
-  --mkt-accent-border: oklch(0.929 0.032 163.051);
+  --mkt-accent: #ff4800;
+  --mkt-accent-strong: #e03e00;
+  --mkt-accent-fg: #ffffff;
+  --mkt-accent-soft: #fff1eb;
+  --mkt-accent-soft-fg: #9c3500;
+  --mkt-accent-border: #fcd0bb;
   --mkt-surface: oklch(0.992 0 0);
-  --mkt-surface-2: oklch(0.975 0.002 120);
+  --mkt-surface-2: #faf5f0;
   --mkt-grid-line: oklch(0.922 0 0 / 55%);
-  --mkt-hero-glow: oklch(0.696 0.17 162.48 / 10%);
+  --mkt-hero-glow: rgb(255 72 0 / 8%);
   --mkt-code-bg: oklch(0.205 0 0);
-  --mkt-code-fg: oklch(0.95 0.005 120);
+  --mkt-code-fg: oklch(0.95 0.005 55);
 }
 
 /* The `.dark`-scoped hover shadow would otherwise bleed into the

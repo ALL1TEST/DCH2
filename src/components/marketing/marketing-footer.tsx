@@ -1,42 +1,45 @@
 'use client';
 
 // ============================================================
-// MARKETING FOOTER — HubSpot-architecture footer (full rebuild)
+// MARKETING FOOTER — HubSpot-architecture footer (3 bands)
 // ============================================================
-// Exact structural clone of the mature global-SaaS footer
-// architecture, re-skinned with the Karmax brand:
+// Dark HubSpot-inspired footer, re-skinned with the Karmax
+// brand. Content architecture per the reference spec:
 //
 //   ┌────────────────────────────────────────────────────────┐
 //   │  BAND 1 — 4-COLUMN NAVIGATION GRID                     │
-//   │  Popular Features (2 sub-columns) │ Free Tools │       │
-//   │  Company │ Customers + Partners                        │
-//   │        (thin vertical divider after column 1)          │
+//   │  Product   Integrations  │  Features   Resources       │
+//   │        (thin vertical divider between the two pairs)   │
 //   ├────────────────────────────────────────────────────────┤
 //   │  BAND 2 — SOCIAL ROW                                   │
 //   │  ————  [f] [ig] [yt] [x] [in] [reddit] [tiktok]  ————  │
 //   │        (icons centered between flanking hairlines)     │
 //   ├────────────────────────────────────────────────────────┤
 //   │  BAND 3 — CENTERED BRAND + LEGAL                       │
-//   │  logo · Copyright © 2026 Karmax, Inc.                  │
-//   │  Legal Center | Privacy Policy | Security |             │
-//   │  Website Accessibility                                 │
+//   │  logo · © 2026 Karmax. All rights reserved.            │
+//   │  Privacy Policy | Terms of Service | Cookie Preferences│
 //   └────────────────────────────────────────────────────────┘
 //
 // Breakpoints:
 //   <md   nav groups collapse into accordion rows; all three
 //         bands stack & center
-//   md    2-column nav grid (Popular Features spans both)
-//   lg+   full 4-column row with the vertical divider
+//   md    2-column nav grid (Product+Integrations row, then
+//         Features+Resources row)
+//   lg+   full 4-column row with the vertical divider between
+//         the Integrations and Features columns
 //
 // CONTENT HONESTY (product rule):
 // • Every ACTIVE link points at a page/section that actually
 //   exists (hash routes or deep-linkable home-page anchors).
 // • Items whose destination does not exist yet are rendered
 //   VISUALLY INACTIVE (muted, non-clickable, aria-disabled) —
-//   never as fake routes.
-// • The legal row links to real pages: Legal Center, Privacy
-//   Policy, Security and Website Accessibility (the cookie-
-//   settings control lives on the Legal Center page).
+//   never as fake routes. This covers real product areas that
+//   have no dedicated marketing page yet (Newsletter, Analytics,
+//   Sites, Multi-site) and planned resource areas (Documentation,
+//   Help Center, Free Tools, Guides, API / Developer).
+// • The legal row links to the real Privacy Policy and Terms of
+//   Service pages, plus the working cookie-preferences control
+//   (openCookiePreferences re-opens the consent banner).
 // • Social icons link to the configurable Karmax profiles in
 //   SOCIAL_PROFILES below — update the URLs when the real
 //   handles differ.
@@ -53,6 +56,7 @@ import {
 import { useT } from '@/lib/i18n';
 import { Logo } from './primitives';
 import { MKT } from './marketing-header';
+import { openCookiePreferences } from './cookie-banner';
 
 // ---- Karmax social profiles (single source of truth) ----
 // External brand links rendered in the social row. Update the
@@ -105,75 +109,75 @@ type FooterLink =
   | { labelKey: string; href: string }
   | { labelKey: string; inactive: true };
 
-// Column 1 · Popular Features — sub-column A (Karmax's real
-// product areas; every active entry deep-links a real section).
-const POPULAR_A: FooterLink[] = [
-  { labelKey: 'mkt.footer.allFeatures', href: MKT.features },
-  { labelKey: 'mkt.footer.aiWriting', href: `${MKT.features}#f-ai` },
+// Column 1 · Product — Karmax's real product areas plus the
+// pricing page. Active entries deep-link the real feature
+// sections; Newsletter, Analytics and Sites are real product
+// areas without a dedicated marketing destination yet.
+const PRODUCT_LINKS: FooterLink[] = [
+  { labelKey: 'mkt.feat.ai.label', href: `${MKT.features}#f-ai` },
+  { labelKey: 'mkt.footer.seoSuite', href: `${MKT.features}#f-seo` },
+  { labelKey: 'mkt.footer.mediaLibrary', href: `${MKT.features}#f-media` },
+  { labelKey: 'mkt.feat.automation.label', href: `${MKT.features}#f-automation` },
+  { labelKey: 'mkt.footer.newsletter', inactive: true },
+  { labelKey: 'mkt.footer.analytics', inactive: true },
+  { labelKey: 'mkt.footer.sites', inactive: true },
+  { labelKey: 'mkt.nav.pricing', href: MKT.pricing },
+];
+
+// Column 2 · Integrations — every entry is a REAL Karmax
+// integration (see the platform band each link lands on);
+// no invented integrations.
+const INTEGRATION_LINKS: FooterLink[] = [
+  { labelKey: 'mkt.platform.wordpress', href: `${MKT.features}#f-platform` },
+  { labelKey: 'mkt.platform.cms', href: `${MKT.features}#f-platform` },
+  { labelKey: 'mkt.platform.stripe', href: `${MKT.features}#f-platform` },
+  { labelKey: 'mkt.platform.smtp', href: `${MKT.features}#f-platform` },
+  { labelKey: 'mkt.platform.ai', href: `${MKT.features}#f-platform` },
+];
+
+// Column 3 · Features — the real Karmax feature areas.
+// Multi-site is a real capability without its own marketing
+// section yet, so it renders inactive.
+const FEATURE_LINKS: FooterLink[] = [
+  { labelKey: 'mkt.feat.ai.label', href: `${MKT.features}#f-ai` },
   { labelKey: 'mkt.footer.seoSuite', href: `${MKT.features}#f-seo` },
   { labelKey: 'mkt.feat.automation.label', href: `${MKT.features}#f-automation` },
-  { labelKey: 'mkt.footer.newsletterAutomation', inactive: true },
-  { labelKey: 'mkt.footer.wordpressIntegration', href: `${MKT.features}#f-platform` },
-];
-
-// Column 1 · Popular Features — sub-column B
-const POPULAR_B: FooterLink[] = [
-  { labelKey: 'mkt.footer.mediaManagement', href: `${MKT.features}#f-media` },
-  { labelKey: 'mkt.footer.restCms', href: `${MKT.features}#f-platform` },
+  { labelKey: 'mkt.footer.mediaLibrary', href: `${MKT.features}#f-media` },
+  { labelKey: 'mkt.footer.newsletter', inactive: true },
   { labelKey: 'mkt.feat.multisite.label', inactive: true },
-  { labelKey: 'mkt.feat.engagement.label', inactive: true },
-  { labelKey: 'mkt.platform.webhooks', href: `${MKT.features}#f-platform` },
+  { labelKey: 'mkt.footer.analytics', inactive: true },
 ];
 
-// Column 2 · Free Tools — planned product areas, no pages yet
-const FREE_TOOLS: FooterLink[] = [
-  { labelKey: 'mkt.footer.websiteSpeedTest', inactive: true },
-  { labelKey: 'mkt.footer.headlineAnalyzer', inactive: true },
-  { labelKey: 'mkt.footer.blogPostGenerator', inactive: true },
-  { labelKey: 'mkt.footer.metaTagGenerator', inactive: true },
-];
-
-// Column 3 · Company
-const COMPANY: FooterLink[] = [
-  { labelKey: 'mkt.footer.aboutKarmax', href: MKT.about },
-  { labelKey: 'mkt.footer.careers', inactive: true },
-  { labelKey: 'mkt.footer.managementTeam', inactive: true },
-  { labelKey: 'mkt.footer.investorRelations', inactive: true },
+// Column 4 · Resources — only the Blog page exists today; the
+// other resource areas are real plans without pages yet.
+const RESOURCE_LINKS: FooterLink[] = [
   { labelKey: 'mkt.footer.blog', href: MKT.blog },
-  { labelKey: 'mkt.footer.contactUs', inactive: true },
+  { labelKey: 'mkt.footer.documentation', inactive: true },
+  { labelKey: 'mkt.footer.helpCenter', inactive: true },
+  { labelKey: 'mkt.footer.freeTools', inactive: true },
+  { labelKey: 'mkt.footer.guides', inactive: true },
+  { labelKey: 'mkt.footer.apiDeveloper', inactive: true },
 ];
 
-// Column 4 · Customers
-const CUSTOMERS: FooterLink[] = [
-  { labelKey: 'mkt.footer.customerSupport', inactive: true },
-  { labelKey: 'mkt.footer.joinUserGroup', inactive: true },
-  { labelKey: 'mkt.footer.customerStories', inactive: true },
-  { labelKey: 'mkt.footer.community', inactive: true },
-  { labelKey: 'mkt.footer.agencies', href: `${MKT.solutions}?for=agencies` },
-];
+// Bottom legal row — real pages plus the working cookie-
+// preferences control. ("Website Accessibility" removed per
+// spec; the page itself remains reachable at #/accessibility.)
+type LegalLink =
+  | { labelKey: string; href: string }
+  | { labelKey: string; action: 'cookiePrefs' };
 
-// Column 4 · Partners
-const PARTNERS: FooterLink[] = [
-  { labelKey: 'mkt.footer.partnerProgram', inactive: true },
-  { labelKey: 'mkt.footer.findAPartner', inactive: true },
-  { labelKey: 'mkt.footer.marketplace', inactive: true },
-];
-
-// Bottom legal row — every entry is a real page
-const LEGAL_LINKS = [
-  { labelKey: 'mkt.footer.legalCenter', href: MKT.legal },
+const LEGAL_LINKS: LegalLink[] = [
   { labelKey: 'mkt.footer.privacy', href: MKT.privacy },
-  { labelKey: 'mkt.footer.security', href: MKT.security },
-  { labelKey: 'mkt.footer.accessibility', href: MKT.accessibility },
-] as const;
+  { labelKey: 'mkt.footer.terms', href: MKT.terms },
+  { labelKey: 'mkt.footer.cookiePrefs', action: 'cookiePrefs' },
+];
 
 // Phone accordion groups (Band 1, <md)
 const ACCORDION_GROUPS: { titleKey: string; links: FooterLink[] }[] = [
-  { titleKey: 'mkt.footer.popularFeatures', links: [...POPULAR_A, ...POPULAR_B] },
-  { titleKey: 'mkt.footer.freeTools', links: FREE_TOOLS },
-  { titleKey: 'mkt.footer.company', links: COMPANY },
-  { titleKey: 'mkt.footer.customers', links: CUSTOMERS },
-  { titleKey: 'mkt.footer.partners', links: PARTNERS },
+  { titleKey: 'mkt.footer.product', links: PRODUCT_LINKS },
+  { titleKey: 'mkt.footer.integrations', links: INTEGRATION_LINKS },
+  { titleKey: 'mkt.footer.features', links: FEATURE_LINKS },
+  { titleKey: 'mkt.footer.resources', links: RESOURCE_LINKS },
 ];
 
 // ---- Shared class fragments ----
@@ -184,6 +188,10 @@ const INACTIVE_CLASS =
 // Column headings: bold white — the anchor points of each group.
 const HEADING_CLASS =
   'text-base font-bold leading-6 text-mkt-footer-heading';
+// Legal-row entries: bold white, underlined on hover — shared by
+// the plain links and the cookie-preferences button.
+const LEGAL_CLASS =
+  'mkt-footer-focus rounded text-sm font-bold text-white underline-offset-4 transition-colors hover:text-mkt-footer-text-active hover:underline';
 
 function FooterLinkList({ links }: { links: FooterLink[] }) {
   const { t } = useT();
@@ -264,50 +272,38 @@ export function MarketingFooter() {
           </div>
         </nav>
 
-        {/* md+: multi-column grid (2 cols → 4 cols + divider at lg) */}
+        {/* md+: multi-column grid (2×2 → 4 columns + divider at lg) */}
         <div className="hidden py-14 md:block lg:py-16">
-          <div className="grid grid-cols-2 gap-x-10 gap-y-12 lg:grid-cols-[1.7fr_1fr_1fr_1fr] lg:gap-x-12">
-            {/* Column 1 — Popular Features (two sub-columns) */}
-            <nav
-              aria-label={t('mkt.footer.popularFeatures')}
-              className="flex flex-col gap-5 md:col-span-2 lg:col-span-1"
-            >
-              <h3 className={HEADING_CLASS}>{t('mkt.footer.popularFeatures')}</h3>
-              <div className="grid grid-cols-1 gap-x-8 gap-y-8 sm:grid-cols-2 lg:gap-x-10">
-                <FooterLinkList links={POPULAR_A} />
-                <FooterLinkList links={POPULAR_B} />
-              </div>
+          <div className="grid grid-cols-2 gap-x-10 gap-y-12 lg:grid-cols-4 lg:gap-x-12">
+            {/* Column 1 — Product */}
+            <nav aria-label={t('mkt.footer.product')} className="flex flex-col gap-5">
+              <h3 className={HEADING_CLASS}>{t('mkt.footer.product')}</h3>
+              <FooterLinkList links={PRODUCT_LINKS} />
             </nav>
 
-            {/* Column 2 — Free Tools (thin vertical divider on its
+            {/* Column 2 — Integrations */}
+            <nav aria-label={t('mkt.footer.integrations')} className="flex flex-col gap-5">
+              <h3 className={HEADING_CLASS}>{t('mkt.footer.integrations')}</h3>
+              <FooterLinkList links={INTEGRATION_LINKS} />
+            </nav>
+
+            {/* Column 3 — Features (thin vertical divider on its
                 left edge from lg up — the reference's signature
-                separation between the wide feature group and the
-                rest of the columns) */}
+                separation between the Product+Integrations pair
+                and the Features+Resources pair) */}
             <nav
-              aria-label={t('mkt.footer.freeTools')}
+              aria-label={t('mkt.footer.features')}
               className="flex flex-col gap-5 lg:border-l lg:border-mkt-footer-border lg:pl-12"
             >
-              <h3 className={HEADING_CLASS}>{t('mkt.footer.freeTools')}</h3>
-              <FooterLinkList links={FREE_TOOLS} />
+              <h3 className={HEADING_CLASS}>{t('mkt.footer.features')}</h3>
+              <FooterLinkList links={FEATURE_LINKS} />
             </nav>
 
-            {/* Column 3 — Company */}
-            <nav aria-label={t('mkt.footer.company')} className="flex flex-col gap-5">
-              <h3 className={HEADING_CLASS}>{t('mkt.footer.company')}</h3>
-              <FooterLinkList links={COMPANY} />
+            {/* Column 4 — Resources */}
+            <nav aria-label={t('mkt.footer.resources')} className="flex flex-col gap-5">
+              <h3 className={HEADING_CLASS}>{t('mkt.footer.resources')}</h3>
+              <FooterLinkList links={RESOURCE_LINKS} />
             </nav>
-
-            {/* Column 4 — Customers & Partners (two stacked groups) */}
-            <div className="flex flex-col gap-8">
-              <nav aria-label={t('mkt.footer.customers')} className="flex flex-col gap-4">
-                <h3 className={HEADING_CLASS}>{t('mkt.footer.customers')}</h3>
-                <FooterLinkList links={CUSTOMERS} />
-              </nav>
-              <nav aria-label={t('mkt.footer.partners')} className="flex flex-col gap-4">
-                <h3 className={HEADING_CLASS}>{t('mkt.footer.partners')}</h3>
-                <FooterLinkList links={PARTNERS} />
-              </nav>
-            </div>
           </div>
         </div>
       </div>
@@ -351,10 +347,11 @@ export function MarketingFooter() {
           </a>
 
           <p className="text-xs text-mkt-footer-muted">
-            Copyright © {year} {t('mkt.brand.name')}, Inc.
+            © {year} {t('mkt.brand.name')}. {t('mkt.footer.rights')}
           </p>
 
-          {/* Legal navigation with pipe separators */}
+          {/* Legal navigation with pipe separators — the cookie
+              entry re-opens the consent banner (real control) */}
           <nav
             aria-label={t('mkt.footer.legal')}
             className="flex flex-wrap items-center justify-center"
@@ -366,12 +363,15 @@ export function MarketingFooter() {
                     |
                   </span>
                 )}
-                <a
-                  href={l.href}
-                  className="mkt-footer-focus rounded text-sm font-bold text-white underline-offset-4 transition-colors hover:text-mkt-footer-text-active hover:underline"
-                >
-                  {t(l.labelKey)}
-                </a>
+                {'action' in l ? (
+                  <button type="button" onClick={openCookiePreferences} className={`${LEGAL_CLASS} cursor-pointer`}>
+                    {t(l.labelKey)}
+                  </button>
+                ) : (
+                  <a href={l.href} className={LEGAL_CLASS}>
+                    {t(l.labelKey)}
+                  </a>
+                )}
               </Fragment>
             ))}
           </nav>

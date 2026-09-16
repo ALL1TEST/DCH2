@@ -11566,3 +11566,35 @@ Stage Summary:
 - Footer now follows the reference's enterprise layout pattern (dark multi-column nav band, large light headings, small dim links, phone accordions, flex legal bar) while keeping 100% Karmax content: real routes only, honest inactive items, no fake socials, Karmax brand palette and copyright format
 - 1 file modified (marketing-footer.tsx); zero backend/i18n/token/route changes
 - Ready to commit as MKT-FOOTER-2
+
+---
+Task ID: MKT-FOOTER-3
+Agent: main (orchestrator)
+Task: Full rebuild of the Karmax marketing footer to closely reproduce the HubSpot footer's visual structure, spacing, proportions, hierarchy and polish (13-point spec). HubSpot as visual reference ONLY — no copied branding/text/assets; fully Karmax-branded with real routes only.
+
+Work Log:
+- Re-inspected current footer, primitives (MarketingButton size=lg + withArrow, Logo variant=K tone=accent), MKT route map, and legal page availability (only #/privacy and #/terms exist → Security/Accessibility omitted per "only show pages that actually exist")
+- marketing-footer.tsx REBUILT (new DOM, not a spacing tweak):
+  - Desktop xl: flex row — brand column (290px: K-logo + Karmax, max-w-xs description, prominent emerald "Get started →" lg CTA) + nav grid of 5 link columns with the Product group WIDENED to col-span-2 with a two-sub-column link list (the reference's signature wide product group; 5+4 chunked lists, heading spans the group)
+  - lg (1024-1279): brand column left (240px) + 4 single nav columns in one row
+  - md (768-1023): brand block on top + 2×2 nav grid with Product's sub-lists side-by-side (balanced 214px rows)
+  - <md: stacked — brand block first, then 4 collapsible accordion groups (chevron rows, 62px touch targets, grid-rows 0fr→1fr animation, inert when collapsed, border-t separators + border-b closure), then divider + legal
+  - Typography per reference hierarchy: headings text-[1.375rem] font-medium off-white; links text-xs leading-5 muted with hover brightening; brand description sm muted max-w-xs
+  - Legal bar: thin border-t divider + deeper bg band, py-8, copyright left ("© 2026 Karmax. All rights reserved.") + Privacy Policy / Terms of Service / Cookie preferences right (real destinations only)
+  - Social row: HIDDEN (Karmax has no configured profiles — honesty rule), documented slot directly above the divider
+  - Header untouched (spec point 10); no i18n/token/CSS changes needed
+
+Verification (agent-browser E2E + VLM side-by-side vs the reference screenshot):
+- Desktop 1440: Product 294px wide (heading spans, 2 sub-lists at x=506/673) + Resources/Company/Solutions 131px, brand 290px, 22px headings, 12px/20px links, no overflow; VLM vs reference: 8.5/10 "very strong, clean execution of the brand-left + multi-column nav + legal-bar archetype", headings/brand-block/divider/alignment all matched
+- VLM's two flags disproven by DOM measurement: copyright fully in-bounds (right 369 < 1440, bottom 866 ≤ 900 — screenshot-edge artifact) and wide product group present in geometry
+- Tablet 768: 2×2 grid all groups 214px balanced, no overflow; lg 1024: 4-col row (138px each), no overflow
+- Mobile 390: brand block first (48px emerald CTA), 4 collapsed accordions (aria-expanded=false), zero horizontal overflow; VLM bottom-section review: accordions + legal bar readable, no truncation/overlap, "clean, functional, optimized"
+- Interaction: mobile accordion expand → "Pricing" navigates to #/pricing (title changes) ✓; desktop "AI Content" → #features#f-ai lands section at viewport top ✓
+- Sticky footer: short 404 page → footer bottom edge exactly at viewport bottom (gap 0) ✓
+- FR locale: Produit/Ressources/Entreprise/Solutions, "© 2026 Karmax. Tous droits réservés.", Commencer CTA — fully translated ✓
+- Console/page errors: none from the app (only leftover GTM noise from the earlier HubSpot inspection session); eslint clean; single file changed (+92/−42)
+
+Stage Summary:
+- Footer rebuilt to the reference's enterprise pattern: strong left brand block, wide two-column product group + three single columns, large light headings vs small dim links, generous band padding with compact link rows, thin divider, deeper legal bar — all in Karmax emerald/dark tokens with real routes and honest inactive items only
+- 1 file modified (marketing-footer.tsx); zero header/backend/i18n/route changes
+- Ready to commit as MKT-FOOTER-3

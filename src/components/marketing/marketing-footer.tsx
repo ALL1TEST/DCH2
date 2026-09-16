@@ -1,16 +1,31 @@
 'use client';
 
 // ============================================================
-// MARKETING FOOTER — large enterprise SaaS footer
+// MARKETING FOOTER — enterprise SaaS footer (full rebuild)
 // ============================================================
-// Structured dark footer following the mature global SaaS
-// pattern: a wide navigation band (brand column + four link
-// columns with large light headings and small dimmed links),
-// and a legal bottom bar. On phones the navigation collapses
-// into stacked, tappable accordion groups; tablets reduce to
-// a two-column grid; desktop spreads five columns. Always
-// dark (theme-independent tokens) so the public site ends on
-// the same premium surface in every appearance.
+// Structured after the mature global-SaaS footer pattern:
+// a large always-dark band with a centered max-width
+// container, a strong brand block on the left, a wide
+// two-column product group plus three single navigation
+// columns on the right, a thin divider, and a compact legal
+// bar.
+//
+//   ┌──────────────────────────────────────────────────────┐
+//   │ [ brand block ]   [ Product — wide, 2-col link list ]│
+//   │  logo · name      [ Resources ] [ Company ] [ Sol. ] │
+//   │  description                                        │
+//   │  Get started →                                      │
+//   ├──────────────────────────────────────────────────────┤
+//   │ © 2026 Karmax …        Privacy · Terms · Cookies     │
+//   └──────────────────────────────────────────────────────┘
+//
+// Breakpoints:
+//   <md   stacked — brand block, then collapsible accordion
+//         groups (chevron rows), then divider + legal bar
+//   md    brand block on top, nav groups in a 2×2 grid
+//   lg    brand column on the left, nav groups in one row
+//   xl    brand column + Product widened into a two-column
+//         link group + three single columns
 //
 // CONTENT HONESTY (product rule):
 // • Every ACTIVE link points at a page/section that actually
@@ -18,13 +33,14 @@
 // • Items whose destination does not exist yet are rendered
 //   VISUALLY INACTIVE (muted, non-clickable, aria-disabled) —
 //   never as fake routes.
+// • Legal row shows only real destinations: Privacy Policy,
+//   Terms of Service and the cookie-preferences control.
 // • No social icons: Karmax has no configured social profiles,
 //   so the social row is hidden rather than faked.
-// • No language selector on the public site (removed with the
-//   header controls; i18n infrastructure stays intact).
+// • No language selector on the public site (i18n stays).
 // ============================================================
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 import { Logo, MarketingButton } from './primitives';
@@ -41,12 +57,15 @@ type FooterLink =
 
 interface FooterColumn {
   titleKey: string;
+  /** Wide groups render as a two-column link list at xl. */
+  wide?: boolean;
   links: FooterLink[];
 }
 
 const COLUMNS: FooterColumn[] = [
   {
     titleKey: 'mkt.footer.product',
+    wide: true,
     links: [
       { labelKey: 'mkt.footer.featureAi', href: `${MKT.features}#f-ai` },
       { labelKey: 'mkt.footer.featureSeo', href: `${MKT.features}#f-seo` },
@@ -95,9 +114,11 @@ const COLUMNS: FooterColumn[] = [
 
 // ---- Shared class fragments ----
 const LINK_CLASS =
-  'mkt-footer-focus rounded text-xs leading-6 text-mkt-footer-text transition-colors hover:text-mkt-footer-text-active';
+  'mkt-footer-focus rounded text-xs leading-5 text-mkt-footer-text transition-colors hover:text-mkt-footer-text-active';
 const INACTIVE_CLASS =
-  'cursor-default select-none text-xs leading-6 text-mkt-footer-muted';
+  'cursor-default select-none text-xs leading-5 text-mkt-footer-muted';
+// Section headings: clearly larger, medium weight, high
+// contrast off-white — the anchor points of each column.
 const HEADING_CLASS =
   'text-[1.375rem] font-medium leading-snug text-mkt-footer-heading';
 
@@ -122,7 +143,7 @@ function FooterLinkList({ links }: { links: FooterLink[] }) {
   );
 }
 
-// ---- Brand column (logo, description, primary CTA) ----
+// ---- Brand block (logo, name, description, primary CTA) ----
 function BrandBlock() {
   const { t } = useT();
   return (
@@ -132,29 +153,30 @@ function BrandBlock() {
         aria-label={t('mkt.brand.name')}
         className="mkt-footer-focus inline-flex items-center gap-2.5"
       >
-        <Logo variant="K" tone="accent" className="h-8 w-8" />
-        <span className="text-lg font-bold tracking-tight text-mkt-footer-heading">
+        <Logo variant="K" tone="accent" className="h-9 w-9" />
+        <span className="text-xl font-bold tracking-tight text-mkt-footer-heading">
           {t('mkt.brand.name')}
         </span>
       </a>
       <p className="max-w-xs text-sm leading-relaxed text-mkt-footer-text">
         {t('mkt.footer.description')}
       </p>
-      <MarketingButton href={MKT.signup} className="mt-1">
+      <MarketingButton href={MKT.signup} size="lg" withArrow className="mt-2">
         {t('mkt.nav.getStarted')}
       </MarketingButton>
 
       {/* Social links: intentionally omitted — Karmax has no
           configured social profiles, and placeholder links
-          would be dishonest. When real profiles exist, add an
-          icon row here. */}
+          would be dishonest. When real profiles exist, add a
+          centered icon row between the nav band and the legal
+          bar (above the main divider). */}
     </>
   );
 }
 
 // ---- Phone-only collapsible group ----
 // The stacked accordion groups expand again as static columns
-// from the sm breakpoint up; the animated height comes from the
+// from the md breakpoint up; the animated height comes from the
 // grid-template-rows 0fr→1fr technique (no JS measurement).
 function AccordionGroup({ col }: { col: FooterColumn }) {
   const { t } = useT();
@@ -199,46 +221,70 @@ export function MarketingFooter() {
 
   return (
     <footer className="bg-mkt-footer-bg">
-      {/* ---- Navigation area ---- */}
       <div className="mkt-container">
-        {/* Phones: brand block + stacked accordion groups */}
-        <div className="py-12 sm:hidden">
-          <div className="flex flex-col items-start gap-5">
+        {/* ---- Phones: brand block + stacked accordion groups ---- */}
+        <div className="py-12 md:hidden">
+          <div className="flex flex-col items-start gap-6">
             <BrandBlock />
           </div>
-          <div className="mt-10">
+          <div className="mt-10 border-b border-mkt-footer-border">
             {COLUMNS.map((col) => (
               <AccordionGroup key={col.titleKey} col={col} />
             ))}
           </div>
         </div>
 
-        {/* sm+ (tablet/desktop): multi-column grid — brand column
-            spans both tablet columns, desktop gives it its own
-            column next to the four link columns */}
-        <div className="hidden gap-x-10 gap-y-12 py-16 sm:grid sm:grid-cols-2 lg:grid-cols-[minmax(0,1.35fr)_repeat(4,minmax(0,1fr))] lg:py-20">
-          <div className="flex flex-col items-start gap-5 sm:col-span-2 lg:col-span-1">
-            <BrandBlock />
-          </div>
+        {/* ---- md+: brand block + multi-column navigation ---- */}
+        <div className="hidden py-16 md:block lg:py-20 xl:py-24">
+          <div className="flex flex-col gap-12 lg:flex-row lg:gap-14 xl:gap-16">
+            {/* Brand column — logo, description, primary CTA */}
+            <div className="flex flex-col items-start gap-6 self-start lg:w-[240px] lg:shrink-0 xl:w-[290px]">
+              <BrandBlock />
+            </div>
 
-          {COLUMNS.map((col) => (
-            <nav key={col.titleKey} aria-label={t(col.titleKey)} className="flex flex-col gap-4">
-              <h3 className={HEADING_CLASS}>{t(col.titleKey)}</h3>
-              <FooterLinkList links={col.links} />
-            </nav>
-          ))}
+            {/* Navigation columns.
+                md: 2×2 grid · lg: one row of 4 · xl: Product
+                widens into a two-column group (5 link columns) */}
+            <div className="grid flex-1 grid-cols-2 gap-x-8 gap-y-12 lg:grid-cols-4 xl:grid-cols-5">
+              {COLUMNS.map((col) => {
+                const half = Math.ceil(col.links.length / 2);
+                return (
+                  <nav
+                    key={col.titleKey}
+                    aria-label={t(col.titleKey)}
+                    className={`flex flex-col gap-5${col.wide ? ' xl:col-span-2' : ''}`}
+                  >
+                    <h3 className={HEADING_CLASS}>{t(col.titleKey)}</h3>
+                    {col.wide ? (
+                      <div className="grid md:grid-cols-2 md:gap-x-8 lg:grid-cols-1 xl:grid-cols-2 xl:gap-x-10">
+                        <FooterLinkList links={col.links.slice(0, half)} />
+                        <FooterLinkList links={col.links.slice(half)} />
+                      </div>
+                    ) : (
+                      <FooterLinkList links={col.links} />
+                    )}
+                  </nav>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
 
+      {/* Social-media row: hidden — Karmax has no configured
+          social profiles. Kept as a documented slot so a real
+          centered icon row can be added without re-structuring
+          (it belongs directly above this divider). */}
+
       {/* ---- Legal / bottom bar ---- */}
       <div className="border-t border-mkt-footer-border bg-mkt-footer-bg-deep">
-        <div className="mkt-container flex flex-col gap-4 py-7 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mkt-container flex flex-col gap-4 py-8 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-mkt-footer-muted">
             © {year} {t('mkt.brand.name')}. {t('mkt.footer.rights')}
           </p>
           <nav
             aria-label={t('mkt.footer.legal')}
-            className="flex flex-wrap items-center gap-x-6 gap-y-2"
+            className="flex flex-wrap items-center gap-x-7 gap-y-2"
           >
             <a href={MKT.privacy} className={LINK_CLASS}>
               {t('mkt.footer.privacy')}
@@ -246,7 +292,11 @@ export function MarketingFooter() {
             <a href={MKT.terms} className={LINK_CLASS}>
               {t('mkt.footer.terms')}
             </a>
-            <button type="button" onClick={openCookiePreferences} className={`${LINK_CLASS} text-left`}>
+            <button
+              type="button"
+              onClick={openCookiePreferences}
+              className={`${LINK_CLASS} text-left`}
+            >
               {t('mkt.footer.cookiePrefs')}
             </button>
           </nav>

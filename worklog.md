@@ -11661,3 +11661,43 @@ Stage Summary:
 - Global brand palette migrated emerald→HubSpot orange/charcoal/peach (tokens only — all components inherit)
 - Footer rebuilt to the exact HubSpot 3-band architecture with honest Karmax content; 3 new real legal pages + routes; i18n en/fr complete
 - 8 files modified; dev cache issue diagnosed and fixed
+
+---
+Task ID: PUSH-1
+Agent: main (orchestrator)
+Task: Push i18n implementation updates to GitHub repository ALL1TEST/NEWWDCH
+[Section restored from /tmp/worklog-pre-sync-backup.md during REPO-SYNC-1 — it was the only worklog section that existed locally but not in the repository's worklog]
+
+Work Log:
+- Confirmed working tree clean; branch main 2 commits ahead of origin/main (ebf021b, 8594f3d — full i18n implementation)
+- Pushed to https://github.com/ALL1TEST/NEWWDCH.git using user-provided PAT: 3d74bd6..8594f3d main -> main (push accepted)
+- Verification 1: git fetch of remote main -> FETCH_HEAD == local HEAD (8594f3d932124c9d528b5dca1b65f153b22952a0); git diff --stat HEAD FETCH_HEAD empty (exit 0)
+- Verification 2: GitHub API /repos/ALL1TEST/NEWWDCH/commits/main returns sha 8594f3d932124c9d528b5dca1b65f153b22952a0 — matches local HEAD
+
+Stage Summary:
+- Remote repository now contains the latest source code (complete 9-locale i18n system: en, fr, de, es, it, pt-BR, pt-PT, nl, ru) and latest commit 8594f3d
+- Push verified via both git fetch comparison and GitHub REST API
+
+---
+Task ID: REPO-SYNC-1
+Agent: main (orchestrator)
+Task: Synchronize the running localhost application with the latest GitHub state of https://github.com/ALL1TEST/NEWWDCH.git — local had diverged (1 ahead / 14 behind origin/main) and localhost was serving the stale diverged tree
+
+Work Log:
+- Discovery: /home/z/my-project IS the directory serving :3000 (`bun run dev` → `next dev -p 3000 | tee dev.log`); its git remote was already ALL1TEST/NEWWDCH.git, but local main (faa497f — a UUID-named commit touching only .zscripts i18n-progress files with zero content changes) had diverged from origin/main 3e7825b (14 remote commits: the Karmax marketing site with HubSpot palette #FF4800/#1F1F1F/#FDB699, 3-band footer, security/accessibility/legal pages)
+- Root cause of "localhost ≠ repo" and of the historical EADDRINUSE in dev.log: TWO dev-runner instances were running (mini-service whose only function is spawning + restart-looping its own `npx next dev -p 3000`), plus duplicate backup-scheduler instances
+- Safety backups before any destructive step: full pre-sync worklog → /tmp/worklog-pre-sync-backup.md; git branch backup/pre-newwdch-sync → faa497f (the only local-only commit; contains no unique code)
+- Stopped ALL app processes — dev-runner FIRST (so it could not re-grab :3000 the moment the main server died), then all duplicate backup-schedulers, then the main dev chain (bun→bash/tee→node next dev→next-server→postcss); verified :3000/:3010 free and zero next/bun stragglers
+- `git fetch origin` + `git reset --hard origin/main` → HEAD = 3e7825b; `git status` fully CLEAN — working tree now matches the repository exactly, no untracked leftovers (previous status had only ` M .zscripts/dev.pid`, also restored by the reset)
+- Preserved sandbox infra (all gitignored, untouched by reset): .env, db/custom.db, node_modules, dev.log. Prisma schema unchanged on both sides since merge-base → NO db:push needed (live Session/Setting/PlanConfig queries verified against the existing DB)
+- rm -rf .next (stale Turbopack cache from the old tree) → `bun install` (1067 installs checked, no changes — package.json identical between both trees) → `bun run db:generate` (Prisma Client v6.19.2 regenerated)
+- Started via double-fork `( cmd & )` (the only pattern that survives tool-call reaping in this sandbox): main dev server with the repo's own script (`next dev -p 3000 | tee dev.log`, Ready in 1.1s) + exactly ONE backup-scheduler (`bun --hot index.ts`, :3010, health-only). dev-runner deliberately NOT started — its sole purpose is a competing :3000 server (documented EADDRINUSE cause)
+- HTTP verification: GET / → 200 (41,782 bytes) with clean Prisma queries
+- Browser E2E (agent-browser): title "Karmax — Craft content that ranks."; header nav Features/Pricing/Solutions/Blog/About + Log in/Get started; hero "Run every site you publish from one calm dashboard."; stats + features sections; FOOTER = the repo's 3-band architecture (4 nav groups, 7 social links — Facebook/Instagram/YouTube/X/LinkedIn/Reddit/TikTok, "Copyright © 2026 Karmax, Inc.", pipe-separated legal row "Legal Center | Privacy Policy | Security | Website Accessibility"); computed tokens --mkt-accent #ff4800 / --mkt-footer-bg #1f1f1f; hash routes #/pricing → "Simple, transparent pricing. — Karmax", #/security → "Security at Karmax", #/legal → "Legal Center — Karmax" all render; ZERO page errors; VLM screenshot review: "vibrant orange" Karmax marketing site with cookie consent banner
+- dev.log clean across the whole verification session (no ⨯ / Failed / EADDRINUSE / TypeError)
+
+Stage Summary:
+- /home/z/my-project now serves the repository EXACTLY: main == origin/main == 3e7825b, git status clean apart from this worklog append
+- localhost:3000 = the repo's Karmax marketing site (HubSpot palette, 3-band footer, security/accessibility/legal pages); :3010 backup-scheduler healthy (single instance); Caddy :81 → :3000 gateway untouched
+- No old or duplicate dev servers remain; dev-runner intentionally left stopped (port-conflict watchdog)
+- Rollback path (no unique code, for the record): `git checkout backup/pre-newwdch-sync` → faa497f

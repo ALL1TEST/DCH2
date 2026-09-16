@@ -104,6 +104,8 @@ export function LogoWordmark({
 // hover, soft shadow + arrow slides. Secondary: transparent
 // w/ border, same height/radius. Ghost: quiet text link.
 // Both rendered <a> (marketing navigation is link-shaped).
+// `onDark` re-skins the secondary/ghost variants for the always-
+// dark footer surface (footer tokens instead of light-theme ones).
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost';
 
@@ -112,21 +114,32 @@ interface MarketingButtonProps extends React.AnchorHTMLAttributes<HTMLAnchorElem
   size?: 'md' | 'lg';
   withArrow?: boolean;
   external?: boolean;
+  onDark?: boolean;
 }
 
-const variantClasses: Record<ButtonVariant, string> = {
-  primary:
-    'bg-mkt-accent text-mkt-accent-fg hover:bg-mkt-accent-strong shadow-[0_1px_2px_rgb(0_0_0/0.06)] hover:shadow-[0_4px_16px_-4px_rgb(0_0_0/0.25)]',
-  secondary:
-    'bg-transparent text-text-primary border border-border hover:border-muted-foreground/50 hover:bg-muted/40',
-  ghost: 'bg-transparent text-text-secondary hover:text-text-primary',
-};
+function variantClasses(variant: ButtonVariant, onDark: boolean): string {
+  if (onDark && variant === 'secondary') {
+    return 'bg-transparent text-mkt-footer-heading border border-mkt-footer-border-strong hover:border-slate-300/60 hover:bg-white/10';
+  }
+  if (onDark && variant === 'ghost') {
+    return 'bg-transparent text-mkt-footer-text hover:text-mkt-footer-heading';
+  }
+  switch (variant) {
+    case 'primary':
+      return 'bg-mkt-accent text-mkt-accent-fg hover:bg-mkt-accent-strong shadow-[0_1px_2px_rgb(0_0_0/0.06)] hover:shadow-[0_4px_16px_-4px_rgb(0_0_0/0.25)]';
+    case 'secondary':
+      return 'bg-transparent text-text-primary border border-border hover:border-muted-foreground/50 hover:bg-muted/40';
+    default:
+      return 'bg-transparent text-text-secondary hover:text-text-primary';
+  }
+}
 
 export function MarketingButton({
   variant = 'primary',
   size = 'md',
   withArrow = false,
   external = false,
+  onDark = false,
   className = '',
   children,
   ...props
@@ -135,7 +148,7 @@ export function MarketingButton({
     <a
       className={`group/mkt-cta mkt-focus inline-flex items-center justify-center gap-1.5 rounded-full font-medium transition-all duration-200 ${
         size === 'lg' ? 'h-12 px-6 text-[0.9375rem]' : 'h-10 px-5 text-sm'
-      } ${variantClasses[variant]} ${className}`}
+      } ${variantClasses(variant, onDark)} ${className}`}
       {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
       {...props}
     >

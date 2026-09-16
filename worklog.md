@@ -11598,3 +11598,40 @@ Stage Summary:
 - Footer rebuilt to the reference's enterprise pattern: strong left brand block, wide two-column product group + three single columns, large light headings vs small dim links, generous band padding with compact link rows, thin divider, deeper legal bar — all in Karmax emerald/dark tokens with real routes and honest inactive items only
 - 1 file modified (marketing-footer.tsx); zero header/backend/i18n/route changes
 - Ready to commit as MKT-FOOTER-3
+
+---
+Task ID: MKT-FOOTER-4
+Agent: main (orchestrator)
+Task: Full rebuild of the Karmax marketing footer per the detailed spec: HubSpot-clone ARCHITECTURE (CTA banner + 5-column nav grid + full bottom bar) customized to the Karmax brand — deep slate-navy background (#0A192F family), emerald accents, CTA banner copy, social icons, and a footer language selector. HubSpot as visual/architectural reference only; Karmax content, real routes only.
+
+Work Log:
+- Inspected first: i18n system (SUPPORTED_LOCALES registry, useLocaleStore/setLocale, getLocaleNativeName; de has ZERO mkt.* keys → German would render English on marketing), lucide brand icons (Linkedin/Github/Youtube present; X needs custom fill SVG), old LanguageDropdown pattern recovered from git (1753928^), footer key usage map (mkt.footer.legal/privacy/terms used outside footer — kept)
+- globals.css: footer token family updated to the spec's slate navy — bg #0a192f, bg-deep #071325, NEW bg-raised #0f2440 (dropdown panel), border/border-strong slate-tinted (148 163 184 at 12%/35%), heading #f1f5f9, text #94a3b8, muted #64748b; emerald accent tokens unchanged; new tokens registered in @theme
+- primitives.tsx: MarketingButton gains onDark?: boolean — secondary/ghost variants re-skin with footer tokens for the always-dark surface (primary unchanged); variantClasses const → function
+- marketing-footer.tsx REBUILT to the 3-band architecture:
+  • CTA BANNER: "Ready to simplify your site management?" + "Join thousands of creators…" + emerald "Get started free →" (lg, withArrow → #/signup) + outlined "Schedule Demo" (onDark secondary → #/signup; no demo page exists yet, documented in code for easy re-pointing)
+  • 5-COLUMN GRID: Popular Features (AI-Assisted Writing/SEO Suite/Media Management active deep links; Newsletter Automation inactive; WordPress Integration/REST CMS → #f-platform) · Free Tools (all 4 inactive — no pages) · Company (About Karmax active; Careers/Management Team/Investor Relations/Contact Us inactive) · Customers (Agencies → solutions?for=agencies active; rest inactive) · Partners (all 3 inactive)
+  • BOTTOM BAR: left = K-mark logo + "© 2026 Karmax, Inc. All Rights Reserved."; center = Privacy Policy / Terms of Service / Cookie Settings (Security omitted — no page); right = 4 social icons (X custom SVG + lucide Linkedin/Github/Youtube, target=_blank, hrefs in SOCIAL_PROFILES config: x.com/karmax, linkedin.com/company/karmax, github.com/karmax, youtube.com/@karmax) + divider + language selector
+  • LANGUAGE SELECTOR: footer-scoped dropdown opening UPWARD (listbox semantics, outside-click + Escape close, Globe + native name + chevron trigger, Check on active, raised-navy panel); offers ONLY en + fr (MARKETING_LOCALES filter — the only locales with complete marketing translations; German/other 38 dashboard locales fall back to English here, so not offered — documented in code)
+  • Responsive: <md stacked (CTA centered + 5 accordion groups + centered bottom bar), md 3-col grid, lg 5-col grid + single-row bottom bar
+- i18n en+fr: +26 new keys (cta*, popularFeatures, aiWriting, mediaManagement, newsletterAutomation, wordpressIntegration, free-tool names, aboutKarmax, managementTeam, investorRelations, contactUs, customers, customerStories, community, userGroups, agencies, partners, partnerProgram, findAPartner, marketplace, changeLanguage, social*); updated restCms ('REST CMS'/'CMS REST'), cookiePrefs ('Cookie Settings'/'Paramètres des cookies'), rights ('All Rights Reserved.'); removed 24 dead keys (description, product, pricing, solutions, integrations, wordpress, featureAi/Seo/Automation/Media/Newsletter, analytics, sites, resources, blog, documentation, helpCenter, guides, api, about, contact, changelog, status, forTeams) — parity verified 413 = 413, zero mismatches
+
+Verification (agent-browser E2E + VLM):
+- Desktop 1440: bg rgb(10,25,47); CTA title + 48px buttons (emerald primary, transparent outlined secondary); 5 nav columns; social hrefs configured; lang button "English"; copyright "© 2026 Karmax, Inc. All Rights Reserved."; no overflow; VLM vs HubSpot reference: 9/10 "top-tier implementation… captures the HubSpot density without feeling cluttered" (CTA banner + hierarchy + spacing matched; notes: equal vs split columns is a valid choice; left logo per spec)
+- Language selector: opens upward, English/Français options with Check on active; switching to FR translates the whole footer (Prêt à simplifier…, Fonctionnalités populaires/Outils gratuits/Entreprise/Clients/Partenaires, © 2026 Karmax, Inc. Tous droits réservés.), lang button → "Français", html lang="fr"; restored to EN
+- Tablet 768: 3-col grid (213px cols), no overflow, footerH 1101
+- Mobile 390: CTA + 5 collapsed accordions (aria-expanded=false) + stacked centered bottom bar (logo+copyright, legal, 4 socials, English selector), docW 390 zero overflow; VLM: 10/10 "perfectly optimized for mobile… clean, centered hierarchy"
+- Interactions: accordion expand → "AI-Assisted Writing" → #features#f-ai lands section in viewport ✓; CTA "Get started free" → #/signup ✓; "Cookie Settings" opens the preferences banner (role=region, expanded view) ✓; sticky footer on short 404 page: gap=0 ✓
+- Console: clean (only leftover HubSpot GTM noise from this session's reference inspection); eslint: 0 problems on all touched files; i18n parity 413=413
+
+Honest-content decisions (all documented in code):
+- Language selector: en+fr only (German has no marketing translations — offering it would silently render English)
+- Security legal link omitted (no page); Cookie Settings = the real preferences control
+- Free Tools / Partners / most Company+Customers items render visually INACTIVE (muted, aria-disabled) — real product areas without pages yet, never fake routes
+- Social icons: configurable SOCIAL_PROFILES constant with conventional Karmax handles — update when real profiles differ
+- "Schedule Demo" → #/signup (no demo/contact page yet; self-serve free plan is the honest destination; one-line re-point when a demo page lands)
+
+Stage Summary:
+- Footer rebuilt to the full reference architecture (CTA banner + 5-column grid + logo/legal/social/language bottom bar) on the new slate-navy token family with emerald accents — every band responsive (accordions on phones, 3-col tablet, 5-col desktop)
+- 4 files changed: marketing-footer.tsx (rebuild), primitives.tsx (onDark), globals.css (tokens), i18n en+fr (26 added, 3 updated, 24 removed)
+- Ready to commit as MKT-FOOTER-4

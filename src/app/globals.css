@@ -351,18 +351,20 @@
 }
 
 /* ---- Enterprise footer palette (theme-INDEPENDENT) ----
-   The public footer is always dark — the same premium near-black
-   surface in every appearance — so these values are declared once
-   (outside :root/.dark) with a faint emerald cast that ties the
-   surface to the Karmax brand accent. */
+   The public footer is always dark — the same premium deep
+   slate-navy surface in every appearance — so these values are
+   declared once (outside :root/.dark). The emerald accent ties
+   the surface to the Karmax brand. */
 :root {
-  --mkt-footer-bg: oklch(0.185 0.012 170);            /* near-black, emerald cast */
-  --mkt-footer-bg-deep: oklch(0.155 0.01 170);        /* legal bottom bar */
-  --mkt-footer-border: oklch(1 0 0 / 9%);             /* subtle dividers */
-  --mkt-footer-heading: oklch(0.975 0.002 170);       /* column titles */
-  --mkt-footer-text: oklch(0.73 0.008 170);           /* links */
-  --mkt-footer-text-active: oklch(0.99 0 0);          /* hover */
-  --mkt-footer-muted: oklch(0.545 0.008 170);         /* inactive items, copyright */
+  --mkt-footer-bg: #0a192f;                           /* deep slate navy band */
+  --mkt-footer-bg-deep: #071325;                      /* bottom bar */
+  --mkt-footer-bg-raised: #0f2440;                    /* dropdown panel */
+  --mkt-footer-border: rgb(148 163 184 / 12%);        /* subtle slate dividers */
+  --mkt-footer-border-strong: rgb(148 163 184 / 35%); /* hover outlines */
+  --mkt-footer-heading: #f1f5f9;                      /* column titles */
+  --mkt-footer-text: #94a3b8;                         /* links */
+  --mkt-footer-text-active: #f8fafc;                  /* hover */
+  --mkt-footer-muted: #64748b;                        /* inactive items, copyright */
   --mkt-footer-accent: oklch(0.765 0.177 163.223);    /* emerald brand accent */
   --mkt-footer-accent-soft: oklch(0.765 0.177 163.223 / 14%);
 }
@@ -380,7 +382,9 @@
   --color-mkt-code-fg: var(--mkt-code-fg);
   --color-mkt-footer-bg: var(--mkt-footer-bg);
   --color-mkt-footer-bg-deep: var(--mkt-footer-bg-deep);
+  --color-mkt-footer-bg-raised: var(--mkt-footer-bg-raised);
   --color-mkt-footer-border: var(--mkt-footer-border);
+  --color-mkt-footer-border-strong: var(--mkt-footer-border-strong);
   --color-mkt-footer-heading: var(--mkt-footer-heading);
   --color-mkt-footer-text: var(--mkt-footer-text);
   --color-mkt-footer-text-active: var(--mkt-footer-text-active);
